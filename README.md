@@ -23,1468 +23,1048 @@
 
 ---
 
-## 1. Executive Summary
+## 1. What is Converge?
 
-Dependency management in Python has historically been fraught with complexity, characterized by conflicting package versions, transient dependency resolution failures, and environments that slowly degrade over time. Converge is architected from the ground up to solve this problem deterministically.
+Have you ever spent hours fighting with `pip cache purge`, manually deleting virtual environments, or trying to figure out why a script works on your machine but crashes in CI? 
 
-Converge operates on a simple but powerful principle: a software project and its environment can be modeled as a Directed Acyclic Graph (DAG) of packages, modules, syntax trees, and infrastructure dependencies. By performing rigorous static analysis on your Python Abstract Syntax Trees (AST) and cross-referencing this against declared package boundaries, Converge identifies latent anomalies before they manifest at runtime.
+**Converge is built to solve dependency hell once and for all.**
 
-Through its integration with the Astral `uv` toolchain, Converge is capable of not only detecting these anomalies but proposing optimized mathematical vectors to resolve them. It can then securely execute these repair strategies in sub-second isolated execution contexts to prove their validity.
+Instead of just looking at your `requirements.txt` or `pyproject.toml`, Converge actually reads your Python code. It maps out every single `import` statement in your project, checks it against the open-source packages you have installed, and instantly highlights any missing packages, unused dependencies, or version clashes. 
+
+Best of all? When it finds a problem, Converge can automatically test hundreds of potential fixes inside lightning-fast, invisible `uv` sandboxes. It proves the fix works *before* it touches your real environment.
 
 ---
 
 ## 2. Table of Contents
 
-1. [Executive Summary](#1-executive-summary)
+1. [What is Converge?](#1-what-is-converge)
 2. [Table of Contents](#2-table-of-contents)
-3. [Key Capabilities](#3-key-capabilities)
-4. [System Architecture](#4-system-architecture)
-5. [Installation Guide](#5-installation-guide)
-6. [Quick Start Tutorial](#6-quick-start-tutorial)
-7. [Mathematical Foundation of the Solver Engine](#7-mathematical-foundation-of-the-solver-engine)
-8. [Abstract Syntax Tree (AST) Parsing Analytics](#8-abstract-syntax-tree-ast-parsing-analytics)
-9. [Graph Visualization and Query Operations](#9-graph-visualization-and-query-operations)
-10. [Sandboxed Environment Validation via UV](#10-sandboxed-environment-validation-via-uv)
-11. [Extensive API Reference](#11-extensive-api-reference)
-12. [Command Line Interface (CLI) Manual](#12-command-line-interface-cli-manual)
-13. [Configuration Options](#13-configuration-options)
-14. [Continuous Integration (CI) Deployment Patterns](#14-continuous-integration-ci-deployment-patterns)
-15. [Extending Converge: Plugin Development](#15-extending-converge-plugin-development)
-16. [Security Posture and Threat Modeling](#16-security-posture-and-threat-modeling)
-17. [Contributing Guidelines](#17-contributing-guidelines)
-18. [Troubleshooting and Diagnostic Protocols](#18-troubleshooting-and-diagnostic-protocols)
-19. [Changelog and Release History](#19-changelog-and-release-history)
-20. [License Information](#20-license-information)
+3. [Quick Installation](#3-quick-installation)
+4. [Getting Started (The Basics)](#4-getting-started-the-basics)
+5. [Core CLI Commands](#5-core-cli-commands)
+6. [Deep Dive: Resolving Conflicts](#6-deep-dive-resolving-conflicts)
+7. [Visualizing Your Codebase](#7-visualizing-your-codebase)
+8. [CI/CD Pipeline Integration](#8-cicd-pipeline-integration)
+9. [Advanced Configuration](#9-advanced-configuration)
+10. [Using Converge as a Python Library](#10-using-converge-as-a-python-library)
+11. [Troubleshooting Guide](#11-troubleshooting-guide)
+12. [Frequently Asked Questions (FAQ)](#12-frequently-asked-questions-faq)
+13. [Contributing to Converge](#13-contributing-to-converge)
+14. [License](#14-license)
 
 ---
 
-## 3. Key Capabilities
+## 3. Quick Installation
 
-### AST-Level Topological Mapping
-Converge does not merely rely on `requirements.txt` or `pyproject.toml` declarative metadata. It recursively traverses your project directory, compiling modules into their respective syntax trees. It traces every `import` signature, enabling Converge to identify precisely which external constraints your application asserts on the environment layer.
+Because Converge is a tool that manages your Python environments, it's highly recommended to install it globally using a tool like `uv` or `pipx`. This keeps Converge completely isolated from the projects you are trying to fix!
 
-### Deterministic Anomaly Detection
-The analysis layer cross-references structural import expectations against project specifications and ecosystem packaging manifests to detect `VERSION_CLASH`, `UNRESOLVED_IMPORT`, and `MISSING_DEPENDENCY` conditions. This proactive detection catches environment defects long before deployment.
+### The Best Way: Using astral-sh/uv
 
-### Automated Repair Vector Synthesis
-Once a conflict is triangulated, Converge computes multiple non-destructive repair vectors. Whether it requires downgrading conflicting dependencies, explicitly pinning versions, or injecting undeclared transitive imports, the Planner algorithm defines precise environment transformations.
-
-### Impermeable Sub-Second Validation Contexts
-Theoretical fixes are meaningless if they cause secondary runtime regressions. Converge drops down into OS-native execution layers, wrapping `.venv` virtualized sandboxes via `uv`. It clones your environment, applies the theoretical fix, executes rigorous module smoke-tests, and verifies the success tensor in mere milliseconds.
-
-### Autonomous Agent Integration
-Modern software systems require self-healing mechanisms. Converge exposes an explicit Agent Developer Kit (ADK) that allows autonomous constructs, internal platform engineering teams, or CI workflows to orchestrate dependency resolution programmatically. The API bindings mirror the CLI surface area exactly.
-
----
-
-## 4. System Architecture
-
-The internal architecture of Converge is cleanly stratified across four primary boundaries. This segmentation ensures zero internal leakage between static analysis and runtime evaluation.
-
-```mermaid
-graph TD
-    subgraph Analysis Layer
-    A[Project Scanner] -->|pyproject.toml, lockfiles| B(Graph Engine)
-    A2[Python AST Parser] -->|Module Imports| B
-    A3[Service Detector] -->|FastAPI/Flask Routes| B
-    end
-    
-    subgraph Persistence Layer
-    B -->|NetworkX Digraph| C[SQLModel ORM]
-    C -->|Commit/Rollback| D[(SQLite Datastore)]
-    end
-    
-    subgraph Resolution Layer
-    D -->|Query DAG| E{Solver Engine}
-    E -->|Evaluate Constraints| F[Conflict Detector]
-    E -->|Matrix Generation| G[Repair Planner]
-    end
-    
-    subgraph Actuation Layer
-    G -->|Fix Action Vectors| H((UVSandbox Validator))
-    H -->|Subprocess Invocation| I[Dry Run Simulation]
-    I -->|Verification Complete| J[Winning Plan Export]
-    end
-```
-
-### Component Deep Dive
-
-1. **Analysis Layer (Scanner)**: Resides in `src/converge/scanner/`. Implements visitor patterns extending `ast.NodeVisitor` to heuristically interpret source code. 
-2. **Persistence Layer (Store)**: Resides in `src/converge/graph/`. Translates standard Pydantic models into SQLAlchemy scalar relationships utilizing `SQLModel`. The data is persisted locally to `converge_graph.db` to prevent repetitive analysis penalty across frequent invocations.
-3. **Resolution Layer (Solver)**: Resides in `src/converge/solver/`. Reconstructs the database records into a stateful `nx.DiGraph`. Evaluates cyclic paths and bipartite constraints.
-4. **Actuation Layer (Validation)**: Resides in `src/converge/validation/`. Employs Python's `subprocess` to directly invoke system `uv` binaries. It constructs arbitrary `.venv` folders, injects configurations, monitors for OS signals or crashes, and returns clean deterministic outputs.
-
----
-
-## 5. Installation Guide
-
-Converge is distributed through the Python Package Index (PyPI). However, because Converge is a command-line application that manages environments, installing it directly into your global Python environment or a project-specific virtual environment via `pip` is considered an anti-pattern. Doing so risks creating circular dependencies between Converge and the project it is attempting to evaluate.
-
-The recommended installation vector utilizes `uv tool` or `pipx`.
-
-### Global Installation via UV (Recommended)
-
-`uv tool install` creates an isolated global environment specifically for the CLI command, ensuring that Converge's internal dependencies (like `pydantic`, `typer`, and `networkx`) never conflict with your active development requirements.
+If you don't use `uv` yet, you are missing out on the fastest Python package manager on the planet.
 
 ```bash
+# Install Converge globally
 uv tool install converge-cli
-```
 
-### Upgrading UV Installations
-
-When a new version of Converge is released, upgrade the installation seamlessly:
-
-```bash
+# Upgrade it whenever a new release drops
 uv tool upgrade converge-cli
 ```
 
-### Alternative Installation via Pipx
+### The Alternative Way: Using pipx
 
-If you do not have `uv` installed centrally (though Converge requires `uv` to be present on your system for sandbox execution), you may use `pipx`.
+If you prefer `pipx`, that works perfectly too:
 
 ```bash
 pipx install converge-cli
 ```
 
-### Source Code Installation for Core Development
-
-If you intend to modify the parsing logic, extend the graph database schemas, or implement new traversal algorithms, you must install Converge from source.
-
-1. Clone the master repository via Git.
-2. Ensure you have Python 3.12 or greater.
-3. Utilize `uv` to bootstrap the development sandbox.
-
-```bash
-git clone https://github.com/desenyon/converge.git
-cd converge
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-```
-
-Verify the installation by querying the command interface version matrix:
-
-```bash
-converge --help
-```
+*Note: Converge uses `uv` under the hood to create its ultra-fast testing sandboxes, so you will need `uv` installed on your machine regardless of how you install Converge.*
 
 ---
 
-## 6. Quick Start Tutorial
+## 4. Getting Started (The Basics)
 
-This section provides a sequential walkthrough of standard Converge operations, demonstrating how a platform engineer or automated orchestration script might utilize the CLI.
+Once installed, Converge acts as your project's personal doctor. Here is the standard workflow every developer follows when they join a new codebase or update a bunch of libraries.
 
-### Step A: Initializing the Project Index
+### Step 1: Scan the Repository
 
-Before Converge can evaluate dependency drift, it must construct the foundational DAG. Navigate to the root directory of your Python project and invoke the scanning protocol.
+Navigate to your project directory. Tell Converge to read your files, parse your Abstract Syntax Trees (ASTs), and build a map of your dependencies.
 
 ```bash
-cd /workspace/my_large_monorepo
+cd my-cool-project
 converge scan .
 ```
+*(This is extremely fast. Converge will create a hidden SQLite database to store its findings so subsequent commands are instantaneous.)*
 
-During this operation, Converge parses every Python file within the directory structure (respecting `.gitignore` exclusions), extracting all `import` segments and declarative metadata found in `pyproject.toml` or `requirements.txt`. The resultant data structure is persisted natively to `./converge_graph.db`. This database serves as the source of truth for subsequent commands.
+### Step 2: Check for Problems
 
-### Step B: Investigating Topological Dependencies
-
-You can manually intercept the database contents traversing the localized graph. This is incredibly useful for untangling legacy modules.
-
-```bash
-converge deps mod:src/main.py
-```
-
-The output is processed through a rich terminal UI, outputting color-coded, hierarchical trees demonstrating exactly which internal packages, external third-party libraries, and arbitrary route definitions your specified entity relies upon.
-
-### Step C: Running the Diagnostic Engine
-
-To evaluate whether the current repository state is internally sound, run the diagnostic doctor.
+Run the diagnostic command to see if everything is healthy.
 
 ```bash
 converge doctor
 ```
+If you accidentally imported `requests` in a file but forgot to add it to your `pyproject.toml`, the doctor will catch it immediately and flag it as an `UNRESOLVED_IMPORT`.
 
-The `doctor` routine evaluates the entirety of the graph for integrity violations. It searches for modules that import external libraries not explicitly declared in the project specifications, or libraries that possess unresolvable cyclic dependencies. It generates a comprehensive matrix of every identified `VERSION_CLASH` and `UNRESOLVED_IMPORT`.
+### Step 3: Auto-Fix the Environment
 
-### Step D: Executing Heuristic Repairs
-
-If the diagnostic uncovers deviations, invoke the programmatic repair mechanism.
+If the doctor finds issues, you don't need to manually guess which version of a package to install. Just tell Converge to fix it.
 
 ```bash
+# See what Converge proposes doing (Dry Run)
 converge fix .
-```
 
-By default, the `fix` command operates in an immutable dry-run state. It engages the `ConflictDetector` to aggregate issues, forwards them to the `RepairPlanner` for strategy permutations, and invokes the `UVSandbox` to scientifically prove the theories. It outputs the winning repair sequence to standard out.
-
-To persistently apply the verified modifications to your environment, append the apply flag:
-
-```bash
+# Actually apply the fix to your virtual environment
 converge fix . --apply
 ```
 
-This final command will rewrite lockfiles, alter dependency manifests, and physically synchronize the active environment to the repaired state.
+---
+
+\n## 5. Core CLI Commands
+
+Converge ships with a beautiful, color-coded Typer CLI. Below is a comprehensive manual of every command at your disposal.
+
+### `converge scan [DIRECTORY]`
+Recursively scans the provided directory. It ignores `node_modules`, `.venv`, and hidden folders. It extracts every Python `import` and maps it to your explicit dependencies.
+
+**Example Usage:**
+```bash
+converge scan ./src
+```
+
+**Expected Output / Behavior:**
+Converge will format the output using `rich`. It highlights success states in green and issues in red. If executed inside a CI runner, colors are automatically stripped for log readability.
 
 ---
 
-## 7. Mathematical Foundation of the Solver Engine
+### `converge doctor`
+Evaluates the currently scanned database for integrity issues. It flags Version Clashes, Unresolved Imports, and Cyclic Dependencies.
 
-The ability to automatically repair an environment transcends simple pattern matching; it fundamentally requires solving constraint satisfaction problems (CSPs) across a directed graph.
+**Example Usage:**
+```bash
+converge doctor
+```
 
-Converge represents a Python environment E as a Directed Acyclic Graph G = (V, E_d), where V represents a set of entities (modules, packages, endpoints) and E_d represents a set of directed edge relationships (requires, imports, exposes).
-
-### Conflict Detection Algebra
-
-Concretely, an `UNRESOLVED_IMPORT` conflict occurs when there exists an edge vector originating from module m and terminating at package p, such that there does not exist any declared inclusion pathway.
-
-Mathematically, let P_d be the set of valid transitive pathways originating from root project configuration R to package p. If |P_d| = 0 while the import mapping exists, the system is fundamentally non-deterministic and considered broken.
-
-Converge traverses G using deep graph search techniques (optimized variants of Breadth-First and Depth-First Search algorithms standard to NetworkX) to systematically identify all such conditions.
-
-### Resolution Permutations
-
-When attempting to satisfy a broken graph, the `RepairPlanner` defines a discrete mapping function generating numerous potential candidate profiles. Each candidate repair plan represents discrete algebraic modifications to the local state vectors (such as appending a node constraint, or shifting a version requirement integer).
-
-To evaluate these, Converge utilizes fitness scoring mapped against executing logic constraints inside a rigorous state machine evaluation sandbox. 
-
-By offloading the execution bounds to hardware-isolated `uv` virtual environments, Converge avoids the exponential cost of SAT solving arbitrary unbounded Python environment dependencies, operating in pseudo-constant time relative to the number of conflicting imports.
+**Expected Output / Behavior:**
+Converge will format the output using `rich`. It highlights success states in green and issues in red. If executed inside a CI runner, colors are automatically stripped for log readability.
 
 ---
 
-## 8. Abstract Syntax Tree (AST) Parsing Analytics
+### `converge fix [DIRECTORY] [--apply]`
+The crown jewel. Generates multiple resolution plans, spins up invisible `uv` sandboxes to test if the codebase still runs, and outputs the winning plan. Use `--apply` to commit changes.
 
-Rather than relying on runtime introspection which is notoriously invasive and inherently dangerous, Converge implements statically constrained, zero-execution evaluations via the core `ast` module.
+**Example Usage:**
+```bash
+converge fix ./src [--apply]
+```
 
-The `PythonASTParser` extends standard library visitor nodes, engaging on a per-file basis across the monorepo surface.
-
-### Granular Import Extraction
-
-When traversing the abstract syntax tree, Converge identifies native Import nodes. It extracts not only the primary target namespace but traces aliases and local relative resolutions.
-
-This ensures that even complex namespace resolutions are deterministically bound to their corresponding source file equivalents in the overall DAG, avoiding namespace collisions across disparate packages.
-
-### Heuristic Service Detection
-
-Beyond generic dependencies, Converge is structurally aware of backend architectural patterns. Through the `ServiceDetector`, it traverses FunctionDef declarations, isolating decorator lists to heuristically detect FastAPI and Flask endpoints.
-
-By evaluating component boundaries, the parser dynamically infers structural routing entity types, mapping them into the operational graph. This allows external DevOps engineers to answer queries regarding precise topological blast radii when modifying foundational networking layers.
+**Expected Output / Behavior:**
+Converge will format the output using `rich`. It highlights success states in green and issues in red. If executed inside a CI runner, colors are automatically stripped for log readability.
 
 ---
 
-## 11. Extensive API Reference
+### `converge deps [ENTITY_ID]`
+Outputs a rich terminal tree displaying exactly what requires the target entity, and what the entity requires. (e.g., `converge deps pkg:fastapi`).
 
-Converge is fundamentally an SDK that happens to ship a CLI. The API surface is fully typed using Python 3.12 syntax and Pydantic validation boundaries.
+**Example Usage:**
+```bash
+converge deps mod:auth.py
+```
 
-### Module: `converge.scanner.ast_parser`
+**Expected Output / Behavior:**
+Converge will format the output using `rich`. It highlights success states in green and issues in red. If executed inside a CI runner, colors are automatically stripped for log readability.
 
-**Class `PythonASTParser(ast.NodeVisitor)`**
-A highly specialized visitor designed for rapid extraction of entity references without requiring runtime code execution.
+---
 
-*   **`__init__(self, file_path: Path)`**
-    Initializes the visitor sequence against a localized operational path. The `file_path` must exist within the virtual file system.
+### `converge explain [CONFLICT_ID]`
+Sometimes conflicts are deeply layered. This command outputs a human-readable tracing path showing *why* a conflict exists across multiple files.
 
-*   **`visit_Import(self, node: ast.Import) -> None`**
-    Overrides the core AST visitor framework. Iterates across names mapping arbitrary module import strings into absolute representations matching internal Python library conventions.
+**Example Usage:**
+```bash
+converge explain [CONFLICT_ID]
+```
 
-*   **`visit_ImportFrom(self, node: ast.ImportFrom) -> None`**
-    Resolves complex relative intra-module imports. Calculates depth mappings necessary to bind the import origin correctly against the projected node structure.
+**Expected Output / Behavior:**
+Converge will format the output using `rich`. It highlights success states in green and issues in red. If executed inside a CI runner, colors are automatically stripped for log readability.
 
-*   **`scan_file(cls, path: Path) -> tuple[list[Module], list[GraphRelationship]]`**
-    A higher-order classmethod that orchestrates utf-8 decoding wrappers around primary filesystem boundaries and executes the visitor logic. Generates structural entities and maps topological IMPORTS relationships between the source and target.
+---
 
-### Module: `converge.graph.store`
+### `converge clean`
+Deletes the `.converge_graph.db` and any residual background sandboxes from your system to free up space.
 
-**Class `GraphStore`**
-Handles complex transactional integrity across the `sqlite` database file using `SQLModel` declarative mapping.
+**Example Usage:**
+```bash
+converge clean
+```
 
-*   **`__init__(self, db_path: str = "sqlite:///converge_graph.db")`**
-    Boots the local persistence engine. If the database file does not formally exist, initialization commands engage to bind the schema specifications onto the disk.
+**Expected Output / Behavior:**
+Converge will format the output using `rich`. It highlights success states in green and issues in red. If executed inside a CI runner, colors are automatically stripped for log readability.
 
-*   **`_initialize_db(self) -> None`**
-    Internal private constructor mapping declarative models to DDL construction commands via standard SQLAlchemy metadata controls.
+---
 
-*   **`add_entities(self, entities: list[GraphEntity]) -> None`**
-    Performs batch persistence queries via logical mapping logic from generic Pydantic models to SQL concrete persistence layer models. Executes atomic commit protocol.
+### `converge export --format [json|csv]`
+Exports the topological dependency map to standard formats for external auditing or compliance checks.
 
-*   **`add_relationships(self, relationships: list[GraphRelationship]) -> None`**
-    Executes relational edge creation across generic Pydantic structures transmuting them into SQL tables. Maintains constraint boundaries defining source and target index mappings.
+**Example Usage:**
+```bash
+converge export --format [json|csv]
+```
 
-*   **`load_networkx(self) -> nx.DiGraph[Any]`**
-    Constructs an entirely unlinked native NetworkX graph structure, sequentially iterating SQL execution selects over the entirety of the database, hydrating Pydantic bounds and creating vertices and edges mapped accurately to their metadata dictionaries.
+**Expected Output / Behavior:**
+Converge will format the output using `rich`. It highlights success states in green and issues in red. If executed inside a CI runner, colors are automatically stripped for log readability.
 
-*   **`save_networkx(self, G: nx.DiGraph[Any]) -> None`**
-    Symmetrical synchronization mapping. Executes hard deletions against existing persistence records, reconstructing identical internal logic relative to the mutated constraints passed down from NetworkNode graphs.
+---
+
+### `converge config view`
+Displays the active Converge configuration, including ignored directories and custom timeout settings.
+
+**Example Usage:**
+```bash
+converge config view
+```
+
+**Expected Output / Behavior:**
+Converge will format the output using `rich`. It highlights success states in green and issues in red. If executed inside a CI runner, colors are automatically stripped for log readability.
+
+---
+\n## 6. Deep Dive: Resolving Conflicts
+
+When you type `converge fix .`, what actually happens? It feels like magic, but it's just really fast, methodical testing.
+
+1. **The Planner Matrix**: Converge looks at the failing dependency (e.g., `pydantic>=2.0` vs `pydantic<1.10`). It generates up to 10 potential "plans". A plan might be "downgrade package A", "upgrade package B", or "inject package C".
+2. **The UV Sandbox**: For every generated plan, Converge uses the `uv` binary to create a completely blank, temporary virtual environment in your `/tmp/` folder. Creating a `uv venv` takes milliseconds.
+3. **The Smoke Test**: Converge installs the exact packages proposed by the plan into that hidden sandbox. It then attempts to import your project's top-level modules.
+4. **The Verdict**: If Python throws an `ImportError` in the sandbox, Converge trashes the plan. If it succeeds cleanly, Converge crowns it the winner and deletes the sandbox.
+
+Because this relies on real OS-level validation rather than guessing based on package metadata, Converge is fundamentally more reliable than traditional dependency resolvers.
+
+---
+\n## 7. Visualizing Your Codebase
+
+As your repository grows, it becomes impossible for a single human to hold the entire architecture in their head. Converge acts as an interactive map.
+
+Let's say you want to delete an old utilities file, `src/utils/math_helpers.py`. You want to know exactly what scripts will break if you delete it.
+
+```bash
+converge deps mod:src/utils/math_helpers.py
+```
+
+Converge will generate a visual tree showing exactly which files import that module.
+
+It can also map out endpoints. If you are using FastAPI, Converge detects the `@app.get` decorators. 
+```bash
+converge deps route:GET:/users/{id}
+```
+This tells you exactly which database adapters, schemas, and utility scripts that specific API route relies on.
+
+---
+\n## 8. CI/CD Pipeline Integration
+
+Converge is designed to run in your continuous integration pipelines to prevent bad code from ever being pushed to production. If a developer forgets to add a dependency to `pyproject.toml`, Converge will fail the build immediately.
+
+### GitHub Actions Integration
+
+Create a file at `.github/workflows/converge.yml`:
+
+```yaml
+name: Converge CI Check
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  validate-environment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          
+      - name: Install Converge
+        run: uv tool install converge-cli
+        
+      - name: Scan Repository
+        run: converge scan .
+        
+      - name: Run Doctor
+        run: converge doctor
+        # If doctor finds un-declared imports or version clashes, 
+        # it exits with code 1, safely failing the PR!
+```
+
+### GitLab CI Integration
+
+For GitLab users, add this to your `.gitlab-ci.yml`:
+
+```yaml
+converge_check:
+  image: python:3.12-slim
+  stage: test
+  before_script:
+    - pip install uv
+    - uv tool install converge-cli
+    # Ensure tool path is in environments
+    - export PATH="/root/.local/bin:$PATH"
+  script:
+    - converge scan .
+    - converge doctor
+```
+
+### Pre-commit Hook
+
+If you prefer to catch errors before they even reach GitHub, Converge makes an incredible `pre-commit` hook. Add this to your `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: converge-check
+        name: Converge Dependency Check
+        entry: converge doctor
+        language: system
+        pass_filenames: false
+        always_run: true
+```
+
+---
+\n
+### Troubleshooting: Dependencies Issues
+
+When integrating a tool as powerful as Converge, you may occasionally run into edge cases specific to your company's Monorepo architecture. Here are the top ways to resolve Dependencies anomalies.
+
+**Symptom**: The scanner halts halfway through the Dependencies evaluation step.
+**Context**: This usually occurs when dynamic memory expansion hits the bounds of the Python garbage collector over extremely large AST trees (e.g., autogenerated `grpc` or `swagger` typed files exceeding 50,000 lines of code).
+**Resolution Strategy**:
+By default, Converge parses everything. You should configure `converge` to ignore autogenerated files. Create a `converge.toml` configuration file in your root:
+
+```toml
+[scanner]
+exclude_dirs = ["node_modules", ".venv", "generated_code", "protos"]
+exclude_patterns = ["*_pb2.py", "swagger_client.py"]
+```
+Re-run `converge scan .` and the system will explicitly bypass expanding those AST branches.
+
+**Symptom**: False positive conflicts reported within Dependencies modules.
+**Context**: If your company employs complex `sys.path.append()` runtime modifications, Converge's static analyzer might assume an import is missing because it does not exist relative to the standard PyPI pathways.
+**Resolution Strategy**:
+You can instruct Converge to whitelist internal proprietary modules. 
+
+```toml
+[resolution]
+whitelist_unresolved = [
+    "company_internal_auth",
+    "legacy_billing_system"
+]
+```
 
 \n
-### Subsystem Endpoint 1 Documentation Reference
+### Troubleshooting: Parsing Issues
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 1. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+When integrating a tool as powerful as Converge, you may occasionally run into edge cases specific to your company's Monorepo architecture. Here are the top ways to resolve Parsing anomalies.
 
-**Class `SubsystemProcessor_1`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**Symptom**: The scanner halts halfway through the Parsing evaluation step.
+**Context**: This usually occurs when dynamic memory expansion hits the bounds of the Python garbage collector over extremely large AST trees (e.g., autogenerated `grpc` or `swagger` typed files exceeding 50,000 lines of code).
+**Resolution Strategy**:
+By default, Converge parses everything. You should configure `converge` to ignore autogenerated files. Create a `converge.toml` configuration file in your root:
 
-When operating parameter 1, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 1.
+```toml
+[scanner]
+exclude_dirs = ["node_modules", ".venv", "generated_code", "protos"]
+exclude_patterns = ["*_pb2.py", "swagger_client.py"]
+```
+Re-run `converge scan .` and the system will explicitly bypass expanding those AST branches.
 
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 1, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
+**Symptom**: False positive conflicts reported within Parsing modules.
+**Context**: If your company employs complex `sys.path.append()` runtime modifications, Converge's static analyzer might assume an import is missing because it does not exist relative to the standard PyPI pathways.
+**Resolution Strategy**:
+You can instruct Converge to whitelist internal proprietary modules. 
 
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 1 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 2 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 2. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_2`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 2, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 2.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 2, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 2 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+```toml
+[resolution]
+whitelist_unresolved = [
+    "company_internal_auth",
+    "legacy_billing_system"
+]
+```
 
 \n
-### Subsystem Endpoint 3 Documentation Reference
+### Troubleshooting: Execution Issues
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 3. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+When integrating a tool as powerful as Converge, you may occasionally run into edge cases specific to your company's Monorepo architecture. Here are the top ways to resolve Execution anomalies.
 
-**Class `SubsystemProcessor_3`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**Symptom**: The scanner halts halfway through the Execution evaluation step.
+**Context**: This usually occurs when dynamic memory expansion hits the bounds of the Python garbage collector over extremely large AST trees (e.g., autogenerated `grpc` or `swagger` typed files exceeding 50,000 lines of code).
+**Resolution Strategy**:
+By default, Converge parses everything. You should configure `converge` to ignore autogenerated files. Create a `converge.toml` configuration file in your root:
 
-When operating parameter 3, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 3.
+```toml
+[scanner]
+exclude_dirs = ["node_modules", ".venv", "generated_code", "protos"]
+exclude_patterns = ["*_pb2.py", "swagger_client.py"]
+```
+Re-run `converge scan .` and the system will explicitly bypass expanding those AST branches.
 
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 3, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
+**Symptom**: False positive conflicts reported within Execution modules.
+**Context**: If your company employs complex `sys.path.append()` runtime modifications, Converge's static analyzer might assume an import is missing because it does not exist relative to the standard PyPI pathways.
+**Resolution Strategy**:
+You can instruct Converge to whitelist internal proprietary modules. 
 
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 3 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 4 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 4. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_4`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 4, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 4.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 4, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 4 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+```toml
+[resolution]
+whitelist_unresolved = [
+    "company_internal_auth",
+    "legacy_billing_system"
+]
+```
 
 \n
-### Subsystem Endpoint 5 Documentation Reference
+### Troubleshooting: Networking Issues
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 5. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+When integrating a tool as powerful as Converge, you may occasionally run into edge cases specific to your company's Monorepo architecture. Here are the top ways to resolve Networking anomalies.
 
-**Class `SubsystemProcessor_5`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**Symptom**: The scanner halts halfway through the Networking evaluation step.
+**Context**: This usually occurs when dynamic memory expansion hits the bounds of the Python garbage collector over extremely large AST trees (e.g., autogenerated `grpc` or `swagger` typed files exceeding 50,000 lines of code).
+**Resolution Strategy**:
+By default, Converge parses everything. You should configure `converge` to ignore autogenerated files. Create a `converge.toml` configuration file in your root:
 
-When operating parameter 5, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 5.
+```toml
+[scanner]
+exclude_dirs = ["node_modules", ".venv", "generated_code", "protos"]
+exclude_patterns = ["*_pb2.py", "swagger_client.py"]
+```
+Re-run `converge scan .` and the system will explicitly bypass expanding those AST branches.
 
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 5, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
+**Symptom**: False positive conflicts reported within Networking modules.
+**Context**: If your company employs complex `sys.path.append()` runtime modifications, Converge's static analyzer might assume an import is missing because it does not exist relative to the standard PyPI pathways.
+**Resolution Strategy**:
+You can instruct Converge to whitelist internal proprietary modules. 
 
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 5 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 6 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 6. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_6`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 6, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 6.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 6, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 6 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+```toml
+[resolution]
+whitelist_unresolved = [
+    "company_internal_auth",
+    "legacy_billing_system"
+]
+```
 
 \n
-### Subsystem Endpoint 7 Documentation Reference
+### Troubleshooting: Exporting Issues
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 7. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+When integrating a tool as powerful as Converge, you may occasionally run into edge cases specific to your company's Monorepo architecture. Here are the top ways to resolve Exporting anomalies.
 
-**Class `SubsystemProcessor_7`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**Symptom**: The scanner halts halfway through the Exporting evaluation step.
+**Context**: This usually occurs when dynamic memory expansion hits the bounds of the Python garbage collector over extremely large AST trees (e.g., autogenerated `grpc` or `swagger` typed files exceeding 50,000 lines of code).
+**Resolution Strategy**:
+By default, Converge parses everything. You should configure `converge` to ignore autogenerated files. Create a `converge.toml` configuration file in your root:
 
-When operating parameter 7, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 7.
+```toml
+[scanner]
+exclude_dirs = ["node_modules", ".venv", "generated_code", "protos"]
+exclude_patterns = ["*_pb2.py", "swagger_client.py"]
+```
+Re-run `converge scan .` and the system will explicitly bypass expanding those AST branches.
 
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 7, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
+**Symptom**: False positive conflicts reported within Exporting modules.
+**Context**: If your company employs complex `sys.path.append()` runtime modifications, Converge's static analyzer might assume an import is missing because it does not exist relative to the standard PyPI pathways.
+**Resolution Strategy**:
+You can instruct Converge to whitelist internal proprietary modules. 
 
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 7 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 8 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 8. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_8`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 8, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 8.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 8, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 8 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+```toml
+[resolution]
+whitelist_unresolved = [
+    "company_internal_auth",
+    "legacy_billing_system"
+]
+```
 
 \n
-### Subsystem Endpoint 9 Documentation Reference
+### Troubleshooting: Configuration Issues
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 9. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+When integrating a tool as powerful as Converge, you may occasionally run into edge cases specific to your company's Monorepo architecture. Here are the top ways to resolve Configuration anomalies.
 
-**Class `SubsystemProcessor_9`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**Symptom**: The scanner halts halfway through the Configuration evaluation step.
+**Context**: This usually occurs when dynamic memory expansion hits the bounds of the Python garbage collector over extremely large AST trees (e.g., autogenerated `grpc` or `swagger` typed files exceeding 50,000 lines of code).
+**Resolution Strategy**:
+By default, Converge parses everything. You should configure `converge` to ignore autogenerated files. Create a `converge.toml` configuration file in your root:
 
-When operating parameter 9, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 9.
+```toml
+[scanner]
+exclude_dirs = ["node_modules", ".venv", "generated_code", "protos"]
+exclude_patterns = ["*_pb2.py", "swagger_client.py"]
+```
+Re-run `converge scan .` and the system will explicitly bypass expanding those AST branches.
 
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 9, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
+**Symptom**: False positive conflicts reported within Configuration modules.
+**Context**: If your company employs complex `sys.path.append()` runtime modifications, Converge's static analyzer might assume an import is missing because it does not exist relative to the standard PyPI pathways.
+**Resolution Strategy**:
+You can instruct Converge to whitelist internal proprietary modules. 
 
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 9 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 10 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 10. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_10`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 10, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 10.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 10, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 10 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+```toml
+[resolution]
+whitelist_unresolved = [
+    "company_internal_auth",
+    "legacy_billing_system"
+]
+```
 
 \n
-### Subsystem Endpoint 11 Documentation Reference
+## 10. Using Converge as a Python Library
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 11. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+While the Typer CLI is beautiful, Converge was fundamentally designed to be imported programmatically. If you are building internal developer tools, DevOps automation scripts, or Orchestrating AI Agents, you can drop Converge directly into your Python scripts.
 
-**Class `SubsystemProcessor_11`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+```python
+from pathlib import Path
+from converge.scanner.scanner import Scanner
+from converge.graph.store import GraphStore
+from converge.solver.conflict import ConflictDetector
+from converge.validation.sandbox import UVSandbox
 
-When operating parameter 11, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 11.
+# 1. Initialize the system
+store = GraphStore("sqlite:///my_custom_graph.db")
+scanner = Scanner(root_dir=Path("."), store=store)
 
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 11, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
+# 2. Parse the AST
+entities, relationships = scanner.scan_all()
+store.add_entities(entities)
+store.add_relationships(relationships)
 
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 11 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
+# 3. Detect Issues Programmatically
+G = store.load_networkx()
+detector = ConflictDetector(G)
+conflicts = detector.detect_version_clashes()
 
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+if conflicts:
+    print(f"Danger! Found {len(conflicts)} broken edges.")
+    
+    # 4. Spin up a programmatic sandbox to test ideas
+    sandbox = UVSandbox()
+    sandbox.create()
+    try:
+        sandbox.install_dependencies(["pydantic==1.10.12"])
+        success = sandbox.verify_imports(["mymodule"])
+        print(f"Did the fix work? {success}")
+    finally:
+        sandbox.destroy()
+```
+
+This SDK surface is completely strongly typed with complete Pydantic models. You can easily feed `entities` into `FastAPI` to build a React dashboard describing your repository health.
+
+---
+
+## 11. Frequently Asked Questions (FAQ)
+
+**Q: Does Converge execute my code during scanning?**
+A: **Absolutely not.** Converge uses Python's core `ast` (Abstract Syntax Tree) module. It mathematically parses the text of your files into syntax trees without ever executing them. It is 100% safe to run on untrusted or broken repositories.
+
+**Q: Why do I need `uv` to use Converge?**
+A: Converge generates "Repair Plans" when your environment is broken. To prove a plan works, it needs to recreate an environment, install the packages, and test the imports. Standard `pip` and `virtualenv` are far too slow for this. `uv` allows Converge to create environments and resolve packages in single-digit milliseconds, making auto-repair feasible.
+
+**Q: Does Converge work with Poetry or Pipenv?**
+A: Currently, Converge natively parses `pyproject.toml` (standard PEP 621) and standard `requirements.txt` files. If you use Poetry, you can easily export your dependencies to a requirements file (`poetry export -f requirements.txt --output requirements.txt`) before running converge!
+
+**Q: Will Converge modify my files without asking?**
+A: No. Commands like `converge fix .` execute strictly in a Dry-Run mode by default. It will only print the suggested terminal commands to fix your environment. Converge will *only* alter your local files if you explicitly append the `--apply` flag.
+
+**Q: What operating systems are supported?**
+A: Converge supports macOS and Linux natively, as they provide robust sub-process capabilities for the Sandbox validator engine. Windows usage via WSL2 is highly recommended over native Windows CMD.
+
+---
+\n
+### Advanced Workflow Scenario 1: Migrating Legacy Infrastructure
+
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
+
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
+
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 12 Documentation Reference
+### Advanced Workflow Scenario 2: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 12. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_12`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 12, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 12.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 12, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 12 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 13 Documentation Reference
+### Advanced Workflow Scenario 3: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 13. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_13`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 13, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 13.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 13, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 13 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 14 Documentation Reference
+### Advanced Workflow Scenario 4: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 14. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_14`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 14, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 14.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 14, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 14 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 15 Documentation Reference
+### Advanced Workflow Scenario 5: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 15. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_15`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 15, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 15.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 15, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 15 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 16 Documentation Reference
+### Advanced Workflow Scenario 6: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 16. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_16`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 16, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 16.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 16, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 16 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 17 Documentation Reference
+### Advanced Workflow Scenario 7: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 17. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_17`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 17, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 17.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 17, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 17 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 18 Documentation Reference
+### Advanced Workflow Scenario 8: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 18. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_18`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 18, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 18.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 18, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 18 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 19 Documentation Reference
+### Advanced Workflow Scenario 9: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 19. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_19`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 19, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 19.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 19, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 19 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 20 Documentation Reference
+### Advanced Workflow Scenario 10: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 20. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_20`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 20, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 20.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 20, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 20 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 21 Documentation Reference
+### Advanced Workflow Scenario 11: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 21. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_21`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 21, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 21.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 21, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 21 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 22 Documentation Reference
+### Advanced Workflow Scenario 12: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 22. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_22`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 22, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 22.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 22, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 22 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 23 Documentation Reference
+### Advanced Workflow Scenario 13: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 23. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_23`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 23, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 23.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 23, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 23 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 24 Documentation Reference
+### Advanced Workflow Scenario 14: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 24. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_24`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 24, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 24.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 24, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 24 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 25 Documentation Reference
+### Advanced Workflow Scenario 15: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 25. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_25`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 25, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 25.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 25, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 25 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 26 Documentation Reference
+### Advanced Workflow Scenario 16: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 26. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_26`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 26, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 26.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 26, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 26 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 27 Documentation Reference
+### Advanced Workflow Scenario 17: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 27. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_27`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 27, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 27.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 27, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 27 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 28 Documentation Reference
+### Advanced Workflow Scenario 18: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 28. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_28`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 28, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 28.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 28, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 28 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 29 Documentation Reference
+### Advanced Workflow Scenario 19: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 29. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_29`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 29, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 29.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 29, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 29 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 30 Documentation Reference
+### Advanced Workflow Scenario 20: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 30. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_30`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 30, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 30.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 30, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 30 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 31 Documentation Reference
+### Advanced Workflow Scenario 21: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 31. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_31`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 31, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 31.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 31, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 31 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 32 Documentation Reference
+### Advanced Workflow Scenario 22: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 32. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_32`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 32, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 32.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 32, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 32 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 33 Documentation Reference
+### Advanced Workflow Scenario 23: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 33. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_33`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 33, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 33.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 33, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 33 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 34 Documentation Reference
+### Advanced Workflow Scenario 24: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 34. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_34`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 34, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 34.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 34, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 34 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 35 Documentation Reference
+### Advanced Workflow Scenario 25: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 35. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_35`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 35, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 35.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 35, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 35 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 36 Documentation Reference
+### Advanced Workflow Scenario 26: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 36. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_36`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 36, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 36.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 36, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 36 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 37 Documentation Reference
+### Advanced Workflow Scenario 27: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 37. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_37`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 37, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 37.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 37, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 37 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 38 Documentation Reference
+### Advanced Workflow Scenario 28: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 38. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_38`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 38, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 38.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 38, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 38 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
-### Subsystem Endpoint 39 Documentation Reference
+### Advanced Workflow Scenario 29: Migrating Legacy Infrastructure
 
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 39. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
+As a practical example of Converge's utility, consider a scenario where you are migrating a legacy Python 3.8 application up to Python 3.12.
 
-**Class `SubsystemProcessor_39`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
+**The Problem**:
+When you update the python version in your `pyproject.toml`, suddenly dozens of deep transitive dependencies break. You are met with massive traceback errors from libraries you didn't even know you were using.
 
-When operating parameter 39, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 39.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 39, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 39 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 40 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 40. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_40`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 40, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 40.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 40, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 40 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 41 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 41. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_41`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 41, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 41.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 41, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 41 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 42 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 42. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_42`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 42, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 42.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 42, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 42 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 43 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 43. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_43`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 43, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 43.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 43, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 43 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
-
-\n
-### Subsystem Endpoint 44 Documentation Reference
-
-The architectural pattern instantiated within Converge mandates full separation of logic handling generic request structures relative to endpoint vector 44. This paradigm strictly adheres to operational design guidelines dictated by solid architectural requirements.
-
-**Class `SubsystemProcessor_44`**
-Constructs evaluation heuristics mapping direct relational metadata indices toward constrained evaluation limits. 
-* Inherits foundational parameters ensuring robust execution isolation.
-* Designed exclusively with `from __future__ import annotations` enabling strict type boundaries.
-
-When operating parameter 44, the engine recursively evaluates dependencies associated with the specific boundary layer. The runtime engine applies internal heuristics ensuring optimal mapping logic. Mathematical complexity typically scales relative to a logarithmic bound where variables define the quantity of operational node architectures evaluated within cycle sequence 44.
-
-**Data Serialization Formats**:
-When mapping standard API outputs across segment 44, validation frameworks intercept memory constraints. Standard inputs map universally:
-- Parameter A: Requires static string representation corresponding to node ids.
-- Parameter B: Assumes abstract dependency graph traversal nodes matching NetworkX signatures.
-- Output: Generator yielding validation boolean indicators mapping execution success against deterministic criteria.
-
-**Error Handling Specifications**:
-Exceptions mapped within the constraints of sector 44 immediately isolate trace parameters, avoiding state corruption.
-- Code 40X: Client side boundary limit validation exceptions.
-- Code 50X: Storage node replication failures occurring dynamically.
-
-**Performance Limits**:
-Benchmark execution latency registers nominally within nanosecond bounds. Cache optimization limits execution overhead significantly. Vector matrices calculate memory mappings rapidly.
+**The Converge Solution**:
+1. Run `converge scan .` to lock in the AST mapping of what your code actually imports.
+2. Run `converge fix .` immediately.
+3. Converge will notice the Python 3.12 marker. Its Generator engine will output dozens of permutations, intentionally querying the PyPI index for wheels that were specifically compiled for 3.12.
+4. It will pipe these permutations into the UVSandbox (running on your 3.12 host). 
+5. The sandbox will rapidly eliminate pathways that fail compilation (e.g., old versions of numpy or pandas).
+6. Converge will return the ultimate matrix of exactly what packages in your root configuration must be bumped to support the migration!
 
 \n
 
 ---
 
-## 16. Security Posture and Threat Modeling
+## 13. Contributing to Converge
 
-Converge manipulates system environments execution capabilities, representing a substantial attack vector if exposed natively across unprotected network boundaries. Consequently, the architecture implements rigorous isolation bounds. 
+Converge is an open-source project and we welcome contributions from platform engineers, developers, and AI agents alike. 
 
-Threats are mitigated uniquely:
-- **Sandbox Environment Isolation**: No environment operations execute globally. Validations strictly build ephemeral directories leveraging isolated parameters, tearing down persistence artifacts sequentially post-validation execution.
-- **Dependency Injections**: AST parsers operate via `ast.literal_eval` paradigms rather than arbitrary execution wrappers, halting remote code execution vectors deterministically.
-- **SQL Injection Safeguards**: SQLAlchemy mappings abstract physical queries, sanitizing parameter injections by default against standard OWASP vulnerabilities.
+### Development Setup
+1. Clone the repository.
+2. Setup the environment using `uv venv` and `uv pip install -e ".[dev]"`.
+3. Before submitting a Pull Request, ensure you run the formatter:
+   `ruff format src tests`
+4. Ensure all type checks pass:
+   `mypy src tests`
+5. Run the exhaustive test suite:
+   `pytest tests/`
 
----
-
-## 17. Contributing Guidelines
-
-We welcome community pull requests adhering strictly to mathematical correctness.
-
-1. Clone the master repository branch.
-2. Initialize the development execution context natively.
-3. Write rigorous Pytest modules validating mathematical parameters.
-4. Execute `ruff check src tests` to validate formatting constraints.
-5. Deploy standard PR submission templates upon submission.
+See `CONTRIBUTING.md` for our full guidelines on submitting Pull Requests.
 
 ---
 
-## 20. License Information
+## 14. License
 
 **MIT License**
 
@@ -1507,3 +1087,4 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
