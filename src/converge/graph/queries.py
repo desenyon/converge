@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import networkx as nx
 
@@ -45,6 +45,7 @@ class GraphQueries:
                     if d.get("type") == RelationshipType.REQUIRES
                 )
             )
-            return nx.shortest_path(requires_graph, source=root_id, target=target_id)
+            path = cast(list[str], nx.shortest_path(requires_graph, source=root_id, target=target_id))
+            return path
         except nx.NetworkXNoPath:
             return None
