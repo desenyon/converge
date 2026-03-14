@@ -8,6 +8,7 @@ class ServiceDetector(ast.NodeVisitor):
     """
     Heuristic AST visitor to detect FastAPI/Flask routes and services.
     """
+
     def __init__(self, file_path: Path):
         self.file_path = file_path
         self.routes: list[Route] = []
@@ -42,16 +43,14 @@ class ServiceDetector(ast.NodeVisitor):
                                 name=f"{method_name} {route_path}",
                                 method=method_name,
                                 path=route_path,
-                                metadata={"file": str(self.file_path), "line": node.lineno}
+                                metadata={"file": str(self.file_path), "line": node.lineno},
                             )
                             self.routes.append(route)
 
                             # The module exposes this route
                             mod_id = f"mod:{self.file_path}"
                             rel = GraphRelationship(
-                                source_id=mod_id,
-                                target_id=route_id,
-                                type=RelationshipType.EXPOSES
+                                source_id=mod_id, target_id=route_id, type=RelationshipType.EXPOSES
                             )
                             self.relationships.append(rel)
 

@@ -10,6 +10,7 @@ class Scanner:
     """
     Orchestrates the different parsers to build a comprehensive graph of the codebase.
     """
+
     def __init__(self, root_dir: str):
         self.root_dir = Path(root_dir)
         self.entities: list[GraphEntity] = []
@@ -35,7 +36,9 @@ class Scanner:
 
         # 3. Detect services and routes
         for p in self.root_dir.rglob("*.py"):
-            if any(part.startswith(".") or part in ("venv", "env", "node_modules") for part in p.parts):
+            if any(
+                part.startswith(".") or part in ("venv", "env", "node_modules") for part in p.parts
+            ):
                 continue
 
             # Use relative paths for IDs to match ast_parser

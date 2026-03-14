@@ -8,6 +8,7 @@ class ProjectParser:
     """
     Scans project configuration files like pyproject.toml and requirements.txt.
     """
+
     def __init__(self, root_dir: str):
         self.root_dir = Path(root_dir)
 
@@ -33,11 +34,7 @@ class ProjectParser:
             pkg_name = dep.split(">=")[0].split("==")[0].split("<=")[0].split("~=")[0].strip()
             pkg_id = f"pkg:{pkg_name}"
 
-            pkg = Package(
-                id=pkg_id,
-                name=pkg_name,
-                metadata={"constraint": dep}
-            )
+            pkg = Package(id=pkg_id, name=pkg_name, metadata={"constraint": dep})
             packages.append(pkg)
 
             # The repository requires this package
@@ -45,7 +42,7 @@ class ProjectParser:
                 source_id=f"repo:{self.root_dir.name}",
                 target_id=pkg_id,
                 type=RelationshipType.REQUIRES,
-                metadata={"source": "pyproject.toml"}
+                metadata={"source": "pyproject.toml"},
             )
             relationships.append(rel)
 
@@ -69,18 +66,14 @@ class ProjectParser:
                 pkg_name = line.split(">=")[0].split("==")[0].split("<=")[0].split("~=")[0].strip()
                 pkg_id = f"pkg:{pkg_name}"
 
-                pkg = Package(
-                    id=pkg_id,
-                    name=pkg_name,
-                    metadata={"constraint": line}
-                )
+                pkg = Package(id=pkg_id, name=pkg_name, metadata={"constraint": line})
                 packages.append(pkg)
 
                 rel = GraphRelationship(
                     source_id=f"repo:{self.root_dir.name}",
                     target_id=pkg_id,
                     type=RelationshipType.REQUIRES,
-                    metadata={"source": "requirements.txt"}
+                    metadata={"source": "requirements.txt"},
                 )
                 relationships.append(rel)
 

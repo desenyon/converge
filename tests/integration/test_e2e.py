@@ -1,4 +1,3 @@
-
 from typing import Any
 
 from typer.testing import CliRunner
@@ -6,6 +5,7 @@ from typer.testing import CliRunner
 from converge.cli.main import app
 
 runner = CliRunner()
+
 
 def test_e2e_scan_and_dry_run_fix(tmp_path: Any) -> None:
     # Setup a dummy broken repo

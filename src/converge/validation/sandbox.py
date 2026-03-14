@@ -8,10 +8,12 @@ from converge.solver.planner import RepairActionType, RepairPlan
 class SandboxError(Exception):
     pass
 
+
 class UVSandbox:
     """
     Manages isolated Python environments using `uv`.
     """
+
     def __init__(self, base_dir: str):
         self.base_dir = Path(base_dir)
         self.venv_path = self.base_dir / ".venv-converge-test"
@@ -39,7 +41,7 @@ class UVSandbox:
                 RepairActionType.ADD_DEPENDENCY,
                 RepairActionType.PIN_VERSION,
                 RepairActionType.UPGRADE_DEPENDENCY,
-                RepairActionType.DOWNGRADE_DEPENDENCY
+                RepairActionType.DOWNGRADE_DEPENDENCY,
             ):
                 if action.target_version and action.target_version != "latest":
                     to_install.append(f"{action.target_package}=={action.target_version}")

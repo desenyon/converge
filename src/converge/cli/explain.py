@@ -20,12 +20,16 @@ class ExplainabilityEngine:
             return
 
         root_data = self.G.nodes[root_id]
-        tree = Tree(f"[bold blue]{root_data.get('name', root_id)}[/bold blue] ({root_data.get('type')})")
+        tree = Tree(
+            f"[bold blue]{root_data.get('name', root_id)}[/bold blue] ({root_data.get('type')})"
+        )
 
         self._build_tree(root_id, tree, RelationshipType.REQUIRES)
         self.console.print(tree)
 
-    def _build_tree(self, node_id: str, tree: Tree, edge_type: str, depth: int = 0, max_depth: int = 3) -> None:
+    def _build_tree(
+        self, node_id: str, tree: Tree, edge_type: str, depth: int = 0, max_depth: int = 3
+    ) -> None:
         if depth > max_depth:
             tree.add("[dim]... (max depth reached)[/dim]")
             return

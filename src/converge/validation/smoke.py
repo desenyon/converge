@@ -1,4 +1,3 @@
-
 from converge.solver.planner import RepairPlan
 from converge.validation.sandbox import UVSandbox
 
@@ -7,6 +6,7 @@ class ValidationRunner:
     """
     Validates candidate repair plans by executing tests in a sandbox.
     """
+
     def __init__(self, sandbox: UVSandbox):
         self.sandbox = sandbox
 

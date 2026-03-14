@@ -19,7 +19,9 @@ console = Console()
 @app.command()
 def scan(
     path: str = typer.Argument(".", help="Path to the repository to scan"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Perform a dry run without saving to the database"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Perform a dry run without saving to the database"
+    ),
 ) -> None:
     """
     Scan a codebase to build a graph of repositories, packages, modules, and services.
@@ -29,7 +31,9 @@ def scan(
     scanner = Scanner(path)
     entities, rels = scanner.scan_all()
 
-    console.print(f"Found [bold cyan]{len(entities)}[/bold cyan] entities and [bold cyan]{len(rels)}[/bold cyan] relationships.")
+    console.print(
+        f"Found [bold cyan]{len(entities)}[/bold cyan] entities and [bold cyan]{len(rels)}[/bold cyan] relationships."
+    )
 
     if dry_run:
         console.print("[yellow]Dry run mode enabled. Results will not be saved.[/yellow]")
@@ -41,7 +45,6 @@ def scan(
         for r in rels:
             store.add_relationship(r)
         console.print("[green]Successfully persisted graph to converge_graph.db[/green]")
-
 
 
 def _run_validation(
@@ -70,7 +73,9 @@ def _run_validation(
 
     if best_plan:
         console.print(f"\n[bold green]Successfully found working plan: {best_plan.id}[/bold green]")
-        console.print("[white]In a full implementation, Converge would now rewrite pyproject.toml and your lockfile.[/white]")
+        console.print(
+            "[white]In a full implementation, Converge would now rewrite pyproject.toml and your lockfile.[/white]"
+        )
     else:
         console.print("\n[bold red]All candidate plans failed validation.[/bold red]")
 
@@ -89,7 +94,9 @@ def fix(
     try:
         G = store.load_networkx()
     except Exception as e:
-        console.print(f"[red]Failed to load graph. Did you run `converge scan` first? Error: {e}[/red]")
+        console.print(
+            f"[red]Failed to load graph. Did you run `converge scan` first? Error: {e}[/red]"
+        )
         return
 
     detector = ConflictDetector(G)
@@ -99,7 +106,9 @@ def fix(
         console.print("[green]No conflicts detected in the graph![/green]")
         return
 
-    console.print(f"[yellow]Detected {len(conflicts)} conflicts. Generating repair plans...[/yellow]")
+    console.print(
+        f"[yellow]Detected {len(conflicts)} conflicts. Generating repair plans...[/yellow]"
+    )
     planner = RepairPlanner(conflicts)
     plans = planner.generate_plans()
 
@@ -113,7 +122,6 @@ def fix(
         console.print("\n[yellow]Running in dry-run mode. Use --apply to execute the fix.[/yellow]")
     else:
         _run_validation(path, conflicts, plans, console)
-
 
 
 @app.command()

@@ -12,6 +12,7 @@ class GraphQueries:
     Abstractions for traversing the NetworkX graph.
     Used for inferring constraints and paths.
     """
+
     def __init__(self, G: nx.DiGraph[Any]):
         self.G = G
 
@@ -38,7 +39,11 @@ class GraphQueries:
         try:
             # Only traverse REQUIRES edges
             requires_graph = nx.DiGraph(
-                ((u, v, d) for u, v, d in self.G.edges(data=True) if d.get('type') == RelationshipType.REQUIRES)
+                (
+                    (u, v, d)
+                    for u, v, d in self.G.edges(data=True)
+                    if d.get("type") == RelationshipType.REQUIRES
+                )
             )
             return nx.shortest_path(requires_graph, source=root_id, target=target_id)
         except nx.NetworkXNoPath:

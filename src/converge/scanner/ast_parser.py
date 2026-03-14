@@ -8,6 +8,7 @@ class PythonASTParser:
     """
     Parses Python files to extract imports and module relationships.
     """
+
     def __init__(self, root_dir: str):
         self.root_dir = Path(root_dir)
 
@@ -18,15 +19,13 @@ class PythonASTParser:
 
         for p in self.root_dir.rglob("*.py"):
             # Skip hidden dirs or common virtualenvs
-            if any(part.startswith(".") or part in ("venv", "env", "node_modules") for part in p.parts):
+            if any(
+                part.startswith(".") or part in ("venv", "env", "node_modules") for part in p.parts
+            ):
                 continue
 
             mod_id = f"mod:{p.relative_to(self.root_dir)}"
-            mod = Module(
-                id=mod_id,
-                name=p.name,
-                file_path=str(p)
-            )
+            mod = Module(id=mod_id, name=p.name, file_path=str(p))
             modules.append(mod)
 
             try:
@@ -36,24 +35,24 @@ class PythonASTParser:
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Import):
                         for name in node.names:
-                            target_pkg = name.name.split('.')[0] # Heuristic: top level package
+                            target_pkg = name.name.split(".")[0]  # Heuristic: top level package
                             relationships.append(
                                 GraphRelationship(
                                     source_id=mod_id,
                                     target_id=f"pkg:{target_pkg}",
                                     type=RelationshipType.IMPORTS,
-                                    metadata={"full_import": name.name, "line": node.lineno}
+                                    metadata={"full_import": name.name, "line": node.lineno},
                                 )
                             )
                     elif isinstance(node, ast.ImportFrom):
                         if node.module:
-                            target_pkg = node.module.split('.')[0]
+                            target_pkg = node.module.split(".")[0]
                             relationships.append(
                                 GraphRelationship(
                                     source_id=mod_id,
                                     target_id=f"pkg:{target_pkg}",
                                     type=RelationshipType.IMPORTS,
-                                    metadata={"full_import": node.module, "line": node.lineno}
+                                    metadata={"full_import": node.module, "line": node.lineno},
                                 )
                             )
             except (SyntaxError, UnicodeDecodeError):

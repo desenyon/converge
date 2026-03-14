@@ -22,6 +22,7 @@ def test_unresolved_import_conflict() -> None:
     assert conflicts[0].type == ConflictType.UNRESOLVED_IMPORT
     assert conflicts[0].involved_entities == ["mod:a.py", "pkg:missing"]
 
+
 def test_version_clash_conflict() -> None:
     G: nx.DiGraph[Any] = nx.DiGraph()
     G.add_edge("pkg:A", "pkg:B", type=RelationshipType.CONFLICTS_WITH)

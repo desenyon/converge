@@ -14,16 +14,16 @@ from converge.models import EntityType, GraphEntity, GraphRelationship, Relation
 # SQLModel classes for SQLite persistence
 class SQLEntity(SQLModel, table=True):
     id: str = Field(primary_key=True)
-    type: str # Map to EntityType
+    type: str  # Map to EntityType
     name: str
-    metadata_json: str = "{}" # JSON serialized metadata
+    metadata_json: str = "{}"  # JSON serialized metadata
 
     def to_pydantic(self) -> GraphEntity:
         return GraphEntity(
             id=self.id,
             type=EntityType(self.type),
             name=self.name,
-            metadata=json.loads(self.metadata_json)
+            metadata=json.loads(self.metadata_json),
         )
 
     @classmethod
@@ -32,7 +32,7 @@ class SQLEntity(SQLModel, table=True):
             id=entity.id,
             type=entity.type.value,
             name=entity.name,
-            metadata_json=json.dumps(entity.metadata)
+            metadata_json=json.dumps(entity.metadata),
         )
 
 
@@ -42,7 +42,7 @@ class SQLRelationship(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     source_id: str = Field(index=True)
     target_id: str = Field(index=True)
-    type: str # Map to RelationshipType
+    type: str  # Map to RelationshipType
     metadata_json: str = "{}"
 
     def to_pydantic(self) -> GraphRelationship:
@@ -50,7 +50,7 @@ class SQLRelationship(SQLModel, table=True):
             source_id=self.source_id,
             target_id=self.target_id,
             type=RelationshipType(self.type),
-            metadata=json.loads(self.metadata_json)
+            metadata=json.loads(self.metadata_json),
         )
 
     @classmethod
@@ -59,7 +59,7 @@ class SQLRelationship(SQLModel, table=True):
             source_id=rel.source_id,
             target_id=rel.target_id,
             type=rel.type.value,
-            metadata_json=json.dumps(rel.metadata)
+            metadata_json=json.dumps(rel.metadata),
         )
 
 
@@ -68,6 +68,7 @@ class GraphStore:
     Manages physical persistence of the graph using SQLModel (SQLite).
     Provides methods to persist and re-hydrate NetworkX graphs.
     """
+
     def __init__(self, db_url: str = "sqlite:///converge_graph.db"):
         self.engine = create_engine(db_url)
         SQLModel.metadata.create_all(self.engine)
@@ -88,7 +89,7 @@ class GraphStore:
             stmt = select(SQLRelationship).where(
                 SQLRelationship.source_id == rel.source_id,
                 SQLRelationship.target_id == rel.target_id,
-                SQLRelationship.type == rel.type.value
+                SQLRelationship.type == rel.type.value,
             )
             existing = session.exec(stmt).first()
             if not existing:
@@ -108,7 +109,9 @@ class GraphStore:
             rels = session.exec(select(SQLRelationship)).all()
             for r in rels:
                 p_rel = r.to_pydantic()
-                G.add_edge(p_rel.source_id, p_rel.target_id, type=p_rel.type, metadata=p_rel.metadata)
+                G.add_edge(
+                    p_rel.source_id, p_rel.target_id, type=p_rel.type, metadata=p_rel.metadata
+                )
         return G
 
     def save_networkx(self, G: nx.DiGraph[Any]) -> None:
@@ -128,7 +131,7 @@ class GraphStore:
                     source_id=src,
                     target_id=dst,
                     type=data["type"],
-                    metadata=data.get("metadata", {})
+                    metadata=data.get("metadata", {}),
                 )
                 session.add(SQLRelationship.from_pydantic(rel))
 

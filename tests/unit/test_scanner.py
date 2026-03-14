@@ -6,11 +6,11 @@ from converge.scanner.project import ProjectParser
 
 def test_project_parser(tmp_path: Path) -> None:
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text('''
+    pyproject.write_text("""
     [project]
     name = "test_repo"
     dependencies = ["pytest>=8.0"]
-    ''')
+    """)
 
     parser = ProjectParser(str(tmp_path))
     pkgs, rels = parser.parse_pyproject()
@@ -24,10 +24,10 @@ def test_project_parser(tmp_path: Path) -> None:
 
 def test_ast_parser(tmp_path: Path) -> None:
     src_file = tmp_path / "main.py"
-    src_file.write_text('''
+    src_file.write_text("""
 import fastapi
 from pydantic import BaseModel
-    ''')
+    """)
 
     parser = PythonASTParser(str(tmp_path))
     mods, rels = parser.scan_directory()
