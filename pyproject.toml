@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "converge"
+name = "converge-cli"
 version = "0.1.0"
 description = "A Python-first repository intelligence and environment convergence platform."
 readme = "README.md"
