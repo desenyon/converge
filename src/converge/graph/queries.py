@@ -45,7 +45,9 @@ class GraphQueries:
                     if d.get("type") == RelationshipType.REQUIRES
                 )
             )
-            path = cast(list[str], nx.shortest_path(requires_graph, source=root_id, target=target_id))
+            path = cast(
+                list[str], nx.shortest_path(requires_graph, source=root_id, target=target_id)
+            )
             return path
         except nx.NetworkXNoPath:
             return None
