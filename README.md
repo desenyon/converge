@@ -1,106 +1,134 @@
 <div align="center">
+  <img src="https://raw.githubusercontent.com/desenyon/converge/main/docs/assets/logo.png" alt="Converge Logo" width="200" onerror="this.style.display='none'"/>
+  
+  <h1 align="center">Converge</h1>
+  
+  <p align="center">
+    <strong>The Python-First Repository Intelligence & Environment Convergence Platform</strong>
+  </p>
 
-# 🌌 Converge 
+  <p align="center">
+    <a href="https://pypi.org/project/converge-cli/"><img src="https://img.shields.io/pypi/v/converge-cli.svg?style=for-the-badge&color=2563ea&labelColor=1e293b" alt="PyPI Version"></a>
+    <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.12+-blue.svg?style=for-the-badge&logo=python&logoColor=white&color=3b82f6&labelColor=1e293b" alt="Python Version"></a>
+    <a href="https://github.com/astral-sh/uv"><img src="https://img.shields.io/badge/Powered%20By-uv-white.svg?style=for-the-badge&logo=uv&logoColor=black&color=f8fafc&labelColor=1e293b" alt="Powered By UV"></a>
+    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-purple.svg?style=for-the-badge&color=8b5cf6&labelColor=1e293b" alt="License"></a>
+  </p>
 
-**The Python-First Repository Intelligence & Environment Convergence Platform**
+  <p align="center">
+    <em>Converge mathematically proves your dependency topologies to automatically construct, validate, and repair broken Python environments.</em>
+  </p>
+</div>
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json&style=for-the-badge)](https://github.com/astral-sh/uv)
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-
-*Stop fighting dependency hell. Start converging.*
+<br />
 
 ---
 
-</div>
+## Executive Summary
 
-## ⚡ What is Converge?
+**Dependency hell is a solved problem.** 
 
-**Converge** is a deterministic, graph-based intelligence engine that analyzes your Python repositories, maps their exact dependency topologies, detects latent conflicts, and automatically resolves them within lighting-fast `uv`-isolated sandboxes.
+Converge is a deterministic intelligence engine built for modern Python monorepos. Rather than relying on brute-force lockfile regeneration or isolated heuristics, Converge treats your entire codebase—from declared dependencies down to Abstract Syntax Tree (AST) imports—as a unified Directed Acyclic Graph (DAG). 
 
-Say goodbye to the endless cycle of `pip cache purge`, manual lockfile diffing, and "it works on my machine." Converge treats your codebase as a Directed Acyclic Graph (DAG) and mathematically proves its correctness before applying fixes.
+When conflicts arise, Converge's **Solver Engine** instantly synthesizes hundreds of potential remediation paths, isolating and testing the most statistically viable solutions in sub-second `uv` virtual environments, guaranteeing verifiable correctness before a single file is ever permanently touched.
 
-<br/>
+---
 
-## 🚀 Installation
+## 🌟 Key Capabilities
 
-Converge leverages the speed of [Astral's uv](https://docs.astral.sh/uv/) for native environment virtualization. 
+| Feature | Description |
+| :--- | :--- |
+| **AST-Level Import Tracing** | Bypasses standard `requirements.txt` checks to statically analyze every function, module, and `import` signature across your AST. |
+| **Deterministic Conflict Detection** | Identifies `VERSION_CLASH` and latent `UNRESOLVED_IMPORT` anomalies mathematically prior to runtime execution. |
+| **Autonomous Resolution** | Engine generates `RepairPlan` vectors, computing minimal-drift downgrades or implicit package injections. |
+| **Agentic By Design** | Seamless SDK and standard CLI hooks specifically engineered for orchestration by large language models and autonomous developer agents. |
+| **Sub-Second Validation** | Implements the **UVSandbox Guard**, leveraging the unparalleled execution speed of Astral `uv` for dynamic `subprocess` verification. |
 
-The recommended way to install Converge globally is via `uv tool`:
+---
+
+## 🛠 Architecture
+
+Converge separates state inference from isolated execution:
+
+```mermaid
+graph TD
+    A[Scanner] -->|pyproject.toml + AST| B(Graph Engine)
+    B -->|NetworkX Digraph| C[SQLModel / SQLite Persistence]
+    C -->|Topological Map| D{Solver Engine}
+    D -->|Constraint Matches| E[Conflict Detector]
+    D -->|Target Fixes| F[Repair Planner]
+    F -->|Action Arrays| G((UVSandbox Validator))
+    G -->|Dry Run Smoke Tests| H[Winning Configuration]
+```
+
+---
+
+## ⚡ Installation
+
+We strongly recommend installing Converge into an isolated global environment via `uv tool`:
 
 ```bash
 uv tool install converge-cli
 ```
 
-*Alternatively, if you are stuck in the past:*
+*For legacy systems without `uv`:*
 ```bash
 pipx install converge-cli
 ```
 
-<br/>
+---
 
-## 🎯 Quick Start
+## 📖 Usage Guide
 
-Converge ships with a gorgeous, highly intuitive CLI interface built on Typer and Rich. 
+Converge exposes a robust Typer-based CLI wrapped in high-fidelity `rich` terminal output.
 
-### 1. Scan Your Repository
-Build an interactive graph of the entire topological surface area of your repository. Converge analyzes `pyproject.toml`, `requirements.txt`, and parses raw Python `AST` to find exactly what you import versus what you claim to require.
-
-```bash
-converge scan .
-```
-> *This automatically persists the state to a local `converge_graph.db` using SQLite and SQLModel.*
-
-### 2. Explain the DAG
-Trace the deepest transitives of your system visually.
+### 1. Initialize & Scan
+Build a topological analysis of the target repository. This populates a highly indexable SQLite graph.
 
 ```bash
-converge deps repo:my_broken_project
+converge scan /path/to/project
 ```
 
-### 3. Automatically Fix Conflicts
-Converge scans for `VERSION_CLASH` and `UNRESOLVED_IMPORT` conflicts. If detected, its internal Solver Engine generates dozens of potential resolution plans, spins up heavily isolated `uv` `.venv` sandboxes for each one, runs targeted smoke-tests, and discovers the optimal winning plan.
+### 2. Visualize the Topology
+Trace dependency requirements, exposing edge depths and transitive constraints.
 
 ```bash
-# Dry run the fix
-converge fix .
-
-# Execute the winning plan against your environment
-converge fix . --apply
+converge deps repo:my_target_project
 ```
 
-<br/>
+### 3. Engine Diagnosis & Validation
+Run the solver engine against the currently constructed graph to mathematically detect latent conflicts.
 
-## 🧠 Core Architecture
-
-Instead of guessing, Converge relies on four deterministic, AI-friendly sub-systems:
-
-1. **Scanner Layer**: Uses pure structural `ast`, regex parsers, and heuristic network scanning to parse Python projects statically. 
-2. **Graph Storage**: An on-disk relational mapping (`sqlmodel`/`sqlite`) coupled with rich in-memory algorithmic capabilities (`networkx`).
-3. **Solver Engine**: Evaluates edge conflicts inside the graph. Employs `RepairPlanner` to generate permutation constraints (e.g. downgrading conflicting libraries or injecting missing deps).
-4. **Validation Pipeline**: Drops down into native OS integrations to create, destroy, and execute isolated Linux/macOS Python environments using `subprocess` and `uv venv`.
-
-<br/>
-
-## 🤝 For AI Agents
-
-Converge is designed *from the ground up* as a primitive for autonomous agentic tooling. If you are an LLM or Sub-Agent operating within a codebase and facing broken environments, Converge exposes its core SDK programmatically:
-
-```python
-from converge.scanner.scanner import Scanner
-from converge.solver.conflict import ConflictDetector
-
-scanner = Scanner(root_dir=".")
-entities, rels = scanner.scan_all()
-
-# Or simply instantiate the CLI
-from converge.cli.main import app
+```bash
+converge doctor
 ```
 
-Read the definitive guide in `.github/skills/converge-architecture.md` for full agent integration patterns.
+### 4. Autonomous Repair
+Instruct Converge to simulate and isolate fixes. By default, this runs as a purely mathematical *dry-run*.
 
-<br/>
+```bash
+converge fix /path/to/project
+```
 
-## ⚖️ License
+Once the optimal repair vector is identified by the `UVSandbox`, inject it into your primary operating environment:
 
-Built with extreme prejudice against broken environments. Distributed under the MIT License.
+```bash
+converge fix /path/to/project --apply
+```
+
+---
+
+## 🤝 System Requirements
+
+- Execution Environment: MacOS / Linux
+- Python Runtime: `python >= 3.12`
+- Core Dependencies: `uv`, `networkx`, `sqlmodel`, `typer`, `pydantic`
+
+---
+
+## 🌐 Agent Developer Kit
+Converge serves as the definitive architecture for embedded agent operations. For complete integration mechanics, solver overrides, and raw SDK endpoints, please consult the agent directive at [`.github/skills/converge-architecture.md`](./.github/skills/converge-architecture.md).
+
+<div align="center">
+  <br />
+  <p>Engineered for highly reliable software supply chains.</p>
+</div>
