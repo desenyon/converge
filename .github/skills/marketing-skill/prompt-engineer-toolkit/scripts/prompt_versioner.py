@@ -15,10 +15,10 @@ import argparse
 import difflib
 import json
 import sys
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class CLIError(Exception):
@@ -36,7 +36,9 @@ class PromptVersion:
 
 
 def add_common_subparser_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--store", default=".prompt_versions.jsonl", help="JSONL history file path.")
+    parser.add_argument(
+        "--store", default=".prompt_versions.jsonl", help="JSONL history file path."
+    )
     parser.add_argument("--input", help="Optional JSON input file with prompt payload.")
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format.")
 
@@ -70,7 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def read_optional_json(input_path: Optional[str]) -> Dict[str, Any]:
+def read_optional_json(input_path: str | None) -> dict[str, Any]:
     if input_path:
         try:
             return json.loads(Path(input_path).read_text(encoding="utf-8"))
@@ -88,10 +90,10 @@ def read_optional_json(input_path: Optional[str]) -> Dict[str, Any]:
     return {}
 
 
-def read_store(path: Path) -> List[PromptVersion]:
+def read_store(path: Path) -> list[PromptVersion]:
     if not path.exists():
         return []
-    versions: List[PromptVersion] = []
+    versions: list[PromptVersion] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
@@ -100,12 +102,12 @@ def read_store(path: Path) -> List[PromptVersion]:
     return versions
 
 
-def write_store(path: Path, versions: List[PromptVersion]) -> None:
+def write_store(path: Path, versions: list[PromptVersion]) -> None:
     payload = "\n".join(json.dumps(asdict(v), ensure_ascii=True) for v in versions)
     path.write_text(payload + ("\n" if payload else ""), encoding="utf-8")
 
 
-def get_prompt_text(args: argparse.Namespace, payload: Dict[str, Any]) -> str:
+def get_prompt_text(args: argparse.Namespace, payload: dict[str, Any]) -> str:
     if args.prompt:
         return args.prompt
     if args.prompt_file:
@@ -115,10 +117,12 @@ def get_prompt_text(args: argparse.Namespace, payload: Dict[str, Any]) -> str:
             raise CLIError(f"Failed reading prompt file: {exc}") from exc
     if payload.get("prompt"):
         return str(payload["prompt"])
-    raise CLIError("Prompt content required via --prompt, --prompt-file, --input JSON, or stdin JSON.")
+    raise CLIError(
+        "Prompt content required via --prompt, --prompt-file, --input JSON, or stdin JSON."
+    )
 
 
-def next_version(versions: List[PromptVersion], name: str) -> int:
+def next_version(versions: list[PromptVersion], name: str) -> int:
     existing = [v.version for v in versions if v.name == name]
     return (max(existing) + 1) if existing else 1
 
@@ -141,13 +145,13 @@ def main() -> int:
             name=prompt_name,
             version=next_version(versions, prompt_name),
             author=author,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             change_note=change_note,
             prompt=prompt_text,
         )
         versions.append(item)
         write_store(store_path, versions)
-        output: Dict[str, Any] = {"added": asdict(item), "store": str(store_path.resolve())}
+        output: dict[str, Any] = {"added": asdict(item), "store": str(store_path.resolve())}
 
     elif args.command == "list":
         prompt_name = str(payload.get("name", args.name))

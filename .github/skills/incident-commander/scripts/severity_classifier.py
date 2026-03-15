@@ -37,12 +37,12 @@ Usage:
 import argparse
 import json
 import sys
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
-
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from typing import Any
 
 # ---------- Severity Level Definitions ----------------------------------------
+
 
 class SeverityLevel:
     """Enum-like container for SEV1 through SEV4 definitions."""
@@ -52,7 +52,7 @@ class SeverityLevel:
     SEV3 = "SEV3"
     SEV4 = "SEV4"
 
-    DEFINITIONS: Dict[str, Dict[str, Any]] = {
+    DEFINITIONS: dict[str, dict[str, Any]] = {
         "SEV1": {
             "label": "Critical",
             "description": (
@@ -92,8 +92,7 @@ class SeverityLevel:
         "SEV4": {
             "label": "Minor",
             "description": (
-                "Cosmetic issue, low impact, minimal user effect, "
-                "informational or non-urgent."
+                "Cosmetic issue, low impact, minimal user effect, informational or non-urgent."
             ),
             "score_threshold": 0.0,
             "response_time_minutes": 120,
@@ -112,13 +111,13 @@ class SeverityLevel:
         return cls.SEV4
 
     @classmethod
-    def get_definition(cls, level: str) -> Dict[str, Any]:
+    def get_definition(cls, level: str) -> dict[str, Any]:
         return cls.DEFINITIONS.get(level, cls.DEFINITIONS[cls.SEV4])
 
 
 # ---------- Configuration Constants -------------------------------------------
 
-DIMENSION_WEIGHTS: Dict[str, float] = {
+DIMENSION_WEIGHTS: dict[str, float] = {
     "revenue_impact": 0.25,
     "user_impact_scope": 0.25,
     "data_security_risk": 0.20,
@@ -126,7 +125,7 @@ DIMENSION_WEIGHTS: Dict[str, float] = {
     "blast_radius": 0.15,
 }
 
-REVENUE_IMPACT_SCORES: Dict[str, float] = {
+REVENUE_IMPACT_SCORES: dict[str, float] = {
     "critical": 1.0,
     "high": 0.8,
     "medium": 0.5,
@@ -134,7 +133,7 @@ REVENUE_IMPACT_SCORES: Dict[str, float] = {
     "none": 0.0,
 }
 
-DEGRADATION_SCORES: Dict[str, float] = {
+DEGRADATION_SCORES: dict[str, float] = {
     "complete": 1.0,
     "major": 0.75,
     "partial": 0.50,
@@ -142,7 +141,7 @@ DEGRADATION_SCORES: Dict[str, float] = {
     "none": 0.0,
 }
 
-ERROR_RATE_THRESHOLDS: List[Tuple[float, float]] = [
+ERROR_RATE_THRESHOLDS: list[tuple[float, float]] = [
     (50.0, 1.0),
     (25.0, 0.8),
     (10.0, 0.6),
@@ -150,7 +149,7 @@ ERROR_RATE_THRESHOLDS: List[Tuple[float, float]] = [
     (1.0, 0.2),
 ]
 
-LATENCY_P99_THRESHOLDS_MS: List[Tuple[float, float]] = [
+LATENCY_P99_THRESHOLDS_MS: list[tuple[float, float]] = [
     (10000, 1.0),
     (5000, 0.8),
     (2000, 0.6),
@@ -158,7 +157,7 @@ LATENCY_P99_THRESHOLDS_MS: List[Tuple[float, float]] = [
     (500, 0.2),
 ]
 
-SLA_TIERS: Dict[str, Dict[str, Any]] = {
+SLA_TIERS: dict[str, dict[str, Any]] = {
     "SEV1": {
         "target_resolution_hours": 1,
         "target_response_minutes": 5,
@@ -185,7 +184,7 @@ SLA_TIERS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-ESCALATION_TEMPLATES: Dict[str, Dict[str, Any]] = {
+ESCALATION_TEMPLATES: dict[str, dict[str, Any]] = {
     "SEV1": {
         "initial_notify": ["on-call-primary", "on-call-secondary", "engineering-manager"],
         "escalate_after_minutes": 15,
@@ -223,13 +222,14 @@ ESCALATION_TEMPLATES: Dict[str, Dict[str, Any]] = {
 
 # ---------- Data Model Classes ------------------------------------------------
 
+
 @dataclass
 class ImpactAssessment:
     """Parsed and normalised impact data from incident input."""
 
     revenue_impact: str = "none"
     affected_users_percentage: float = 0.0
-    affected_regions: List[str] = field(default_factory=list)
+    affected_regions: list[str] = field(default_factory=list)
     data_integrity_risk: bool = False
     security_breach: bool = False
     customer_facing: bool = False
@@ -243,10 +243,10 @@ class SeverityScore:
 
     composite_score: float = 0.0
     severity_level: str = SeverityLevel.SEV4
-    dimensions: Dict[str, float] = field(default_factory=dict)
-    weighted_dimensions: Dict[str, float] = field(default_factory=dict)
-    contributing_factors: List[str] = field(default_factory=list)
-    auto_escalate_reasons: List[str] = field(default_factory=list)
+    dimensions: dict[str, float] = field(default_factory=dict)
+    weighted_dimensions: dict[str, float] = field(default_factory=dict)
+    contributing_factors: list[str] = field(default_factory=list)
+    auto_escalate_reasons: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -254,14 +254,14 @@ class EscalationPath:
     """Generated escalation routing and notification schedule."""
 
     severity_level: str = SeverityLevel.SEV4
-    immediate_notify: List[str] = field(default_factory=list)
-    escalation_chain: List[Dict[str, Any]] = field(default_factory=list)
-    cross_team_notify: List[str] = field(default_factory=list)
+    immediate_notify: list[str] = field(default_factory=list)
+    escalation_chain: list[dict[str, Any]] = field(default_factory=list)
+    cross_team_notify: list[str] = field(default_factory=list)
     war_room_required: bool = False
     bridge_link: str = ""
     status_page_update: bool = False
     customer_comms_required: bool = False
-    suggested_smes: List[str] = field(default_factory=list)
+    suggested_smes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -269,10 +269,10 @@ class ActionPlan:
     """Recommended immediate actions checklist for the incident."""
 
     severity_level: str = SeverityLevel.SEV4
-    immediate_actions: List[str] = field(default_factory=list)
-    diagnostic_steps: List[str] = field(default_factory=list)
-    communication_actions: List[str] = field(default_factory=list)
-    rollback_assessment: Dict[str, Any] = field(default_factory=dict)
+    immediate_actions: list[str] = field(default_factory=list)
+    diagnostic_steps: list[str] = field(default_factory=list)
+    communication_actions: list[str] = field(default_factory=list)
+    rollback_assessment: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -280,17 +280,18 @@ class SLAImpact:
     """SLA breach risk and error-budget assessment."""
 
     severity_level: str = SeverityLevel.SEV4
-    sla_tier: Dict[str, Any] = field(default_factory=dict)
+    sla_tier: dict[str, Any] = field(default_factory=dict)
     breach_risk: str = "low"
     error_budget_impact_minutes: float = 0.0
     remaining_budget_percentage: float = 100.0
     estimated_time_to_breach_minutes: float = 0.0
-    recommendations: List[str] = field(default_factory=list)
+    recommendations: list[str] = field(default_factory=list)
 
 
 # ---------- Input Parsing -----------------------------------------------------
 
-def parse_incident_data(raw: Dict[str, Any]) -> Tuple[Dict, ImpactAssessment, Dict, Dict]:
+
+def parse_incident_data(raw: dict[str, Any]) -> tuple[dict, ImpactAssessment, dict, dict]:
     """
     Validate and normalise raw JSON input into typed structures.
 
@@ -321,9 +322,10 @@ def parse_incident_data(raw: Dict[str, Any]) -> Tuple[Dict, ImpactAssessment, Di
 
 # ---------- Core Scoring Engine -----------------------------------------------
 
-def _score_revenue_impact(impact: ImpactAssessment) -> Tuple[float, List[str]]:
+
+def _score_revenue_impact(impact: ImpactAssessment) -> tuple[float, list[str]]:
     """Score the revenue impact dimension (0.0 - 1.0)."""
-    factors: List[str] = []
+    factors: list[str] = []
     score = REVENUE_IMPACT_SCORES.get(impact.revenue_impact, 0.0)
 
     if impact.customer_facing and score >= 0.5:
@@ -340,9 +342,9 @@ def _score_revenue_impact(impact: ImpactAssessment) -> Tuple[float, List[str]]:
     return score, factors
 
 
-def _score_user_impact(impact: ImpactAssessment, signals: Dict) -> Tuple[float, List[str]]:
+def _score_user_impact(impact: ImpactAssessment, signals: dict) -> tuple[float, list[str]]:
     """Score the user impact scope dimension (0.0 - 1.0)."""
-    factors: List[str] = []
+    factors: list[str] = []
     pct = impact.affected_users_percentage
 
     if pct >= 75:
@@ -377,9 +379,9 @@ def _score_user_impact(impact: ImpactAssessment, signals: Dict) -> Tuple[float, 
     return score, factors
 
 
-def _score_data_security(impact: ImpactAssessment) -> Tuple[float, List[str]]:
+def _score_data_security(impact: ImpactAssessment) -> tuple[float, list[str]]:
     """Score the data/security risk dimension (0.0 - 1.0)."""
-    factors: List[str] = []
+    factors: list[str] = []
     score = 0.0
 
     if impact.security_breach:
@@ -396,9 +398,9 @@ def _score_data_security(impact: ImpactAssessment) -> Tuple[float, List[str]]:
     return score, factors
 
 
-def _score_service_criticality(signals: Dict, context: Dict) -> Tuple[float, List[str]]:
+def _score_service_criticality(signals: dict, context: dict) -> tuple[float, list[str]]:
     """Score service criticality based on signals and dependency graph."""
-    factors: List[str] = []
+    factors: list[str] = []
     score = 0.0
 
     dependent_services = signals.get("dependent_services", [])
@@ -426,11 +428,9 @@ def _score_service_criticality(signals: Dict, context: Dict) -> Tuple[float, Lis
     return score, factors
 
 
-def _score_blast_radius(
-    impact: ImpactAssessment, signals: Dict
-) -> Tuple[float, List[str]]:
+def _score_blast_radius(impact: ImpactAssessment, signals: dict) -> tuple[float, list[str]]:
     """Score blast radius from region spread, alert volume, and error rate."""
-    factors: List[str] = []
+    factors: list[str] = []
     score = 0.0
 
     region_count = len(impact.affected_regions)
@@ -469,13 +469,13 @@ def _score_blast_radius(
 
 
 def compute_dimension_scores(
-    impact: ImpactAssessment, signals: Dict, context: Dict
+    impact: ImpactAssessment, signals: dict, context: dict
 ) -> SeverityScore:
     """Score each weighted dimension and produce a composite severity score."""
-    dimensions: Dict[str, float] = {}
-    weighted: Dict[str, float] = {}
-    all_factors: List[str] = []
-    auto_escalate: List[str] = []
+    dimensions: dict[str, float] = {}
+    weighted: dict[str, float] = {}
+    all_factors: list[str] = []
+    auto_escalate: list[str] = []
 
     # -- Revenue impact --
     rev_score, rev_factors = _score_revenue_impact(impact)
@@ -535,8 +535,9 @@ def compute_dimension_scores(
 
 # ---------- Classification Wrapper --------------------------------------------
 
+
 def classify_severity(
-    incident: Dict, impact: ImpactAssessment, signals: Dict, context: Dict
+    incident: dict, impact: ImpactAssessment, signals: dict, context: dict
 ) -> SeverityScore:
     """
     Top-level classification: compute scores and return the final
@@ -547,10 +548,11 @@ def classify_severity(
 
 # ---------- Escalation Path Builder -------------------------------------------
 
+
 def build_escalation_path(
     severity_score: SeverityScore,
-    signals: Dict,
-    context: Dict,
+    signals: dict,
+    context: dict,
 ) -> EscalationPath:
     """Generate the escalation routing based on severity and context."""
     level = severity_score.severity_level
@@ -560,7 +562,7 @@ def build_escalation_path(
     primary = on_call.get("primary", "on-call-primary@company.com")
     secondary = on_call.get("secondary", "on-call-secondary@company.com")
 
-    immediate: List[str] = []
+    immediate: list[str] = []
     for role in template["initial_notify"]:
         if role == "on-call-primary":
             immediate.append(primary)
@@ -569,28 +571,32 @@ def build_escalation_path(
         else:
             immediate.append(role)
 
-    chain: List[Dict[str, Any]] = []
+    chain: list[dict[str, Any]] = []
     if template["escalate_to"]:
-        chain.append({
-            "trigger_after_minutes": template["escalate_after_minutes"],
-            "notify": template["escalate_to"],
-            "reason": f"No resolution within {template['escalate_after_minutes']} minutes",
-        })
+        chain.append(
+            {
+                "trigger_after_minutes": template["escalate_after_minutes"],
+                "notify": template["escalate_to"],
+                "reason": f"No resolution within {template['escalate_after_minutes']} minutes",
+            }
+        )
 
     sev_def = SeverityLevel.get_definition(level)
     if sev_def.get("executive_notify"):
-        chain.append({
-            "trigger_after_minutes": 15,
-            "notify": ["vp-engineering", "cto"],
-            "reason": "SEV1 executive notification policy",
-        })
+        chain.append(
+            {
+                "trigger_after_minutes": 15,
+                "notify": ["vp-engineering", "cto"],
+                "reason": "SEV1 executive notification policy",
+            }
+        )
 
-    cross_team: List[str] = []
+    cross_team: list[str] = []
     dependent_services = signals.get("dependent_services", [])
     for svc in dependent_services:
         cross_team.append(f"{svc}-team")
 
-    suggested_smes: List[str] = []
+    suggested_smes: list[str] = []
     affected_endpoints = signals.get("affected_endpoints", [])
     if affected_endpoints:
         suggested_smes.append(f"API owner for: {', '.join(affected_endpoints[:3])}")
@@ -620,19 +626,20 @@ def build_escalation_path(
 
 # ---------- Action Plan Builder -----------------------------------------------
 
+
 def build_action_plan(
     severity_score: SeverityScore,
-    incident: Dict,
+    incident: dict,
     impact: ImpactAssessment,
-    signals: Dict,
-    context: Dict,
+    signals: dict,
+    context: dict,
 ) -> ActionPlan:
     """Generate the immediate action plan for the classified incident."""
     level = severity_score.severity_level
     sev_def = SeverityLevel.get_definition(level)
 
     # -- Immediate actions --
-    immediate: List[str] = [
+    immediate: list[str] = [
         f"Acknowledge incident within {sev_def['response_time_minutes']} minutes",
         "Join the war room / bridge call" if sev_def["war_room"] else "Open incident channel",
         f"Post status update every {sev_def['update_cadence_minutes']} minutes",
@@ -652,7 +659,7 @@ def build_action_plan(
         immediate.append("Begin data integrity verification")
 
     # -- Diagnostic steps --
-    diagnostics: List[str] = [
+    diagnostics: list[str] = [
         "Check service dashboards and recent metric trends",
         "Review application logs for error spikes",
         "Verify upstream and downstream dependency health",
@@ -674,22 +681,20 @@ def build_action_plan(
 
     dependent_services = signals.get("dependent_services", [])
     if dependent_services:
-        diagnostics.append(
-            f"Check health of dependent services: {', '.join(dependent_services)}"
-        )
+        diagnostics.append(f"Check health of dependent services: {', '.join(dependent_services)}")
 
     # -- Communication actions --
-    comms: List[str] = []
+    comms: list[str] = []
     if sev_def.get("executive_notify"):
         comms.append("Draft executive summary within 15 minutes")
     if level in (SeverityLevel.SEV1, SeverityLevel.SEV2):
         comms.append("Post initial status page update")
         comms.append("Notify customer success team for proactive outreach")
-    comms.append(f"Schedule post-incident review within 48 hours")
+    comms.append("Schedule post-incident review within 48 hours")
 
     # -- Rollback assessment --
     recent_deploys = context.get("recent_deployments", [])
-    rollback: Dict[str, Any] = {"recent_deployment_detected": False, "recommendation": ""}
+    rollback: dict[str, Any] = {"recent_deployment_detected": False, "recommendation": ""}
 
     if recent_deploys:
         latest = recent_deploys[0]
@@ -737,10 +742,11 @@ def build_action_plan(
 
 # ---------- SLA Impact Assessment ---------------------------------------------
 
+
 def assess_sla_impact(
     severity_score: SeverityScore,
     impact: ImpactAssessment,
-    signals: Dict,
+    signals: dict,
 ) -> SLAImpact:
     """Calculate SLA breach risk and error-budget consumption."""
     level = severity_score.severity_level
@@ -777,30 +783,20 @@ def assess_sla_impact(
     budget_impact_per_hour = burn_rate * 60
     error_budget_impact = round(budget_impact_per_hour, 2)
 
-    remaining_pct = round(
-        max(0.0, (remaining_budget / monthly_budget) * 100.0), 1
-    )
+    remaining_pct = round(max(0.0, (remaining_budget / monthly_budget) * 100.0), 1)
 
-    recommendations: List[str] = []
+    recommendations: list[str] = []
     if breach_risk == "critical":
-        recommendations.append(
-            "SLA breach imminent. Prioritize resolution above all other work."
-        )
-        recommendations.append(
-            "Prepare customer communication about potential SLA credit."
-        )
+        recommendations.append("SLA breach imminent. Prioritize resolution above all other work.")
+        recommendations.append("Prepare customer communication about potential SLA credit.")
     elif breach_risk == "high":
         recommendations.append(
             "SLA breach likely within hours. Escalate to ensure rapid resolution."
         )
     elif breach_risk == "medium":
-        recommendations.append(
-            "Monitor error budget consumption. Resolve before end of business."
-        )
+        recommendations.append("Monitor error budget consumption. Resolve before end of business.")
     else:
-        recommendations.append(
-            "SLA impact is contained. Continue standard incident response."
-        )
+        recommendations.append("SLA impact is contained. Continue standard incident response.")
 
     recommendations.append(
         f"Current burn rate: {round(burn_rate * 100, 1)}% of error budget per minute"
@@ -823,19 +819,20 @@ def assess_sla_impact(
 
 # ---------- Output Formatters -------------------------------------------------
 
+
 def _header_line(char: str, width: int = 72) -> str:
     return char * width
 
 
 def format_text(
-    incident: Dict,
+    incident: dict,
     severity_score: SeverityScore,
     escalation: EscalationPath,
     action_plan: ActionPlan,
     sla_impact: SLAImpact,
 ) -> str:
     """Render a human-readable text report."""
-    lines: List[str] = []
+    lines: list[str] = []
     w = 72
 
     lines.append(_header_line("=", w))
@@ -889,8 +886,12 @@ def format_text(
         lines.append(f"War Room:         Required ({escalation.bridge_link})")
     else:
         lines.append("War Room:         Not required")
-    lines.append(f"Status Page:      {'Update required' if escalation.status_page_update else 'No update needed'}")
-    lines.append(f"Customer Comms:   {'Required' if escalation.customer_comms_required else 'Not required'}")
+    lines.append(
+        f"Status Page:      {'Update required' if escalation.status_page_update else 'No update needed'}"
+    )
+    lines.append(
+        f"Customer Comms:   {'Required' if escalation.customer_comms_required else 'Not required'}"
+    )
     lines.append("")
 
     if escalation.escalation_chain:
@@ -964,7 +965,7 @@ def format_text(
 
 
 def format_json(
-    incident: Dict,
+    incident: dict,
     severity_score: SeverityScore,
     escalation: EscalationPath,
     action_plan: ActionPlan,
@@ -972,7 +973,7 @@ def format_json(
 ) -> str:
     """Render a machine-readable JSON report."""
     report = {
-        "classification_timestamp": datetime.now(timezone.utc).isoformat(),
+        "classification_timestamp": datetime.now(UTC).isoformat(),
         "incident": incident,
         "severity": asdict(severity_score),
         "severity_definition": SeverityLevel.get_definition(severity_score.severity_level),
@@ -984,25 +985,25 @@ def format_json(
 
 
 def format_markdown(
-    incident: Dict,
+    incident: dict,
     severity_score: SeverityScore,
     escalation: EscalationPath,
     action_plan: ActionPlan,
     sla_impact: SLAImpact,
 ) -> str:
     """Render a Markdown report suitable for incident tickets or wikis."""
-    lines: List[str] = []
+    lines: list[str] = []
     sev_def = SeverityLevel.get_definition(severity_score.severity_level)
 
     lines.append(f"# Incident Severity Classification: {severity_score.severity_level}")
     lines.append("")
-    lines.append(f"**Classified:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    lines.append(f"**Classified:** {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}")
     lines.append("")
 
     lines.append("## Incident Summary")
     lines.append("")
-    lines.append(f"| Field | Value |")
-    lines.append(f"|-------|-------|")
+    lines.append("| Field | Value |")
+    lines.append("|-------|-------|")
     lines.append(f"| Title | {incident.get('title', 'N/A')} |")
     lines.append(f"| Service | {incident.get('service', 'N/A')} |")
     lines.append(f"| Detected | {incident.get('detected_at', 'N/A')} |")
@@ -1015,7 +1016,7 @@ def format_markdown(
         f"> **{severity_score.severity_level} -- {sev_def['label']}** "
         f"(Score: {severity_score.composite_score:.3f})"
     )
-    lines.append(f">")
+    lines.append(">")
     lines.append(f"> {sev_def['description']}")
     lines.append("")
 
@@ -1101,10 +1102,8 @@ def format_markdown(
     lines.append("### Rollback Assessment")
     lines.append("")
     if rb.get("recent_deployment_detected"):
-        lines.append(
-            f"| Deploy | {rb.get('service', '?')} v{rb.get('version', '?')} |"
-        )
-        lines.append(f"|--------|------|")
+        lines.append(f"| Deploy | {rb.get('service', '?')} v{rb.get('version', '?')} |")
+        lines.append("|--------|------|")
         lines.append(f"| Deployed At | {rb.get('deployed_at', '?')} |")
         if "minutes_since_deploy" in rb:
             lines.append(f"| Minutes Before Detection | {rb['minutes_since_deploy']} |")
@@ -1115,8 +1114,8 @@ def format_markdown(
     lines.append("## SLA Impact")
     lines.append("")
     tier = sla_impact.sla_tier
-    lines.append(f"| Metric | Value |")
-    lines.append(f"|--------|-------|")
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
     lines.append(f"| Breach Risk | **{sla_impact.breach_risk.upper()}** |")
     lines.append(f"| Error Budget Impact | {sla_impact.error_budget_impact_minutes} min/hr |")
     lines.append(f"| Remaining Budget | {sla_impact.remaining_budget_percentage}% |")
@@ -1139,6 +1138,7 @@ def format_markdown(
 
 
 # ---------- CLI Entry Point ---------------------------------------------------
+
 
 def main() -> None:
     """Parse arguments, read input, classify, and emit output."""
@@ -1174,11 +1174,13 @@ examples:
     # -- Read input --
     try:
         if args.data_file:
-            with open(args.data_file, "r", encoding="utf-8") as fh:
+            with open(args.data_file, encoding="utf-8") as fh:
                 raw_data = json.load(fh)
         else:
             if sys.stdin.isatty():
-                parser.error("No input file provided and stdin is a terminal. Pipe JSON or pass a file.")
+                parser.error(
+                    "No input file provided and stdin is a terminal. Pipe JSON or pass a file."
+                )
             raw_data = json.load(sys.stdin)
     except json.JSONDecodeError as exc:
         print(f"Error: invalid JSON input -- {exc}", file=sys.stderr)
@@ -1186,7 +1188,7 @@ examples:
     except FileNotFoundError:
         print(f"Error: file not found -- {args.data_file}", file=sys.stderr)
         sys.exit(1)
-    except IOError as exc:
+    except OSError as exc:
         print(f"Error: could not read input -- {exc}", file=sys.stderr)
         sys.exit(1)
 

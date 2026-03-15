@@ -17,8 +17,7 @@ import argparse
 import json
 import math
 import sys
-from statistics import mean
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> float:
@@ -33,11 +32,11 @@ class DCFModel:
 
     def __init__(self) -> None:
         """Initialize the DCF model."""
-        self.historical: Dict[str, Any] = {}
-        self.assumptions: Dict[str, Any] = {}
+        self.historical: dict[str, Any] = {}
+        self.assumptions: dict[str, Any] = {}
         self.wacc: float = 0.0
-        self.projected_revenue: List[float] = []
-        self.projected_fcf: List[float] = []
+        self.projected_revenue: list[float] = []
+        self.projected_fcf: list[float] = []
         self.projection_years: int = 5
         self.terminal_value_perpetuity: float = 0.0
         self.terminal_value_exit_multiple: float = 0.0
@@ -48,11 +47,11 @@ class DCFModel:
         self.value_per_share_perpetuity: float = 0.0
         self.value_per_share_exit_multiple: float = 0.0
 
-    def set_historical_financials(self, historical: Dict[str, Any]) -> None:
+    def set_historical_financials(self, historical: dict[str, Any]) -> None:
         """Set historical financial data."""
         self.historical = historical
 
-    def set_assumptions(self, assumptions: Dict[str, Any]) -> None:
+    def set_assumptions(self, assumptions: dict[str, Any]) -> None:
         """Set projection assumptions."""
         self.assumptions = assumptions
         self.projection_years = assumptions.get("projection_years", 5)
@@ -74,13 +73,11 @@ class DCFModel:
 
         # WACC = (E/V * Re) + (D/V * Rd * (1 - T))
         after_tax_cost_of_debt = cost_of_debt * (1 - tax_rate)
-        self.wacc = (equity_weight * cost_of_equity) + (
-            debt_weight * after_tax_cost_of_debt
-        )
+        self.wacc = (equity_weight * cost_of_equity) + (debt_weight * after_tax_cost_of_debt)
 
         return self.wacc
 
-    def project_cash_flows(self) -> Tuple[List[float], List[float]]:
+    def project_cash_flows(self) -> tuple[list[float], list[float]]:
         """Project revenue and free cash flow over the projection period."""
         base_revenue = self.historical.get("revenue", [])
         if not base_revenue:
@@ -101,15 +98,9 @@ class DCFModel:
 
         for year in range(self.projection_years):
             growth = (
-                revenue_growth_rates[year]
-                if year < len(revenue_growth_rates)
-                else default_growth
+                revenue_growth_rates[year] if year < len(revenue_growth_rates) else default_growth
             )
-            fcf_margin = (
-                fcf_margins[year]
-                if year < len(fcf_margins)
-                else default_fcf_margin
-            )
+            fcf_margin = fcf_margins[year] if year < len(fcf_margins) else default_fcf_margin
 
             current_revenue = current_revenue * (1 + growth)
             fcf = current_revenue * fcf_margin
@@ -119,7 +110,7 @@ class DCFModel:
 
         return self.projected_revenue, self.projected_fcf
 
-    def calculate_terminal_value(self) -> Tuple[float, float]:
+    def calculate_terminal_value(self) -> tuple[float, float]:
         """Calculate terminal value using both perpetuity growth and exit multiple."""
         if not self.projected_fcf:
             raise ValueError("Must project cash flows before terminal value")
@@ -130,9 +121,9 @@ class DCFModel:
 
         # Perpetuity growth method: TV = FCF * (1+g) / (WACC - g)
         if self.wacc > terminal_growth:
-            self.terminal_value_perpetuity = (
-                terminal_fcf * (1 + terminal_growth)
-            ) / (self.wacc - terminal_growth)
+            self.terminal_value_perpetuity = (terminal_fcf * (1 + terminal_growth)) / (
+                self.wacc - terminal_growth
+            )
         else:
             self.terminal_value_perpetuity = 0.0
 
@@ -144,7 +135,7 @@ class DCFModel:
 
         return self.terminal_value_perpetuity, self.terminal_value_exit_multiple
 
-    def calculate_enterprise_value(self) -> Tuple[float, float]:
+    def calculate_enterprise_value(self) -> tuple[float, float]:
         """Calculate enterprise value by discounting projected FCFs and terminal value."""
         if not self.projected_fcf:
             raise ValueError("Must project cash flows first")
@@ -166,17 +157,13 @@ class DCFModel:
 
         return self.enterprise_value_perpetuity, self.enterprise_value_exit_multiple
 
-    def calculate_equity_value(self) -> Tuple[float, float]:
+    def calculate_equity_value(self) -> tuple[float, float]:
         """Calculate equity value from enterprise value."""
         net_debt = self.historical.get("net_debt", 0)
         shares_outstanding = self.historical.get("shares_outstanding", 1)
 
-        self.equity_value_perpetuity = (
-            self.enterprise_value_perpetuity - net_debt
-        )
-        self.equity_value_exit_multiple = (
-            self.enterprise_value_exit_multiple - net_debt
-        )
+        self.equity_value_perpetuity = self.enterprise_value_perpetuity - net_debt
+        self.equity_value_exit_multiple = self.enterprise_value_exit_multiple - net_debt
 
         self.value_per_share_perpetuity = safe_divide(
             self.equity_value_perpetuity, shares_outstanding
@@ -189,9 +176,9 @@ class DCFModel:
 
     def sensitivity_analysis(
         self,
-        wacc_range: Optional[List[float]] = None,
-        growth_range: Optional[List[float]] = None,
-    ) -> Dict[str, Any]:
+        wacc_range: list[float] | None = None,
+        growth_range: list[float] | None = None,
+    ) -> dict[str, Any]:
         """
         Two-way sensitivity analysis: WACC vs terminal growth rate.
 
@@ -248,9 +235,7 @@ class DCFModel:
                 net_debt = self.historical.get("net_debt", 0)
                 shares = self.historical.get("shares_outstanding", 1)
                 equity = ev - net_debt
-                share_price_table[i][j] = round(
-                    safe_divide(equity, shares), 2
-                )
+                share_price_table[i][j] = round(safe_divide(equity, shares), 2)
 
         return {
             "wacc_values": wacc_range,
@@ -259,7 +244,7 @@ class DCFModel:
             "share_price_table": share_price_table,
         }
 
-    def run_full_valuation(self) -> Dict[str, Any]:
+    def run_full_valuation(self) -> dict[str, Any]:
         """Run the complete DCF valuation."""
         self.calculate_wacc()
         self.project_cash_flows()
@@ -291,9 +276,9 @@ class DCFModel:
             "sensitivity_analysis": sensitivity,
         }
 
-    def format_text(self, results: Dict[str, Any]) -> str:
+    def format_text(self, results: dict[str, Any]) -> str:
         """Format valuation results as human-readable text."""
-        lines: List[str] = []
+        lines: list[str] = []
         lines.append("=" * 70)
         lines.append("DCF VALUATION ANALYSIS")
         lines.append("=" * 70)
@@ -309,56 +294,52 @@ class DCFModel:
                 return f"${val / 1e3:,.1f}K"
             return f"${val:,.2f}"
 
-        lines.append(f"\n--- WACC ---")
+        lines.append("\n--- WACC ---")
         lines.append(f"  Weighted Average Cost of Capital: {results['wacc'] * 100:.2f}%")
 
-        lines.append(f"\n--- REVENUE PROJECTIONS ---")
+        lines.append("\n--- REVENUE PROJECTIONS ---")
         for i, rev in enumerate(results["projected_revenue"], 1):
             lines.append(f"  Year {i}: {fmt_money(rev)}")
 
-        lines.append(f"\n--- FREE CASH FLOW PROJECTIONS ---")
+        lines.append("\n--- FREE CASH FLOW PROJECTIONS ---")
         for i, fcf in enumerate(results["projected_fcf"], 1):
             lines.append(f"  Year {i}: {fmt_money(fcf)}")
 
-        lines.append(f"\n--- TERMINAL VALUE ---")
+        lines.append("\n--- TERMINAL VALUE ---")
         lines.append(
             f"  Perpetuity Growth Method: "
             f"{fmt_money(results['terminal_value']['perpetuity_growth'])}"
         )
         lines.append(
-            f"  Exit Multiple Method:     "
-            f"{fmt_money(results['terminal_value']['exit_multiple'])}"
+            f"  Exit Multiple Method:     {fmt_money(results['terminal_value']['exit_multiple'])}"
         )
 
-        lines.append(f"\n--- ENTERPRISE VALUE ---")
+        lines.append("\n--- ENTERPRISE VALUE ---")
         lines.append(
             f"  Perpetuity Growth Method: "
             f"{fmt_money(results['enterprise_value']['perpetuity_growth'])}"
         )
         lines.append(
-            f"  Exit Multiple Method:     "
-            f"{fmt_money(results['enterprise_value']['exit_multiple'])}"
+            f"  Exit Multiple Method:     {fmt_money(results['enterprise_value']['exit_multiple'])}"
         )
 
-        lines.append(f"\n--- EQUITY VALUE ---")
+        lines.append("\n--- EQUITY VALUE ---")
         lines.append(
-            f"  Perpetuity Growth Method: "
-            f"{fmt_money(results['equity_value']['perpetuity_growth'])}"
+            f"  Perpetuity Growth Method: {fmt_money(results['equity_value']['perpetuity_growth'])}"
         )
         lines.append(
-            f"  Exit Multiple Method:     "
-            f"{fmt_money(results['equity_value']['exit_multiple'])}"
+            f"  Exit Multiple Method:     {fmt_money(results['equity_value']['exit_multiple'])}"
         )
 
-        lines.append(f"\n--- VALUE PER SHARE ---")
+        lines.append("\n--- VALUE PER SHARE ---")
         vps = results["value_per_share"]
         lines.append(f"  Perpetuity Growth Method: ${vps['perpetuity_growth']:,.2f}")
         lines.append(f"  Exit Multiple Method:     ${vps['exit_multiple']:,.2f}")
 
         # Sensitivity table
         sens = results["sensitivity_analysis"]
-        lines.append(f"\n--- SENSITIVITY ANALYSIS (Enterprise Value) ---")
-        lines.append(f"  WACC vs Terminal Growth Rate")
+        lines.append("\n--- SENSITIVITY ANALYSIS (Enterprise Value) ---")
+        lines.append("  WACC vs Terminal Growth Rate")
         lines.append("")
 
         header = "  {:>10s}".format("WACC \\ g")
@@ -406,7 +387,7 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        with open(args.input_file, "r") as f:
+        with open(args.input_file) as f:
             data = json.load(f)
     except FileNotFoundError:
         print(f"Error: File '{args.input_file}' not found.", file=sys.stderr)

@@ -11,14 +11,13 @@ Usage:
 import argparse
 import json
 import re
-import sys
 import urllib.request
 from html.parser import HTMLParser
-
 
 # ---------------------------------------------------------------------------
 # HTML Parser
 # ---------------------------------------------------------------------------
+
 
 class CROParser(HTMLParser):
     def __init__(self):
@@ -28,15 +27,15 @@ class CROParser(HTMLParser):
         self._above_fold_elements = 0
         self._total_elements = 0
 
-        self.buttons = []          # {"text": str, "position": int}
-        self.links_as_cta = []     # a tags with CTA-like classes/text
+        self.buttons = []  # {"text": str, "position": int}
+        self.links_as_cta = []  # a tags with CTA-like classes/text
         self.form_fields = 0
         self.forms = 0
 
         # Social proof
         self.testimonial_markers = 0
         self.logo_images = 0
-        self.social_numbers = []   # "X customers", "X reviews", etc.
+        self.social_numbers = []  # "X customers", "X reviews", etc.
 
         # Trust signals
         self.ssl_mentions = 0
@@ -109,8 +108,10 @@ class CROParser(HTMLParser):
             src = attrs_dict.get("src", "").lower()
             alt = attrs_dict.get("alt", "").lower()
             cls = attrs_dict.get("class", "").lower()
-            if any(kw in src or kw in alt or kw in cls
-                   for kw in ("logo", "partner", "client", "badge", "seal", "award", "cert")):
+            if any(
+                kw in src or kw in alt or kw in cls
+                for kw in ("logo", "partner", "client", "badge", "seal", "award", "cert")
+            ):
                 self.logo_images += 1
 
     def handle_endtag(self, tag):
@@ -147,40 +148,34 @@ class CROParser(HTMLParser):
 # ---------------------------------------------------------------------------
 
 TESTIMONIAL_PATTERNS = [
-    r'\b(testimonial|review|quote|said|says|told us|customer story)\b',
+    r"\b(testimonial|review|quote|said|says|told us|customer story)\b",
     r'[""][^""]{20,}[""]',  # quoted text
-    r'\b\d[\d,]+ (reviews?|customers?|users?|clients?|companies)\b',
-    r'\bstar[s]?\b.{0,10}\b(rating|review)\b',
-    r'\b(trustpilot|g2|capterra|clutch)\b',
+    r"\b\d[\d,]+ (reviews?|customers?|users?|clients?|companies)\b",
+    r"\bstar[s]?\b.{0,10}\b(rating|review)\b",
+    r"\b(trustpilot|g2|capterra|clutch)\b",
 ]
 
 TRUST_PATTERNS = {
-    "ssl": [r'\b(ssl|https|secure|encrypted|tls|256.bit)\b'],
-    "guarantee": [r'\b(guarantee|guaranteed|money.back|refund|risk.free|no.risk)\b'],
-    "privacy": [r'\b(privacy|gdpr|data protection|we never share|no spam|unsubscribe)\b'],
+    "ssl": [r"\b(ssl|https|secure|encrypted|tls|256.bit)\b"],
+    "guarantee": [r"\b(guarantee|guaranteed|money.back|refund|risk.free|no.risk)\b"],
+    "privacy": [r"\b(privacy|gdpr|data protection|we never share|no spam|unsubscribe)\b"],
 }
 
 CTA_TEXT_PATTERNS = [
-    r'\b(get started|sign up|try free|start free|buy now|order now|get access|'
-    r'download|schedule|book|claim|join|subscribe|register|contact us|learn more|'
-    r'get quote|request demo|start trial|get demo)\b',
+    r"\b(get started|sign up|try free|start free|buy now|order now|get access|"
+    r"download|schedule|book|claim|join|subscribe|register|contact us|learn more|"
+    r"get quote|request demo|start trial|get demo)\b",
 ]
 
 
 def scan_text_signals(full_text: str) -> dict:
     text_lower = full_text.lower()
-    testimonials = sum(
-        len(re.findall(p, text_lower, re.IGNORECASE))
-        for p in TESTIMONIAL_PATTERNS
-    )
+    testimonials = sum(len(re.findall(p, text_lower, re.IGNORECASE)) for p in TESTIMONIAL_PATTERNS)
     trust = {}
     for key, patterns in TRUST_PATTERNS.items():
         trust[key] = sum(len(re.findall(p, text_lower, re.IGNORECASE)) for p in patterns)
 
-    cta_text_count = sum(
-        len(re.findall(p, text_lower, re.IGNORECASE))
-        for p in CTA_TEXT_PATTERNS
-    )
+    cta_text_count = sum(len(re.findall(p, text_lower, re.IGNORECASE)) for p in CTA_TEXT_PATTERNS)
 
     return {
         "testimonial_signals": min(testimonials, 20),
@@ -192,6 +187,7 @@ def scan_text_signals(full_text: str) -> dict:
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
+
 
 def score_category(value, thresholds: list) -> int:
     """thresholds: [(min_value, score), ...] sorted asc. Returns score for first match."""
@@ -349,6 +345,7 @@ DEMO_HTML = """<!DOCTYPE html>
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="CRO audit — analyzes an HTML page for conversion signals."
@@ -359,7 +356,7 @@ def main():
     args = parser.parse_args()
 
     if args.file:
-        with open(args.file, "r", encoding="utf-8", errors="replace") as f:
+        with open(args.file, encoding="utf-8", errors="replace") as f:
             html = f.read()
     elif args.url:
         with urllib.request.urlopen(args.url, timeout=10) as resp:
@@ -383,10 +380,10 @@ def main():
     print("=" * 62)
 
     rows = [
-        ("CTA Buttons",     "cta_buttons"),
-        ("Social Proof",    "social_proof"),
-        ("Trust Signals",   "trust_signals"),
-        ("Forms",           "forms"),
+        ("CTA Buttons", "cta_buttons"),
+        ("Social Proof", "social_proof"),
+        ("Trust Signals", "trust_signals"),
+        ("Forms", "forms"),
         ("Mobile Viewport", "viewport_mobile"),
     ]
 
@@ -402,22 +399,38 @@ def main():
     print()
     # Detail callouts
     cta = cats["cta_buttons"]
-    print(f"  CTAs: {cta['button_count']} buttons, {cta['cta_link_count']} CTA links, "
-          f"{cta['cta_text_count']} CTA text phrases, {cta['above_fold_ctas']} above fold")
+    print(
+        f"  CTAs: {cta['button_count']} buttons, {cta['cta_link_count']} CTA links, "
+        f"{cta['cta_text_count']} CTA text phrases, {cta['above_fold_ctas']} above fold"
+    )
 
     sp = cats["social_proof"]
-    print(f"  Social Proof: {sp['testimonial_signals']} testimonial signals, "
-          f"{sp['logo_badge_images']} logos/badges")
+    print(
+        f"  Social Proof: {sp['testimonial_signals']} testimonial signals, "
+        f"{sp['logo_badge_images']} logos/badges"
+    )
 
     ts = cats["trust_signals"]
-    print(f"  Trust: SSL({ts['ssl_mentions']}) Guarantee({ts['guarantee_mentions']}) "
-          f"Privacy({ts['privacy_mentions']})")
+    print(
+        f"  Trust: SSL({ts['ssl_mentions']}) Guarantee({ts['guarantee_mentions']}) "
+        f"Privacy({ts['privacy_mentions']})"
+    )
 
     fm = cats["forms"]
     print(f"  Forms: {fm['form_count']} form(s), {fm['field_count']} field(s) — {fm['note']}")
 
     print()
-    grade = "A" if overall >= 85 else "B" if overall >= 70 else "C" if overall >= 55 else "D" if overall >= 40 else "F"
+    grade = (
+        "A"
+        if overall >= 85
+        else "B"
+        if overall >= 70
+        else "C"
+        if overall >= 55
+        else "D"
+        if overall >= 40
+        else "F"
+    )
     print("=" * 62)
     print(f"  Grade: {grade}   Score: {overall}/100")
     print("=" * 62)

@@ -5,27 +5,26 @@ Analyzes technology ecosystem health including community size, maintenance statu
 GitHub metrics, npm downloads, and long-term viability assessment.
 """
 
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from typing import Any
 
 
 class EcosystemAnalyzer:
     """Analyze technology ecosystem health and viability."""
 
-    def __init__(self, ecosystem_data: Dict[str, Any]):
+    def __init__(self, ecosystem_data: dict[str, Any]):
         """
         Initialize analyzer with ecosystem data.
 
         Args:
             ecosystem_data: Dictionary containing GitHub, npm, and community metrics
         """
-        self.technology = ecosystem_data.get('technology', 'Unknown')
-        self.github_data = ecosystem_data.get('github', {})
-        self.npm_data = ecosystem_data.get('npm', {})
-        self.community_data = ecosystem_data.get('community', {})
-        self.corporate_backing = ecosystem_data.get('corporate_backing', {})
+        self.technology = ecosystem_data.get("technology", "Unknown")
+        self.github_data = ecosystem_data.get("github", {})
+        self.npm_data = ecosystem_data.get("npm", {})
+        self.community_data = ecosystem_data.get("community", {})
+        self.corporate_backing = ecosystem_data.get("corporate_backing", {})
 
-    def calculate_health_score(self) -> Dict[str, float]:
+    def calculate_health_score(self) -> dict[str, float]:
         """
         Calculate overall ecosystem health score (0-100).
 
@@ -33,24 +32,24 @@ class EcosystemAnalyzer:
             Dictionary of health score components
         """
         scores = {
-            'github_health': self._score_github_health(),
-            'npm_health': self._score_npm_health(),
-            'community_health': self._score_community_health(),
-            'corporate_backing': self._score_corporate_backing(),
-            'maintenance_health': self._score_maintenance_health()
+            "github_health": self._score_github_health(),
+            "npm_health": self._score_npm_health(),
+            "community_health": self._score_community_health(),
+            "corporate_backing": self._score_corporate_backing(),
+            "maintenance_health": self._score_maintenance_health(),
         }
 
         # Calculate weighted average
         weights = {
-            'github_health': 0.25,
-            'npm_health': 0.20,
-            'community_health': 0.20,
-            'corporate_backing': 0.15,
-            'maintenance_health': 0.20
+            "github_health": 0.25,
+            "npm_health": 0.20,
+            "community_health": 0.20,
+            "corporate_backing": 0.15,
+            "maintenance_health": 0.20,
         }
 
         overall = sum(scores[k] * weights[k] for k in scores.keys())
-        scores['overall_health'] = overall
+        scores["overall_health"] = overall
 
         return scores
 
@@ -64,7 +63,7 @@ class EcosystemAnalyzer:
         score = 0.0
 
         # Stars (0-30 points)
-        stars = self.github_data.get('stars', 0)
+        stars = self.github_data.get("stars", 0)
         if stars >= 50000:
             score += 30
         elif stars >= 20000:
@@ -79,7 +78,7 @@ class EcosystemAnalyzer:
             score += max(0, stars / 100)  # 1 point per 100 stars
 
         # Forks (0-20 points)
-        forks = self.github_data.get('forks', 0)
+        forks = self.github_data.get("forks", 0)
         if forks >= 10000:
             score += 20
         elif forks >= 5000:
@@ -92,7 +91,7 @@ class EcosystemAnalyzer:
             score += max(0, forks / 100)
 
         # Contributors (0-20 points)
-        contributors = self.github_data.get('contributors', 0)
+        contributors = self.github_data.get("contributors", 0)
         if contributors >= 500:
             score += 20
         elif contributors >= 200:
@@ -105,7 +104,7 @@ class EcosystemAnalyzer:
             score += max(0, contributors / 5)
 
         # Commit frequency (0-30 points)
-        commits_last_month = self.github_data.get('commits_last_month', 0)
+        commits_last_month = self.github_data.get("commits_last_month", 0)
         if commits_last_month >= 100:
             score += 30
         elif commits_last_month >= 50:
@@ -132,7 +131,7 @@ class EcosystemAnalyzer:
         score = 0.0
 
         # Weekly downloads (0-40 points)
-        weekly_downloads = self.npm_data.get('weekly_downloads', 0)
+        weekly_downloads = self.npm_data.get("weekly_downloads", 0)
         if weekly_downloads >= 1000000:
             score += 40
         elif weekly_downloads >= 500000:
@@ -147,8 +146,8 @@ class EcosystemAnalyzer:
             score += max(0, weekly_downloads / 500)
 
         # Version stability (0-20 points)
-        version = self.npm_data.get('version', '0.0.1')
-        major_version = int(version.split('.')[0]) if version else 0
+        version = self.npm_data.get("version", "0.0.1")
+        major_version = int(version.split(".")[0]) if version else 0
 
         if major_version >= 5:
             score += 20
@@ -160,7 +159,7 @@ class EcosystemAnalyzer:
             score += 5
 
         # Dependencies count (0-20 points, fewer is better)
-        dependencies = self.npm_data.get('dependencies_count', 50)
+        dependencies = self.npm_data.get("dependencies_count", 50)
         if dependencies <= 10:
             score += 20
         elif dependencies <= 25:
@@ -171,7 +170,7 @@ class EcosystemAnalyzer:
             score += max(0, 20 - (dependencies - 50) / 10)
 
         # Last publish date (0-20 points)
-        days_since_publish = self.npm_data.get('days_since_last_publish', 365)
+        days_since_publish = self.npm_data.get("days_since_last_publish", 365)
         if days_since_publish <= 30:
             score += 20
         elif days_since_publish <= 90:
@@ -195,7 +194,7 @@ class EcosystemAnalyzer:
         score = 0.0
 
         # Stack Overflow questions (0-25 points)
-        so_questions = self.community_data.get('stackoverflow_questions', 0)
+        so_questions = self.community_data.get("stackoverflow_questions", 0)
         if so_questions >= 50000:
             score += 25
         elif so_questions >= 20000:
@@ -208,7 +207,7 @@ class EcosystemAnalyzer:
             score += max(0, so_questions / 500)
 
         # Job postings (0-25 points)
-        job_postings = self.community_data.get('job_postings', 0)
+        job_postings = self.community_data.get("job_postings", 0)
         if job_postings >= 5000:
             score += 25
         elif job_postings >= 2000:
@@ -221,7 +220,7 @@ class EcosystemAnalyzer:
             score += max(0, job_postings / 50)
 
         # Tutorials and resources (0-25 points)
-        tutorials = self.community_data.get('tutorials_count', 0)
+        tutorials = self.community_data.get("tutorials_count", 0)
         if tutorials >= 1000:
             score += 25
         elif tutorials >= 500:
@@ -234,7 +233,7 @@ class EcosystemAnalyzer:
             score += max(0, tutorials / 10)
 
         # Active forums/Discord (0-25 points)
-        forum_members = self.community_data.get('forum_members', 0)
+        forum_members = self.community_data.get("forum_members", 0)
         if forum_members >= 50000:
             score += 25
         elif forum_members >= 20000:
@@ -255,20 +254,20 @@ class EcosystemAnalyzer:
         Returns:
             Corporate backing score (0-100)
         """
-        backing_type = self.corporate_backing.get('type', 'none')
+        backing_type = self.corporate_backing.get("type", "none")
 
         scores = {
-            'major_tech_company': 100,  # Google, Microsoft, Meta, etc.
-            'established_company': 80,   # Dedicated company (Vercel, HashiCorp)
-            'startup_backed': 60,        # Funded startup
-            'community_led': 40,         # Strong community, no corporate backing
-            'none': 20                   # Individual maintainers
+            "major_tech_company": 100,  # Google, Microsoft, Meta, etc.
+            "established_company": 80,  # Dedicated company (Vercel, HashiCorp)
+            "startup_backed": 60,  # Funded startup
+            "community_led": 40,  # Strong community, no corporate backing
+            "none": 20,  # Individual maintainers
         }
 
         base_score = scores.get(backing_type, 40)
 
         # Adjust for funding
-        funding = self.corporate_backing.get('funding_millions', 0)
+        funding = self.corporate_backing.get("funding_millions", 0)
         if funding >= 100:
             base_score = min(100, base_score + 20)
         elif funding >= 50:
@@ -288,7 +287,7 @@ class EcosystemAnalyzer:
         score = 0.0
 
         # Issue response time (0-30 points)
-        avg_response_hours = self.github_data.get('avg_issue_response_hours', 168)  # 7 days default
+        avg_response_hours = self.github_data.get("avg_issue_response_hours", 168)  # 7 days default
         if avg_response_hours <= 24:
             score += 30
         elif avg_response_hours <= 48:
@@ -301,11 +300,11 @@ class EcosystemAnalyzer:
             score += 5
 
         # Issue resolution rate (0-30 points)
-        resolution_rate = self.github_data.get('issue_resolution_rate', 0.5)
+        resolution_rate = self.github_data.get("issue_resolution_rate", 0.5)
         score += resolution_rate * 30
 
         # Release frequency (0-20 points)
-        releases_per_year = self.github_data.get('releases_per_year', 4)
+        releases_per_year = self.github_data.get("releases_per_year", 4)
         if releases_per_year >= 12:
             score += 20
         elif releases_per_year >= 6:
@@ -318,7 +317,7 @@ class EcosystemAnalyzer:
             score += 0
 
         # Active maintainers (0-20 points)
-        active_maintainers = self.github_data.get('active_maintainers', 1)
+        active_maintainers = self.github_data.get("active_maintainers", 1)
         if active_maintainers >= 10:
             score += 20
         elif active_maintainers >= 5:
@@ -332,7 +331,7 @@ class EcosystemAnalyzer:
 
         return min(100.0, score)
 
-    def assess_viability(self) -> Dict[str, Any]:
+    def assess_viability(self) -> dict[str, Any]:
         """
         Assess long-term viability of technology.
 
@@ -340,7 +339,7 @@ class EcosystemAnalyzer:
             Viability assessment with risk factors
         """
         health = self.calculate_health_score()
-        overall_health = health['overall_health']
+        overall_health = health["overall_health"]
 
         # Determine viability level
         if overall_health >= 80:
@@ -366,15 +365,15 @@ class EcosystemAnalyzer:
         strengths = self._identify_viability_strengths(health)
 
         return {
-            'overall_viability': viability,
-            'risk_level': risk_level,
-            'health_score': overall_health,
-            'risks': risks,
-            'strengths': strengths,
-            'recommendation': self._generate_viability_recommendation(overall_health, risks)
+            "overall_viability": viability,
+            "risk_level": risk_level,
+            "health_score": overall_health,
+            "risks": risks,
+            "strengths": strengths,
+            "recommendation": self._generate_viability_recommendation(overall_health, risks),
         }
 
-    def _identify_viability_risks(self, health: Dict[str, float]) -> List[str]:
+    def _identify_viability_risks(self, health: dict[str, float]) -> list[str]:
         """
         Identify viability risks from health scores.
 
@@ -386,24 +385,24 @@ class EcosystemAnalyzer:
         """
         risks = []
 
-        if health['maintenance_health'] < 50:
+        if health["maintenance_health"] < 50:
             risks.append("Low maintenance activity - slow issue resolution")
 
-        if health['github_health'] < 50:
+        if health["github_health"] < 50:
             risks.append("Limited GitHub activity - smaller community")
 
-        if health['corporate_backing'] < 40:
+        if health["corporate_backing"] < 40:
             risks.append("Weak corporate backing - sustainability concerns")
 
-        if health['npm_health'] < 50 and self.npm_data:
+        if health["npm_health"] < 50 and self.npm_data:
             risks.append("Low npm adoption - limited ecosystem")
 
-        if health['community_health'] < 50:
+        if health["community_health"] < 50:
             risks.append("Small community - limited resources and support")
 
         return risks if risks else ["No significant risks identified"]
 
-    def _identify_viability_strengths(self, health: Dict[str, float]) -> List[str]:
+    def _identify_viability_strengths(self, health: dict[str, float]) -> list[str]:
         """
         Identify viability strengths from health scores.
 
@@ -415,24 +414,24 @@ class EcosystemAnalyzer:
         """
         strengths = []
 
-        if health['maintenance_health'] >= 70:
+        if health["maintenance_health"] >= 70:
             strengths.append("Active maintenance with responsive issue resolution")
 
-        if health['github_health'] >= 70:
+        if health["github_health"] >= 70:
             strengths.append("Strong GitHub presence with active community")
 
-        if health['corporate_backing'] >= 70:
+        if health["corporate_backing"] >= 70:
             strengths.append("Strong corporate backing ensures sustainability")
 
-        if health['npm_health'] >= 70 and self.npm_data:
+        if health["npm_health"] >= 70 and self.npm_data:
             strengths.append("High npm adoption with stable releases")
 
-        if health['community_health'] >= 70:
+        if health["community_health"] >= 70:
             strengths.append("Large, active community with extensive resources")
 
         return strengths if strengths else ["Baseline viability maintained"]
 
-    def _generate_viability_recommendation(self, health_score: float, risks: List[str]) -> str:
+    def _generate_viability_recommendation(self, health_score: float, risks: list[str]) -> str:
         """
         Generate viability recommendation.
 
@@ -452,7 +451,7 @@ class EcosystemAnalyzer:
         else:
             return "Not recommended - consider alternatives with stronger ecosystems"
 
-    def generate_ecosystem_report(self) -> Dict[str, Any]:
+    def generate_ecosystem_report(self) -> dict[str, Any]:
         """
         Generate comprehensive ecosystem report.
 
@@ -463,39 +462,39 @@ class EcosystemAnalyzer:
         viability = self.assess_viability()
 
         return {
-            'technology': self.technology,
-            'health_scores': health,
-            'viability_assessment': viability,
-            'github_metrics': self._format_github_metrics(),
-            'npm_metrics': self._format_npm_metrics() if self.npm_data else None,
-            'community_metrics': self._format_community_metrics()
+            "technology": self.technology,
+            "health_scores": health,
+            "viability_assessment": viability,
+            "github_metrics": self._format_github_metrics(),
+            "npm_metrics": self._format_npm_metrics() if self.npm_data else None,
+            "community_metrics": self._format_community_metrics(),
         }
 
-    def _format_github_metrics(self) -> Dict[str, Any]:
+    def _format_github_metrics(self) -> dict[str, Any]:
         """Format GitHub metrics for reporting."""
         return {
-            'stars': f"{self.github_data.get('stars', 0):,}",
-            'forks': f"{self.github_data.get('forks', 0):,}",
-            'contributors': f"{self.github_data.get('contributors', 0):,}",
-            'commits_last_month': self.github_data.get('commits_last_month', 0),
-            'open_issues': self.github_data.get('open_issues', 0),
-            'issue_resolution_rate': f"{self.github_data.get('issue_resolution_rate', 0) * 100:.1f}%"
+            "stars": f"{self.github_data.get('stars', 0):,}",
+            "forks": f"{self.github_data.get('forks', 0):,}",
+            "contributors": f"{self.github_data.get('contributors', 0):,}",
+            "commits_last_month": self.github_data.get("commits_last_month", 0),
+            "open_issues": self.github_data.get("open_issues", 0),
+            "issue_resolution_rate": f"{self.github_data.get('issue_resolution_rate', 0) * 100:.1f}%",
         }
 
-    def _format_npm_metrics(self) -> Dict[str, Any]:
+    def _format_npm_metrics(self) -> dict[str, Any]:
         """Format npm metrics for reporting."""
         return {
-            'weekly_downloads': f"{self.npm_data.get('weekly_downloads', 0):,}",
-            'version': self.npm_data.get('version', 'N/A'),
-            'dependencies': self.npm_data.get('dependencies_count', 0),
-            'days_since_publish': self.npm_data.get('days_since_last_publish', 0)
+            "weekly_downloads": f"{self.npm_data.get('weekly_downloads', 0):,}",
+            "version": self.npm_data.get("version", "N/A"),
+            "dependencies": self.npm_data.get("dependencies_count", 0),
+            "days_since_publish": self.npm_data.get("days_since_last_publish", 0),
         }
 
-    def _format_community_metrics(self) -> Dict[str, Any]:
+    def _format_community_metrics(self) -> dict[str, Any]:
         """Format community metrics for reporting."""
         return {
-            'stackoverflow_questions': f"{self.community_data.get('stackoverflow_questions', 0):,}",
-            'job_postings': f"{self.community_data.get('job_postings', 0):,}",
-            'tutorials': self.community_data.get('tutorials_count', 0),
-            'forum_members': f"{self.community_data.get('forum_members', 0):,}"
+            "stackoverflow_questions": f"{self.community_data.get('stackoverflow_questions', 0):,}",
+            "job_postings": f"{self.community_data.get('job_postings', 0):,}",
+            "tutorials": self.community_data.get("tutorials_count", 0),
+            "forum_members": f"{self.community_data.get('forum_members', 0):,}",
         }

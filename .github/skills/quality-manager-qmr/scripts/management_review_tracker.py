@@ -13,10 +13,8 @@ Usage:
 
 import argparse
 import json
-import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
 from enum import Enum
 
 
@@ -49,7 +47,7 @@ class ReviewInput:
     status: InputStatus
     data_period: str
     summary: str = ""
-    concerns: List[str] = field(default_factory=list)
+    concerns: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -62,7 +60,7 @@ class ActionItem:
     status: ActionStatus
     source_review: str
     category: str = "Improvement"
-    completion_date: Optional[str] = None
+    completion_date: str | None = None
     notes: str = ""
 
 
@@ -86,11 +84,11 @@ class ManagementReview:
     review_type: str
     period_start: str
     period_end: str
-    inputs: List[ReviewInput]
-    actions: List[ActionItem]
+    inputs: list[ReviewInput]
+    actions: list[ActionItem]
     metrics: ReviewMetrics
-    decisions: List[str] = field(default_factory=list)
-    attendees: List[str] = field(default_factory=list)
+    decisions: list[str] = field(default_factory=list)
+    attendees: list[str] = field(default_factory=list)
 
 
 class ManagementReviewTracker:
@@ -112,7 +110,7 @@ class ManagementReviewTracker:
         self.review = review
         self.today = datetime.now()
 
-    def check_input_readiness(self) -> Dict:
+    def check_input_readiness(self) -> dict:
         """Check readiness of all required inputs."""
         readiness = {
             "total_required": len(self.REQUIRED_INPUTS),
@@ -120,7 +118,7 @@ class ManagementReviewTracker:
             "in_progress": 0,
             "not_started": 0,
             "missing_topics": [],
-            "readiness_score": 0.0
+            "readiness_score": 0.0,
         }
 
         input_topics = {inp.topic: inp for inp in self.review.inputs}
@@ -144,7 +142,7 @@ class ManagementReviewTracker:
 
         return readiness
 
-    def analyze_actions(self) -> Dict:
+    def analyze_actions(self) -> dict:
         """Analyze action item status."""
         analysis = {
             "total": len(self.review.actions),
@@ -152,7 +150,7 @@ class ManagementReviewTracker:
             "by_priority": {},
             "overdue": [],
             "due_soon": [],
-            "completion_rate": 0.0
+            "completion_rate": 0.0,
         }
 
         completed = 0
@@ -173,39 +171,41 @@ class ManagementReviewTracker:
             if action.due_date:
                 due = datetime.strptime(action.due_date, "%Y-%m-%d")
                 if due < self.today and action.status not in [
-                    ActionStatus.COMPLETE, ActionStatus.VERIFIED
+                    ActionStatus.COMPLETE,
+                    ActionStatus.VERIFIED,
                 ]:
                     days_overdue = (self.today - due).days
-                    analysis["overdue"].append({
-                        "action_id": action.action_id,
-                        "description": action.description[:50],
-                        "owner": action.owner,
-                        "days_overdue": days_overdue
-                    })
+                    analysis["overdue"].append(
+                        {
+                            "action_id": action.action_id,
+                            "description": action.description[:50],
+                            "owner": action.owner,
+                            "days_overdue": days_overdue,
+                        }
+                    )
                 elif due <= self.today + timedelta(days=14) and action.status not in [
-                    ActionStatus.COMPLETE, ActionStatus.VERIFIED
+                    ActionStatus.COMPLETE,
+                    ActionStatus.VERIFIED,
                 ]:
                     days_until = (due - self.today).days
-                    analysis["due_soon"].append({
-                        "action_id": action.action_id,
-                        "description": action.description[:50],
-                        "owner": action.owner,
-                        "days_until_due": days_until
-                    })
+                    analysis["due_soon"].append(
+                        {
+                            "action_id": action.action_id,
+                            "description": action.description[:50],
+                            "owner": action.owner,
+                            "days_until_due": days_until,
+                        }
+                    )
 
         if analysis["total"] > 0:
             analysis["completion_rate"] = round((completed / analysis["total"]) * 100, 1)
 
         return analysis
 
-    def assess_metrics(self) -> Dict:
+    def assess_metrics(self) -> dict:
         """Assess quality metrics against targets."""
         metrics = self.review.metrics
-        assessment = {
-            "metrics": [],
-            "alerts": [],
-            "overall_status": "On Track"
-        }
+        assessment = {"metrics": [], "alerts": [], "overall_status": "On Track"}
 
         # Define targets and assess
         checks = [
@@ -230,12 +230,7 @@ class ManagementReviewTracker:
                 threshold = target * 0.9
                 warning = value < target and value >= threshold
 
-            metric_result = {
-                "name": name,
-                "value": value,
-                "target": target,
-                "status": status
-            }
+            metric_result = {"name": name, "value": value, "target": target, "status": status}
             assessment["metrics"].append(metric_result)
 
             if status == "Fail":
@@ -253,7 +248,7 @@ class ManagementReviewTracker:
 
         return assessment
 
-    def generate_recommendations(self) -> List[str]:
+    def generate_recommendations(self) -> list[str]:
         """Generate recommendations based on analysis."""
         recommendations = []
 
@@ -274,9 +269,7 @@ class ManagementReviewTracker:
         # Check metrics
         metrics_assessment = self.assess_metrics()
         if metrics_assessment["overall_status"] == "Critical":
-            recommendations.append(
-                "Escalate critical metric failures to senior management"
-            )
+            recommendations.append("Escalate critical metric failures to senior management")
 
         # CAPA specific
         if self.review.metrics.capa_overdue > 0:
@@ -285,9 +278,7 @@ class ManagementReviewTracker:
             )
 
         if self.review.metrics.capa_effectiveness < 85:
-            recommendations.append(
-                "Review root cause analysis quality for ineffective CAPAs"
-            )
+            recommendations.append("Review root cause analysis quality for ineffective CAPAs")
 
         # Audit findings
         if self.review.metrics.audit_findings_major > 0:
@@ -300,7 +291,7 @@ class ManagementReviewTracker:
 
         return recommendations
 
-    def generate_report(self) -> Dict:
+    def generate_report(self) -> dict:
         """Generate complete review status report."""
         return {
             "review_date": self.review.review_date,
@@ -309,11 +300,11 @@ class ManagementReviewTracker:
             "input_readiness": self.check_input_readiness(),
             "action_analysis": self.analyze_actions(),
             "metrics_assessment": self.assess_metrics(),
-            "recommendations": self.generate_recommendations()
+            "recommendations": self.generate_recommendations(),
         }
 
 
-def format_text_report(report: Dict) -> str:
+def format_text_report(report: dict) -> str:
     """Format report as text output."""
     lines = [
         "=" * 70,
@@ -329,58 +320,70 @@ def format_text_report(report: Dict) -> str:
         f"Complete: {report['input_readiness']['complete']} / {report['input_readiness']['total_required']}",
     ]
 
-    if report['input_readiness']['missing_topics']:
+    if report["input_readiness"]["missing_topics"]:
         lines.append(f"Missing: {', '.join(report['input_readiness']['missing_topics'])}")
 
-    lines.extend([
-        "",
-        "ACTION STATUS",
-        "-" * 40,
-        f"Total Actions: {report['action_analysis']['total']}",
-        f"Completion Rate: {report['action_analysis']['completion_rate']}%",
-    ])
+    lines.extend(
+        [
+            "",
+            "ACTION STATUS",
+            "-" * 40,
+            f"Total Actions: {report['action_analysis']['total']}",
+            f"Completion Rate: {report['action_analysis']['completion_rate']}%",
+        ]
+    )
 
-    for status, count in report['action_analysis']['by_status'].items():
+    for status, count in report["action_analysis"]["by_status"].items():
         lines.append(f"  {status}: {count}")
 
-    if report['action_analysis']['overdue']:
-        lines.extend([
+    if report["action_analysis"]["overdue"]:
+        lines.extend(
+            [
+                "",
+                "OVERDUE ACTIONS:",
+            ]
+        )
+        for item in report["action_analysis"]["overdue"]:
+            lines.append(
+                f"  [{item['action_id']}] {item['description']} - {item['days_overdue']} days overdue"
+            )
+
+    lines.extend(
+        [
             "",
-            "OVERDUE ACTIONS:",
-        ])
-        for item in report['action_analysis']['overdue']:
-            lines.append(f"  [{item['action_id']}] {item['description']} - {item['days_overdue']} days overdue")
+            "METRICS ASSESSMENT",
+            "-" * 40,
+            f"Overall Status: {report['metrics_assessment']['overall_status']}",
+            "",
+            f"{'Metric':<25} {'Value':<10} {'Target':<10} {'Status':<10}",
+            "-" * 55,
+        ]
+    )
 
-    lines.extend([
-        "",
-        "METRICS ASSESSMENT",
-        "-" * 40,
-        f"Overall Status: {report['metrics_assessment']['overall_status']}",
-        "",
-        f"{'Metric':<25} {'Value':<10} {'Target':<10} {'Status':<10}",
-        "-" * 55,
-    ])
-
-    for metric in report['metrics_assessment']['metrics']:
+    for metric in report["metrics_assessment"]["metrics"]:
         lines.append(
             f"{metric['name']:<25} {metric['value']:<10} {metric['target']:<10} {metric['status']:<10}"
         )
 
-    if report['metrics_assessment']['alerts']:
-        lines.extend([
-            "",
-            "ALERTS:",
-        ])
-        for alert in report['metrics_assessment']['alerts']:
+    if report["metrics_assessment"]["alerts"]:
+        lines.extend(
+            [
+                "",
+                "ALERTS:",
+            ]
+        )
+        for alert in report["metrics_assessment"]["alerts"]:
             lines.append(f"  ! {alert}")
 
-    lines.extend([
-        "",
-        "RECOMMENDATIONS",
-        "-" * 40,
-    ])
+    lines.extend(
+        [
+            "",
+            "RECOMMENDATIONS",
+            "-" * 40,
+        ]
+    )
 
-    for i, rec in enumerate(report['recommendations'], 1):
+    for i, rec in enumerate(report["recommendations"], 1):
         lines.append(f"{i}. {rec}")
 
     lines.append("=" * 70)
@@ -409,12 +412,17 @@ def interactive_mode():
         audit_findings_major=int(input("Major Audit Findings: ") or 0),
         first_pass_yield=float(input("First Pass Yield (%): ") or 0),
         customer_satisfaction=float(input("Customer Satisfaction (1-5): ") or 0),
-        training_compliance=float(input("Training Compliance (%): ") or 0)
+        training_compliance=float(input("Training Compliance (%): ") or 0),
     )
 
     # Create review with sample inputs
     inputs = [
-        ReviewInput(topic=topic, responsible=resp, status=InputStatus.COMPLETE, data_period=f"{period_start} to {period_end}")
+        ReviewInput(
+            topic=topic,
+            responsible=resp,
+            status=InputStatus.COMPLETE,
+            data_period=f"{period_start} to {period_end}",
+        )
         for topic, resp in ManagementReviewTracker.REQUIRED_INPUTS
     ]
 
@@ -425,7 +433,7 @@ def interactive_mode():
         period_end=period_end,
         inputs=inputs,
         actions=[],
-        metrics=metrics
+        metrics=metrics,
     )
 
     tracker = ManagementReviewTracker(review)
@@ -434,30 +442,11 @@ def interactive_mode():
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Management Review Tracker"
-    )
-    parser.add_argument(
-        "--data",
-        type=str,
-        help="JSON file with review data"
-    )
-    parser.add_argument(
-        "--output",
-        choices=["text", "json"],
-        default="text",
-        help="Output format"
-    )
-    parser.add_argument(
-        "--interactive",
-        action="store_true",
-        help="Run in interactive mode"
-    )
-    parser.add_argument(
-        "--sample",
-        action="store_true",
-        help="Generate sample review data"
-    )
+    parser = argparse.ArgumentParser(description="Management Review Tracker")
+    parser.add_argument("--data", type=str, help="JSON file with review data")
+    parser.add_argument("--output", choices=["text", "json"], default="text", help="Output format")
+    parser.add_argument("--interactive", action="store_true", help="Run in interactive mode")
+    parser.add_argument("--sample", action="store_true", help="Generate sample review data")
 
     args = parser.parse_args()
 
@@ -472,10 +461,30 @@ def main():
             "period_start": "2024-01-01",
             "period_end": "2024-06-30",
             "inputs": [
-                {"topic": "Audit Results", "responsible": "QA Manager", "status": "Complete", "data_period": "H1 2024"},
-                {"topic": "Customer Feedback", "responsible": "Customer Quality", "status": "Complete", "data_period": "H1 2024"},
-                {"topic": "Process Performance", "responsible": "Operations", "status": "In Progress", "data_period": "H1 2024"},
-                {"topic": "CAPA Status", "responsible": "CAPA Officer", "status": "Complete", "data_period": "Current"}
+                {
+                    "topic": "Audit Results",
+                    "responsible": "QA Manager",
+                    "status": "Complete",
+                    "data_period": "H1 2024",
+                },
+                {
+                    "topic": "Customer Feedback",
+                    "responsible": "Customer Quality",
+                    "status": "Complete",
+                    "data_period": "H1 2024",
+                },
+                {
+                    "topic": "Process Performance",
+                    "responsible": "Operations",
+                    "status": "In Progress",
+                    "data_period": "H1 2024",
+                },
+                {
+                    "topic": "CAPA Status",
+                    "responsible": "CAPA Officer",
+                    "status": "Complete",
+                    "data_period": "Current",
+                },
             ],
             "actions": [
                 {
@@ -485,7 +494,7 @@ def main():
                     "due_date": "2024-09-30",
                     "priority": "High",
                     "status": "In Progress",
-                    "source_review": "2024-Q1"
+                    "source_review": "2024-Q1",
                 }
             ],
             "metrics": {
@@ -498,15 +507,15 @@ def main():
                 "audit_findings_major": 1,
                 "first_pass_yield": 96.5,
                 "customer_satisfaction": 4.2,
-                "training_compliance": 97.0
-            }
+                "training_compliance": 97.0,
+            },
         }
         print(json.dumps(sample, indent=2))
         return
 
     # Create sample review if no data provided
     if args.data:
-        with open(args.data, "r") as f:
+        with open(args.data) as f:
             data = json.load(f)
 
         inputs = [
@@ -514,7 +523,7 @@ def main():
                 topic=inp["topic"],
                 responsible=inp["responsible"],
                 status=InputStatus[inp["status"].upper().replace(" ", "_")],
-                data_period=inp.get("data_period", "")
+                data_period=inp.get("data_period", ""),
             )
             for inp in data.get("inputs", [])
         ]
@@ -527,7 +536,7 @@ def main():
                 due_date=act["due_date"],
                 priority=ActionPriority[act["priority"].upper()],
                 status=ActionStatus[act["status"].upper().replace(" ", "_")],
-                source_review=act.get("source_review", "")
+                source_review=act.get("source_review", ""),
             )
             for act in data.get("actions", [])
         ]
@@ -542,7 +551,7 @@ def main():
             period_end=data["period_end"],
             inputs=inputs,
             actions=actions,
-            metrics=metrics
+            metrics=metrics,
         )
     else:
         # Demo data
@@ -553,18 +562,31 @@ def main():
             period_end="2024-06-30",
             inputs=[
                 ReviewInput("Audit Results", "QA Manager", InputStatus.COMPLETE, "H1 2024"),
-                ReviewInput("Customer Feedback", "Customer Quality", InputStatus.COMPLETE, "H1 2024"),
+                ReviewInput(
+                    "Customer Feedback", "Customer Quality", InputStatus.COMPLETE, "H1 2024"
+                ),
                 ReviewInput("CAPA Status", "CAPA Officer", InputStatus.COMPLETE, "Current"),
             ],
             actions=[
-                ActionItem("MR-2024-001", "Implement CAPA tracking", "QA Mgr", "2024-09-30",
-                          ActionPriority.HIGH, ActionStatus.IN_PROGRESS, "2024-Q1"),
+                ActionItem(
+                    "MR-2024-001",
+                    "Implement CAPA tracking",
+                    "QA Mgr",
+                    "2024-09-30",
+                    ActionPriority.HIGH,
+                    ActionStatus.IN_PROGRESS,
+                    "2024-Q1",
+                ),
             ],
             metrics=ReviewMetrics(
-                complaint_rate=0.08, capa_open=8, capa_overdue=2,
-                capa_effectiveness=88.0, first_pass_yield=96.5,
-                customer_satisfaction=4.2, training_compliance=97.0
-            )
+                complaint_rate=0.08,
+                capa_open=8,
+                capa_overdue=2,
+                capa_effectiveness=88.0,
+                first_pass_yield=96.5,
+                customer_satisfaction=4.2,
+                training_compliance=97.0,
+            ),
         )
 
     tracker = ManagementReviewTracker(review)

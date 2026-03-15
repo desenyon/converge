@@ -7,15 +7,14 @@ Stdlib only. Run with: python scenario_modeler.py
 
 import json
 import sys
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
 from enum import Enum
 
 
 class Severity(Enum):
-    BASE = "base"       # One variable hits
-    STRESS = "stress"   # Two variables hit
-    SEVERE = "severe"   # All variables hit
+    BASE = "base"  # One variable hits
+    STRESS = "stress"  # Two variables hit
+    SEVERE = "severe"  # All variables hit
 
 
 class Domain(Enum):
@@ -33,18 +32,18 @@ class Domain(Enum):
 class Variable:
     name: str
     description: str
-    probability: float          # 0.0-1.0
-    arrt_impact_pct: float      # % of ARR at risk (negative = loss)
-    runway_impact_months: float # months lost from runway (negative = reduction)
-    affected_domains: List[Domain]
-    timeline_days: int          # when it hits
+    probability: float  # 0.0-1.0
+    arrt_impact_pct: float  # % of ARR at risk (negative = loss)
+    runway_impact_months: float  # months lost from runway (negative = reduction)
+    affected_domains: list[Domain]
+    timeline_days: int  # when it hits
 
 
 @dataclass
 class CascadeEffect:
     trigger_domain: Domain
     caused_domain: Domain
-    mechanism: str              # how A causes B
+    mechanism: str  # how A causes B
     severity_multiplier: float  # compounds the base impact
 
 
@@ -61,19 +60,16 @@ class Hedge:
 @dataclass
 class Scenario:
     name: str
-    variables: List[Variable]
-    cascades: List[CascadeEffect]
-    hedges: List[Hedge]
+    variables: list[Variable]
+    cascades: list[CascadeEffect]
+    hedges: list[Hedge]
     # Company baseline
     current_arr_usd: int = 2_000_000
     current_runway_months: int = 14
     monthly_burn_usd: int = 140_000
 
 
-def calculate_impact(
-    scenario: Scenario,
-    severity: Severity
-) -> Dict:
+def calculate_impact(scenario: Scenario, severity: Severity) -> dict:
     """Calculate combined impact for a given severity level."""
     variables = scenario.variables
 
@@ -98,8 +94,7 @@ def calculate_impact(
     if len(active_vars) > 1:
         active_domains = set(d for v in active_vars for d in v.affected_domains)
         for cascade in scenario.cascades:
-            if (cascade.trigger_domain in active_domains and
-                    cascade.caused_domain in active_domains):
+            if cascade.trigger_domain in active_domains and cascade.caused_domain in active_domains:
                 cascade_multiplier *= cascade.severity_multiplier
 
     # Apply cascade
@@ -130,7 +125,7 @@ def calculate_impact(
     }
 
 
-def identify_triggers(variables: List[Variable]) -> List[Dict]:
+def identify_triggers(variables: list[Variable]) -> list[dict]:
     """Generate early warning triggers for each variable."""
     triggers = []
     for var in variables:
@@ -138,13 +133,15 @@ def identify_triggers(variables: List[Variable]) -> List[Dict]:
             "variable": var.name,
             "timeline": f"Watch from day 1; expect signal ~{var.timeline_days // 2} days before impact",
             "signals": _generate_signals(var),
-            "response_owner": _domain_to_owner(var.affected_domains[0] if var.affected_domains else Domain.FINANCIAL),
+            "response_owner": _domain_to_owner(
+                var.affected_domains[0] if var.affected_domains else Domain.FINANCIAL
+            ),
         }
         triggers.append(trigger)
     return triggers
 
 
-def _generate_signals(var: Variable) -> List[str]:
+def _generate_signals(var: Variable) -> list[str]:
     """Generate plausible early warning signals based on variable type."""
     signals = []
     name_lower = var.name.lower()
@@ -216,7 +213,7 @@ def print_report(scenario: Scenario) -> None:
     print("=" * 70)
 
     # Baseline
-    print(f"\n📊 BASELINE")
+    print("\n📊 BASELINE")
     print(f"   Current ARR:    {format_currency(scenario.current_arr_usd)}")
     print(f"   Monthly Burn:   {format_currency(scenario.monthly_burn_usd)}")
     print(f"   Runway:         {scenario.current_runway_months} months")
@@ -228,8 +225,10 @@ def print_report(scenario: Scenario) -> None:
         print(f"\n  Variable {i}: {var.name}")
         print(f"    {var.description}")
         print(f"    Probability: {prob_pct}%  |  Timeline: {var.timeline_days} days")
-        print(f"    ARR impact: -{var.arrt_impact_pct}%  |  "
-              f"Runway impact: -{var.runway_impact_months} months")
+        print(
+            f"    ARR impact: -{var.arrt_impact_pct}%  |  "
+            f"Runway impact: -{var.runway_impact_months} months"
+        )
         print(f"    Affected: {', '.join(d.value for d in var.affected_domains)}")
 
     # Combined probability
@@ -254,15 +253,17 @@ def print_report(scenario: Scenario) -> None:
         icon = {"base": "🟡", "stress": "🔴", "severe": "💀"}[impact["severity"]]
         print(f"\n{icon} {impact['severity'].upper()} SCENARIO")
         print(f"   Variables: {', '.join(impact['active_variables'])}")
-        print(f"   ARR at risk: {format_currency(impact['arr_at_risk_usd'])} "
-              f"({impact['arr_at_risk_pct']}%)")
+        print(
+            f"   ARR at risk: {format_currency(impact['arr_at_risk_usd'])} "
+            f"({impact['arr_at_risk_pct']}%)"
+        )
         print(f"   Projected ARR: {format_currency(impact['projected_arr_usd'])}")
-        print(f"   Runway: {impact['runway_months']} months "
-              f"({impact['runway_change']:+.1f} months)")
+        print(
+            f"   Runway: {impact['runway_months']} months ({impact['runway_change']:+.1f} months)"
+        )
         print(f"   Burn multiple: {impact['new_burn_multiple']}x")
-        if impact['cascade_multiplier'] > 1.0:
-            print(f"   Cascade amplifier: {impact['cascade_multiplier']}x "
-                  f"(domains interact)")
+        if impact["cascade_multiplier"] > 1.0:
+            print(f"   Cascade amplifier: {impact['cascade_multiplier']}x (domains interact)")
         print(f"   Board escalation: {'⚠️  YES' if impact['board_escalation_required'] else 'No'}")
         print(f"   Existential risk: {'🚨 YES' if impact['existential_risk'] else 'No'}")
 
@@ -274,8 +275,9 @@ def print_report(scenario: Scenario) -> None:
         for i, cascade in enumerate(scenario.cascades, 1):
             print(f"\n  [{i}] {cascade.trigger_domain.value}")
             print(f"       ↓ {cascade.mechanism}")
-            print(f"       → {cascade.caused_domain.value} "
-                  f"(amplified {cascade.severity_multiplier}x)")
+            print(
+                f"       → {cascade.caused_domain.value} (amplified {cascade.severity_multiplier}x)"
+            )
 
     # Early Warning Triggers
     print(f"\n{'=' * 70}")
@@ -286,7 +288,7 @@ def print_report(scenario: Scenario) -> None:
         print(f"\n  📡 {trigger['variable']}")
         print(f"     Watch: {trigger['timeline']}")
         print(f"     Owner: {trigger['response_owner']}")
-        for signal in trigger['signals']:
+        for signal in trigger["signals"]:
             print(f"     • {signal}")
 
     # Hedges
@@ -294,12 +296,13 @@ def print_report(scenario: Scenario) -> None:
         print(f"\n{'=' * 70}")
         print("HEDGING STRATEGIES (act now)")
         print("=" * 70)
-        sorted_hedges = sorted(scenario.hedges,
-                               key=lambda h: h.reduces_probability, reverse=True)
+        sorted_hedges = sorted(scenario.hedges, key=lambda h: h.reduces_probability, reverse=True)
         for hedge in sorted_hedges:
             print(f"\n  ✅ {hedge.action}")
-            print(f"     Cost: {format_currency(hedge.cost_usd)}/year  |  "
-                  f"Owner: {hedge.owner}  |  Deadline: {hedge.deadline_days} days")
+            print(
+                f"     Cost: {format_currency(hedge.cost_usd)}/year  |  "
+                f"Owner: {hedge.owner}  |  Deadline: {hedge.deadline_days} days"
+            )
             print(f"     Impact: {hedge.impact_description}")
             print(f"     Risk reduction: {int(hedge.reduces_probability * 100)}%")
 
@@ -315,31 +318,25 @@ def build_sample_scenario() -> Scenario:
             probability=0.15,
             arrt_impact_pct=28.0,
             runway_impact_months=4.0,
-            affected_domains=[
-                Domain.FINANCIAL, Domain.REVENUE, Domain.OPERATIONS
-            ],
+            affected_domains=[Domain.FINANCIAL, Domain.REVENUE, Domain.OPERATIONS],
             timeline_days=60,
         ),
         Variable(
             name="Series A delayed 6 months",
             description="Fundraise process extends beyond target close; bridge required",
             probability=0.25,
-            arrt_impact_pct=0.0,         # No ARR impact directly
-            runway_impact_months=3.0,     # Bridge terms reduce effective runway
-            affected_domains=[
-                Domain.FINANCIAL, Domain.PEOPLE, Domain.OPERATIONS
-            ],
+            arrt_impact_pct=0.0,  # No ARR impact directly
+            runway_impact_months=3.0,  # Bridge terms reduce effective runway
+            affected_domains=[Domain.FINANCIAL, Domain.PEOPLE, Domain.OPERATIONS],
             timeline_days=120,
         ),
         Variable(
             name="Lead engineer resigns",
             description="Engineering lead + 1 senior resign during uncertainty",
             probability=0.20,
-            arrt_impact_pct=5.0,          # Roadmap slip causes some revenue impact
+            arrt_impact_pct=5.0,  # Roadmap slip causes some revenue impact
             runway_impact_months=1.0,
-            affected_domains=[
-                Domain.ENGINEERING, Domain.PRODUCT, Domain.REVENUE
-            ],
+            affected_domains=[Domain.ENGINEERING, Domain.PRODUCT, Domain.REVENUE],
             timeline_days=30,
         ),
     ]
@@ -436,15 +433,17 @@ def interactive_mode() -> Scenario:
         runway_impact = float(input("  Runway impact (months): ").strip() or "2")
         timeline = int(input("  Timeline (days): ").strip() or "90")
 
-        variables.append(Variable(
-            name=var_name,
-            description=desc,
-            probability=prob,
-            arrt_impact_pct=arr_impact,
-            runway_impact_months=runway_impact,
-            affected_domains=[Domain.FINANCIAL, Domain.REVENUE],
-            timeline_days=timeline,
-        ))
+        variables.append(
+            Variable(
+                name=var_name,
+                description=desc,
+                probability=prob,
+                arrt_impact_pct=arr_impact,
+                runway_impact_months=runway_impact,
+                affected_domains=[Domain.FINANCIAL, Domain.REVENUE],
+                timeline_days=timeline,
+            )
+        )
 
     if not variables:
         print("No variables defined. Using sample scenario.")

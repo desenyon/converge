@@ -16,7 +16,7 @@ Usage:
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> float:
@@ -26,7 +26,7 @@ def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> f
     return numerator / denominator
 
 
-def analyze_funnel(stages: List[str], counts: List[int]) -> Dict[str, Any]:
+def analyze_funnel(stages: list[str], counts: list[int]) -> dict[str, Any]:
     """Analyze a single funnel and return stage-by-stage metrics.
 
     Args:
@@ -41,14 +41,14 @@ def analyze_funnel(stages: List[str], counts: List[int]) -> Dict[str, Any]:
     if not stages:
         raise ValueError("Funnel must have at least one stage.")
 
-    stage_metrics: List[Dict[str, Any]] = []
+    stage_metrics: list[dict[str, Any]] = []
     max_dropoff_abs = 0
     max_dropoff_rel = 0.0
-    bottleneck_abs: Optional[str] = None
-    bottleneck_rel: Optional[str] = None
+    bottleneck_abs: str | None = None
+    bottleneck_rel: str | None = None
 
     for i, (stage, count) in enumerate(zip(stages, counts)):
-        metric: Dict[str, Any] = {
+        metric: dict[str, Any] = {
             "stage": stage,
             "count": count,
             "cumulative_conversion": round(safe_divide(count, counts[0]) * 100, 2),
@@ -68,12 +68,12 @@ def analyze_funnel(stages: List[str], counts: List[int]) -> Dict[str, Any]:
             # Track biggest absolute drop-off
             if dropoff > max_dropoff_abs:
                 max_dropoff_abs = dropoff
-                bottleneck_abs = f"{stages[i-1]} -> {stage}"
+                bottleneck_abs = f"{stages[i - 1]} -> {stage}"
 
             # Track biggest relative drop-off
             if dropoff_rate > max_dropoff_rel:
                 max_dropoff_rel = dropoff_rate
-                bottleneck_rel = f"{stages[i-1]} -> {stage}"
+                bottleneck_rel = f"{stages[i - 1]} -> {stage}"
         else:
             metric["conversion_rate"] = 100.0
             metric["dropoff_count"] = 0
@@ -100,7 +100,7 @@ def analyze_funnel(stages: List[str], counts: List[int]) -> Dict[str, Any]:
     }
 
 
-def compare_segments(segments: Dict[str, Dict[str, Any]], stages: List[str]) -> Dict[str, Any]:
+def compare_segments(segments: dict[str, dict[str, Any]], stages: list[str]) -> dict[str, Any]:
     """Compare funnel performance across segments.
 
     Args:
@@ -110,7 +110,7 @@ def compare_segments(segments: Dict[str, Dict[str, Any]], stages: List[str]) -> 
     Returns:
         Comparison data with per-segment analysis and relative rankings.
     """
-    segment_results: Dict[str, Dict[str, Any]] = {}
+    segment_results: dict[str, dict[str, Any]] = {}
 
     for seg_name, seg_data in segments.items():
         counts = seg_data.get("counts", [])
@@ -138,9 +138,9 @@ def compare_segments(segments: Dict[str, Dict[str, Any]], stages: List[str]) -> 
     ]
 
     # Stage-by-stage comparison
-    stage_comparison: List[Dict[str, Any]] = []
+    stage_comparison: list[dict[str, Any]] = []
     for i, stage in enumerate(stages):
-        stage_data: Dict[str, Any] = {"stage": stage}
+        stage_data: dict[str, Any] = {"stage": stage}
         for seg_name in segments:
             metrics = segment_results[seg_name]["stage_metrics"][i]
             stage_data[seg_name] = {
@@ -156,40 +156,48 @@ def compare_segments(segments: Dict[str, Dict[str, Any]], stages: List[str]) -> 
     }
 
 
-def format_single_funnel_text(analysis: Dict[str, Any], title: str = "FUNNEL") -> str:
+def format_single_funnel_text(analysis: dict[str, Any], title: str = "FUNNEL") -> str:
     """Format a single funnel analysis as human-readable text."""
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append(f"  {title}")
-    lines.append(f"  {'='*60}")
+    lines.append(f"  {'=' * 60}")
     lines.append(f"  Total Entries:      {analysis['total_entries']:,}")
     lines.append(f"  Total Conversions:  {analysis['total_conversions']:,}")
     lines.append(f"  Total Lost:         {analysis['total_lost']:,}")
     lines.append(f"  Overall Conversion: {analysis['overall_conversion_rate']}%")
     lines.append("")
 
-    lines.append(f"  {'Stage':<20} {'Count':>10} {'Conv Rate':>12} {'Drop-off':>12} {'Cumulative':>12}")
-    lines.append(f"  {'-'*20} {'-'*10} {'-'*12} {'-'*12} {'-'*12}")
+    lines.append(
+        f"  {'Stage':<20} {'Count':>10} {'Conv Rate':>12} {'Drop-off':>12} {'Cumulative':>12}"
+    )
+    lines.append(f"  {'-' * 20} {'-' * 10} {'-' * 12} {'-' * 12} {'-' * 12}")
 
     for m in analysis["stage_metrics"]:
         stage = m["stage"]
         count = m["count"]
         conv = f"{m['conversion_rate']:.1f}%"
-        drop = f"-{m['dropoff_count']:,} ({m['dropoff_rate']:.1f}%)" if m["dropoff_count"] > 0 else "-"
+        drop = (
+            f"-{m['dropoff_count']:,} ({m['dropoff_rate']:.1f}%)" if m["dropoff_count"] > 0 else "-"
+        )
         cumul = f"{m['cumulative_conversion']:.1f}%"
         lines.append(f"  {stage:<20} {count:>10,} {conv:>12} {drop:>12} {cumul:>12}")
 
     lines.append("")
     bn_abs = analysis["bottleneck_absolute"]
     bn_rel = analysis["bottleneck_relative"]
-    lines.append(f"  BOTTLENECK (Absolute): {bn_abs['transition']} (lost {bn_abs['dropoff_count']:,})")
-    lines.append(f"  BOTTLENECK (Relative): {bn_rel['transition']} ({bn_rel['dropoff_rate']}% drop-off)")
+    lines.append(
+        f"  BOTTLENECK (Absolute): {bn_abs['transition']} (lost {bn_abs['dropoff_count']:,})"
+    )
+    lines.append(
+        f"  BOTTLENECK (Relative): {bn_rel['transition']} ({bn_rel['dropoff_rate']}% drop-off)"
+    )
 
     return "\n".join(lines)
 
 
-def format_text(results: Dict[str, Any]) -> str:
+def format_text(results: dict[str, Any]) -> str:
     """Format full results as human-readable text output."""
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("=" * 70)
     lines.append("FUNNEL CONVERSION ANALYSIS")
     lines.append("=" * 70)
@@ -198,8 +206,10 @@ def format_text(results: Dict[str, Any]) -> str:
         # Multi-segment output
         lines.append("")
         lines.append("SEGMENT RANKINGS")
-        lines.append(f"  {'Rank':>4} {'Segment':<25} {'Conversion':>12} {'Entries':>10} {'Conversions':>12}")
-        lines.append(f"  {'-'*4} {'-'*25} {'-'*12} {'-'*10} {'-'*12}")
+        lines.append(
+            f"  {'Rank':>4} {'Segment':<25} {'Conversion':>12} {'Entries':>10} {'Conversions':>12}"
+        )
+        lines.append(f"  {'-' * 4} {'-' * 25} {'-' * 12} {'-' * 10} {'-' * 12}")
         for r in results["rankings"]:
             lines.append(
                 f"  {r['rank']:>4} {r['segment']:<25} {r['overall_conversion_rate']:>11.2f}% "
@@ -209,7 +219,9 @@ def format_text(results: Dict[str, Any]) -> str:
         lines.append("")
         for seg_name, seg_result in results["segment_results"].items():
             lines.append("")
-            lines.append(format_single_funnel_text(seg_result, title=f"SEGMENT: {seg_name.upper()}"))
+            lines.append(
+                format_single_funnel_text(seg_result, title=f"SEGMENT: {seg_name.upper()}")
+            )
 
         # Stage comparison table
         lines.append("")
@@ -221,7 +233,7 @@ def format_text(results: Dict[str, Any]) -> str:
         for sn in seg_names:
             header += f" {sn:>20}"
         lines.append(header)
-        lines.append(f"  {'-'*20}" + f" {'-'*20}" * len(seg_names))
+        lines.append(f"  {'-' * 20}" + f" {'-' * 20}" * len(seg_names))
 
         for sc in results["stage_comparison"]:
             row = f"  {sc['stage']:<20}"
@@ -261,7 +273,7 @@ def main() -> None:
 
     # Load input data
     try:
-        with open(args.input_file, "r") as f:
+        with open(args.input_file) as f:
             data = json.load(f)
     except FileNotFoundError:
         print(f"Error: File not found: {args.input_file}", file=sys.stderr)

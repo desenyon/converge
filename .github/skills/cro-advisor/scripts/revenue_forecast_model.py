@@ -21,42 +21,42 @@ Input format (CSV):
 Stdlib only. No dependencies.
 """
 
-import csv
-import sys
-import json
 import argparse
+import csv
+import json
 import statistics
-from datetime import date, datetime, timedelta
+import sys
 from collections import defaultdict
+from datetime import date, datetime
 from io import StringIO
-
 
 # ---------------------------------------------------------------------------
 # Stage configuration
 # ---------------------------------------------------------------------------
 
 DEFAULT_STAGE_PROBABILITIES = {
-    "discovery":     0.10,
+    "discovery": 0.10,
     "qualification": 0.25,
-    "demo":          0.40,
-    "proposal":      0.55,
-    "poc":           0.65,
-    "negotiation":   0.80,
+    "demo": 0.40,
+    "proposal": 0.55,
+    "poc": 0.65,
+    "negotiation": 0.80,
     "verbal_commit": 0.92,
-    "closed_won":    1.00,
-    "closed_lost":   0.00,
+    "closed_won": 1.00,
+    "closed_lost": 0.00,
 }
 
 SCENARIO_MULTIPLIERS = {
     "conservative": 0.85,  # Win rate 15% below historical
-    "base":         1.00,  # Historical win rate
-    "upside":       1.15,  # Win rate 15% above historical
+    "base": 1.00,  # Historical win rate
+    "upside": 1.15,  # Win rate 15% above historical
 }
 
 
 # ---------------------------------------------------------------------------
 # Data model
 # ---------------------------------------------------------------------------
+
 
 class Deal:
     def __init__(self, deal_id, name, stage, arr_value, close_date, rep="", segment=""):
@@ -104,6 +104,7 @@ class Deal:
 # Win rate calibration
 # ---------------------------------------------------------------------------
 
+
 def calculate_historical_win_rates(deals):
     """
     Calculate actual win rates per stage from closed deals.
@@ -134,6 +135,7 @@ def calculate_historical_win_rates(deals):
 # ---------------------------------------------------------------------------
 # Forecast engine
 # ---------------------------------------------------------------------------
+
 
 class ForecastEngine:
     def __init__(self, deals, stage_probs=None):
@@ -166,7 +168,8 @@ class ForecastEngine:
         period_filter: if set, only include deals with close_date in that period.
         """
         pipeline = sum(
-            d.arr_value for d in self.open_deals()
+            d.arr_value
+            for d in self.open_deals()
             if period_filter is None or d.quarter == period_filter
         )
         return pipeline / quota if quota else 0.0
@@ -185,18 +188,21 @@ class ForecastEngine:
             if not deals_in_month:
                 continue
             summaries[month] = {
-                "deal_count":    len(deals_in_month),
+                "deal_count": len(deals_in_month),
                 "open_pipeline": sum(d.arr_value for d in deals_in_month),
-                "conservative":  sum(d.weighted_value(self.stage_probs, "conservative") for d in deals_in_month),
-                "base":          sum(d.weighted_value(self.stage_probs, "base") for d in deals_in_month),
-                "upside":        sum(d.weighted_value(self.stage_probs, "upside") for d in deals_in_month),
+                "conservative": sum(
+                    d.weighted_value(self.stage_probs, "conservative") for d in deals_in_month
+                ),
+                "base": sum(d.weighted_value(self.stage_probs, "base") for d in deals_in_month),
+                "upside": sum(d.weighted_value(self.stage_probs, "upside") for d in deals_in_month),
             }
         return summaries
 
     def rep_performance(self):
         """Returns dict: rep → {pipeline, weighted_base, deal_count, avg_deal_size}."""
-        rep_data = defaultdict(lambda: {"pipeline": 0.0, "weighted_base": 0.0,
-                                        "deal_count": 0, "deals": []})
+        rep_data = defaultdict(
+            lambda: {"pipeline": 0.0, "weighted_base": 0.0, "deal_count": 0, "deals": []}
+        )
         for deal in self.open_deals():
             rep_data[deal.rep]["pipeline"] += deal.arr_value
             rep_data[deal.rep]["weighted_base"] += deal.weighted_value(self.stage_probs, "base")
@@ -207,9 +213,9 @@ class ForecastEngine:
         for rep, data in rep_data.items():
             deals = data["deals"]
             result[rep] = {
-                "pipeline":      data["pipeline"],
+                "pipeline": data["pipeline"],
                 "weighted_base": data["weighted_base"],
-                "deal_count":    data["deal_count"],
+                "deal_count": data["deal_count"],
                 "avg_deal_size": statistics.mean(deals) if deals else 0.0,
             }
         return result
@@ -230,9 +236,9 @@ class ForecastEngine:
         out = {}
         for stage, data in result.items():
             out[stage] = {
-                "count":     data["count"],
+                "count": data["count"],
                 "total_arr": data["total_arr"],
-                "avg_arr":   data["total_arr"] / data["count"] if data["count"] else 0,
+                "avg_arr": data["total_arr"] / data["count"] if data["count"] else 0,
                 "probability": self.stage_probs.get(stage, 0.0),
             }
         return out
@@ -244,13 +250,16 @@ class ForecastEngine:
         Returns (p10, p50, p90) of total expected ARR.
         """
         import random
+
         random.seed(42)
 
         totals = []
         for _ in range(iterations):
             total = 0.0
             for deal in self.open_deals():
-                prob = min(1.0, self.stage_probs.get(deal.stage, 0.0) * SCENARIO_MULTIPLIERS[scenario])
+                prob = min(
+                    1.0, self.stage_probs.get(deal.stage, 0.0) * SCENARIO_MULTIPLIERS[scenario]
+                )
                 if random.random() < prob:
                     total += deal.arr_value
             totals.append(total)
@@ -267,6 +276,7 @@ class ForecastEngine:
 # ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
+
 
 def fmt_currency(value):
     if value >= 1_000_000:
@@ -313,7 +323,7 @@ def print_report(engine, quota=None, current_quarter=None):
         status = "✅ Healthy" if ratio >= 3.0 else ("⚠️  Thin" if ratio >= 2.0 else "🔴 Critical")
         print(f"  Quota target:    {fmt_currency(quota)}")
         print(f"  Coverage ratio:  {ratio:.1f}x  {status}")
-        print(f"  (Minimum healthy = 3x; < 2x = pipeline emergency)")
+        print("  (Minimum healthy = 3x; < 2x = pipeline emergency)")
 
     # ── Stage distribution
     print_section("STAGE DISTRIBUTION")
@@ -323,26 +333,32 @@ def print_report(engine, quota=None, current_quarter=None):
     print(header)
     print("  " + "-" * (sum(col_w) + 4))
     for stage, data in sorted(stage_dist.items(), key=lambda x: -x[1]["total_arr"]):
-        print(f"  {stage:<{col_w[0]}} {data['count']:>{col_w[1]}} "
-              f"{fmt_currency(data['total_arr']):>{col_w[2]}} "
-              f"{fmt_currency(data['avg_arr']):>{col_w[3]}} "
-              f"{fmt_pct(data['probability']):>{col_w[4]}}")
+        print(
+            f"  {stage:<{col_w[0]}} {data['count']:>{col_w[1]}} "
+            f"{fmt_currency(data['total_arr']):>{col_w[2]}} "
+            f"{fmt_currency(data['avg_arr']):>{col_w[3]}} "
+            f"{fmt_pct(data['probability']):>{col_w[4]}}"
+        )
 
     # ── Scenario forecast by month
     print_section("MONTHLY FORECAST — ALL SCENARIOS")
     summaries = engine.scenario_summary()
     col_w2 = [10, 8, 14, 14, 14, 14]
-    h2 = (f"  {'Month':<{col_w2[0]}} {'Deals':>{col_w2[1]}} "
-          f"{'Pipeline':>{col_w2[2]}} {'Conservative':>{col_w2[3]}} "
-          f"{'Base':>{col_w2[4]}} {'Upside':>{col_w2[5]}}")
+    h2 = (
+        f"  {'Month':<{col_w2[0]}} {'Deals':>{col_w2[1]}} "
+        f"{'Pipeline':>{col_w2[2]}} {'Conservative':>{col_w2[3]}} "
+        f"{'Base':>{col_w2[4]}} {'Upside':>{col_w2[5]}}"
+    )
     print(h2)
     print("  " + "-" * (sum(col_w2) + 5))
     for month, data in summaries.items():
-        print(f"  {month:<{col_w2[0]}} {data['deal_count']:>{col_w2[1]}} "
-              f"{fmt_currency(data['open_pipeline']):>{col_w2[2]}} "
-              f"{fmt_currency(data['conservative']):>{col_w2[3]}} "
-              f"{fmt_currency(data['base']):>{col_w2[4]}} "
-              f"{fmt_currency(data['upside']):>{col_w2[5]}}")
+        print(
+            f"  {month:<{col_w2[0]}} {data['deal_count']:>{col_w2[1]}} "
+            f"{fmt_currency(data['open_pipeline']):>{col_w2[2]}} "
+            f"{fmt_currency(data['conservative']):>{col_w2[3]}} "
+            f"{fmt_currency(data['base']):>{col_w2[4]}} "
+            f"{fmt_currency(data['upside']):>{col_w2[5]}}"
+        )
 
     # ── Quarterly rollup
     print_section("QUARTERLY FORECAST ROLLUP")
@@ -360,17 +376,21 @@ def print_report(engine, quota=None, current_quarter=None):
 
     quarters = sorted(q_base.keys())
     col_w3 = [10, 8, 14, 14, 14, 14]
-    h3 = (f"  {'Quarter':<{col_w3[0]}} {'Deals':>{col_w3[1]}} "
-          f"{'Pipeline':>{col_w3[2]}} {'Conservative':>{col_w3[3]}} "
-          f"{'Base':>{col_w3[4]}} {'Upside':>{col_w3[5]}}")
+    h3 = (
+        f"  {'Quarter':<{col_w3[0]}} {'Deals':>{col_w3[1]}} "
+        f"{'Pipeline':>{col_w3[2]}} {'Conservative':>{col_w3[3]}} "
+        f"{'Base':>{col_w3[4]}} {'Upside':>{col_w3[5]}}"
+    )
     print(h3)
     print("  " + "-" * (sum(col_w3) + 5))
     for q in quarters:
-        print(f"  {q:<{col_w3[0]}} {q_count[q]:>{col_w3[1]}} "
-              f"{fmt_currency(q_pipeline[q]):>{col_w3[2]}} "
-              f"{fmt_currency(q_conservative[q]):>{col_w3[3]}} "
-              f"{fmt_currency(q_base[q]):>{col_w3[4]}} "
-              f"{fmt_currency(q_upside[q]):>{col_w3[5]}}")
+        print(
+            f"  {q:<{col_w3[0]}} {q_count[q]:>{col_w3[1]}} "
+            f"{fmt_currency(q_pipeline[q]):>{col_w3[2]}} "
+            f"{fmt_currency(q_conservative[q]):>{col_w3[3]}} "
+            f"{fmt_currency(q_base[q]):>{col_w3[4]}} "
+            f"{fmt_currency(q_upside[q]):>{col_w3[5]}}"
+        )
 
     # ── Monte Carlo confidence interval
     print_section("CONFIDENCE INTERVAL (Monte Carlo, 1,000 simulations)")
@@ -385,15 +405,19 @@ def print_report(engine, quota=None, current_quarter=None):
     rep_perf = engine.rep_performance()
     if rep_perf:
         col_w4 = [20, 8, 14, 14, 12]
-        h4 = (f"  {'Rep':<{col_w4[0]}} {'Deals':>{col_w4[1]}} "
-              f"{'Pipeline':>{col_w4[2]}} {'Weighted':>{col_w4[3]}} {'Avg Size':>{col_w4[4]}}")
+        h4 = (
+            f"  {'Rep':<{col_w4[0]}} {'Deals':>{col_w4[1]}} "
+            f"{'Pipeline':>{col_w4[2]}} {'Weighted':>{col_w4[3]}} {'Avg Size':>{col_w4[4]}}"
+        )
         print(h4)
         print("  " + "-" * (sum(col_w4) + 4))
         for rep, data in sorted(rep_perf.items(), key=lambda x: -x[1]["pipeline"]):
-            print(f"  {rep:<{col_w4[0]}} {data['deal_count']:>{col_w4[1]}} "
-                  f"{fmt_currency(data['pipeline']):>{col_w4[2]}} "
-                  f"{fmt_currency(data['weighted_base']):>{col_w4[3]}} "
-                  f"{fmt_currency(data['avg_deal_size']):>{col_w4[4]}}")
+            print(
+                f"  {rep:<{col_w4[0]}} {data['deal_count']:>{col_w4[1]}} "
+                f"{fmt_currency(data['pipeline']):>{col_w4[2]}} "
+                f"{fmt_currency(data['weighted_base']):>{col_w4[3]}} "
+                f"{fmt_currency(data['avg_deal_size']):>{col_w4[4]}}"
+            )
 
     # ── Segment breakdown
     print_section("SEGMENT BREAKDOWN (Base Forecast)")
@@ -414,24 +438,34 @@ def print_report(engine, quota=None, current_quarter=None):
             flags.append("⚠️  Pipeline coverage below 3x — limited buffer for slippage")
 
         # Stage concentration risk
-        early_stage_pct = sum(
-            d.arr_value for d in open_deals
-            if engine.stage_probs.get(d.stage, 0) < 0.30
-        ) / total_pipeline
+        early_stage_pct = (
+            sum(d.arr_value for d in open_deals if engine.stage_probs.get(d.stage, 0) < 0.30)
+            / total_pipeline
+        )
         if early_stage_pct > 0.60:
-            flags.append(f"⚠️  {fmt_pct(early_stage_pct)} of pipeline in early stages (< 30% probability)")
+            flags.append(
+                f"⚠️  {fmt_pct(early_stage_pct)} of pipeline in early stages (< 30% probability)"
+            )
 
         # Deal concentration
         deal_values = sorted([d.arr_value for d in open_deals], reverse=True)
         if deal_values and deal_values[0] / total_pipeline > 0.25:
-            flags.append(f"⚠️  Top deal is {fmt_pct(deal_values[0]/total_pipeline)} of pipeline — concentration risk")
+            flags.append(
+                f"⚠️  Top deal is {fmt_pct(deal_values[0] / total_pipeline)} of pipeline — concentration risk"
+            )
 
         # Spread between scenarios
-        total_conservative = sum(d.weighted_value(engine.stage_probs, "conservative") for d in open_deals)
+        total_conservative = sum(
+            d.weighted_value(engine.stage_probs, "conservative") for d in open_deals
+        )
         total_upside = sum(d.weighted_value(engine.stage_probs, "upside") for d in open_deals)
-        spread = (total_upside - total_conservative) / total_conservative if total_conservative else 0
+        spread = (
+            (total_upside - total_conservative) / total_conservative if total_conservative else 0
+        )
         if spread > 0.40:
-            flags.append(f"⚠️  High scenario spread ({fmt_pct(spread)}) — forecast confidence is low")
+            flags.append(
+                f"⚠️  High scenario spread ({fmt_pct(spread)}) — forecast confidence is low"
+            )
 
     if flags:
         for f in flags:
@@ -472,6 +506,7 @@ D018,Lost Deal,closed_lost,45000,2026-02-20,Marcus Webb,Mid-Market
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def load_deals_from_csv(csv_text):
     reader = csv.DictReader(StringIO(csv_text))
     deals = []
@@ -502,32 +537,34 @@ def main():
         description="Revenue Forecast Model — pipeline-based ARR forecasting"
     )
     parser.add_argument(
-        "--csv", metavar="FILE",
-        help="CSV file with pipeline data (uses sample data if not provided)"
+        "--csv",
+        metavar="FILE",
+        help="CSV file with pipeline data (uses sample data if not provided)",
     )
     parser.add_argument(
-        "--quota", type=float, default=1_000_000,
-        help="Quarterly quota target in ARR (default: $1,000,000)"
+        "--quota",
+        type=float,
+        default=1_000_000,
+        help="Quarterly quota target in ARR (default: $1,000,000)",
     )
     parser.add_argument(
-        "--quarter", metavar="QUARTER",
-        help='Current quarter filter e.g. "Q2 2026" (optional)'
+        "--quarter", metavar="QUARTER", help='Current quarter filter e.g. "Q2 2026" (optional)'
     )
     parser.add_argument(
-        "--scenario", choices=["conservative", "base", "upside"],
+        "--scenario",
+        choices=["conservative", "base", "upside"],
         default="base",
-        help="Primary scenario to report (default: base)"
+        help="Primary scenario to report (default: base)",
     )
     parser.add_argument(
-        "--json", action="store_true",
-        help="Output forecast as JSON instead of formatted report"
+        "--json", action="store_true", help="Output forecast as JSON instead of formatted report"
     )
     args = parser.parse_args()
 
     # Load data
     if args.csv:
         try:
-            with open(args.csv, "r", encoding="utf-8") as f:
+            with open(args.csv, encoding="utf-8") as f:
                 csv_text = f.read()
         except FileNotFoundError:
             print(f"Error: File not found: {args.csv}", file=sys.stderr)
@@ -555,10 +592,9 @@ def main():
             "coverage_ratio": engine.coverage_ratio(args.quota, args.quarter),
             "monthly_forecast": engine.scenario_summary(),
             "quarterly_base": engine.pipeline_by_quarter("base"),
-            "confidence_interval": dict(zip(
-                ["p10", "p50", "p90"],
-                engine.confidence_interval("base")
-            )),
+            "confidence_interval": dict(
+                zip(["p10", "p50", "p90"], engine.confidence_interval("base"))
+            ),
             "rep_performance": engine.rep_performance(),
             "segment_breakdown": engine.segment_breakdown("base"),
         }

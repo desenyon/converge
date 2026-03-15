@@ -15,9 +15,7 @@ Usage:
 import argparse
 import json
 import sys
-import textwrap
-from dataclasses import dataclass, field, asdict
-from typing import Optional
+from dataclasses import asdict, dataclass, field
 
 MAX_TWEET_CHARS = 280
 
@@ -112,22 +110,23 @@ def validate_tweet(text: str) -> TweetDraft:
 
     # Check for links in body
     import re
-    if re.search(r'https?://\S+', text):
+
+    if re.search(r"https?://\S+", text):
         warnings.append("Contains URL — consider moving link to reply (hurts reach)")
 
     # Check for hashtags
-    hashtags = re.findall(r'#\w+', text)
+    hashtags = re.findall(r"#\w+", text)
     if len(hashtags) > 2:
         warnings.append(f"Too many hashtags ({len(hashtags)}) — max 1-2, ideally 0")
     elif len(hashtags) > 0:
         warnings.append(f"Has {len(hashtags)} hashtag(s) — consider removing for cleaner look")
 
     # Check for @mentions at start
-    if text.startswith('@'):
+    if text.startswith("@"):
         warnings.append("Starts with @ — will be treated as reply, not shown in timeline")
 
     # Readability
-    lines = text.strip().split('\n')
+    lines = text.strip().split("\n")
     long_lines = [l for l in lines if len(l) > 70]
     if long_lines:
         warnings.append("Long unbroken lines — add line breaks for mobile readability")
@@ -140,21 +139,29 @@ def generate_hooks(topic: str, count: int = 10) -> list:
     hooks = []
     for pattern_type, patterns in HOOK_PATTERNS.items():
         for p in patterns:
-            hook = p.replace("{topic}", topic).replace("{n}", "7").replace(
-                "{time}", "6 months").replace("{timeframe}", "month").replace(
-                "{claim}", f"{topic} is overrated").replace(
-                "{common_belief}", f"{topic} is simple").replace(
-                "{common_action}", f"overthinking {topic}").replace(
-                "{outcome}", "approach").replace("{verb}", "think").replace(
-                "{name}", "3-Step").replace("{did_thing}", f"changed my {topic} strategy").replace(
-                "{before_state}", "stuck").replace("{after_state}", "thriving").replace(
-                "{near_miss}", f"gave up on {topic}").replace(
-                "{unexpected_source}", "a complete beginner").replace(
-                "{thing_a}", "theory").replace("{thing_b}", "execution").replace(
-                "{mistake}", "overcomplicating it").replace(
-                "{common_mistake}", f"ignore {topic}").replace(
-                "{do_one_thing}", "change one thing").replace(
-                "{common_action}", f"overthinking {topic}")
+            hook = (
+                p.replace("{topic}", topic)
+                .replace("{n}", "7")
+                .replace("{time}", "6 months")
+                .replace("{timeframe}", "month")
+                .replace("{claim}", f"{topic} is overrated")
+                .replace("{common_belief}", f"{topic} is simple")
+                .replace("{common_action}", f"overthinking {topic}")
+                .replace("{outcome}", "approach")
+                .replace("{verb}", "think")
+                .replace("{name}", "3-Step")
+                .replace("{did_thing}", f"changed my {topic} strategy")
+                .replace("{before_state}", "stuck")
+                .replace("{after_state}", "thriving")
+                .replace("{near_miss}", f"gave up on {topic}")
+                .replace("{unexpected_source}", "a complete beginner")
+                .replace("{thing_a}", "theory")
+                .replace("{thing_b}", "execution")
+                .replace("{mistake}", "overcomplicating it")
+                .replace("{common_mistake}", f"ignore {topic}")
+                .replace("{do_one_thing}", "change one thing")
+                .replace("{common_action}", f"overthinking {topic}")
+            )
             hooks.append({"type": pattern_type, "hook": hook, "chars": len(hook)})
             if len(hooks) >= count:
                 return hooks
@@ -178,15 +185,15 @@ def generate_thread_outline(topic: str, num_tweets: int = 8) -> str:
         "The nuance most people miss",
     ]
 
-    for i, s in enumerate(suggestions[:num_tweets - 3], 3):
+    for i, s in enumerate(suggestions[: num_tweets - 3], 3):
         body.append(f"  Tweet {i}: [{s}]")
 
     body_text = "\n".join(body)
 
     return f"""
-{'='*60}
+{"=" * 60}
   THREAD OUTLINE: {topic}
-{'='*60}
+{"=" * 60}
 
   Tweet 1 (HOOK):
     "{best_hook}"
@@ -209,23 +216,28 @@ def generate_thread_outline(topic: str, num_tweets: int = 8) -> str:
   Reply to Tweet 1 (BOOST):
     "What's your biggest challenge with {topic}? 👇"
 
-{'='*60}
+{"=" * 60}
   RULES:
   - Each tweet must stand alone (people read out of order)
   - Max 3-4 lines per tweet (mobile readability)
   - No filler tweets — cut anything that doesn't add value
   - Hook tweet determines 90%% of thread performance
-{'='*60}
+{"=" * 60}
 """
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Generate tweets, threads, and hooks with proven patterns",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
-    parser.add_argument("--type", choices=["tweet", "thread", "hooks", "validate"],
-                        default="hooks", help="Content type to generate")
+    parser.add_argument(
+        "--type",
+        choices=["tweet", "thread", "hooks", "validate"],
+        default="hooks",
+        help="Content type to generate",
+    )
     parser.add_argument("--topic", default="", help="Topic for content generation")
     parser.add_argument("--tweets", type=int, default=8, help="Number of tweets in thread")
     parser.add_argument("--count", type=int, default=10, help="Number of hooks to generate")
@@ -260,9 +272,9 @@ def main():
         if args.json:
             print(json.dumps(hooks, indent=2))
         else:
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"  HOOK IDEAS: {args.topic}")
-            print(f"{'='*60}\n")
+            print(f"{'=' * 60}\n")
             for i, h in enumerate(hooks, 1):
                 print(f"  {i:2d}. [{h['type']:<12}] {h['hook']}")
                 print(f"      ({h['chars']} chars)")

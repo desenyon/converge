@@ -6,20 +6,18 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import os
 from pathlib import Path
-from typing import Dict, List, Set
 
 
-def load_json(path: Path) -> Dict:
+def load_json(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
 
 
-def detect_repo_type(root: Path) -> List[str]:
-    detected: List[str] = []
+def detect_repo_type(root: Path) -> list[str]:
+    detected: list[str] = []
     if (root / "turbo.json").exists():
         detected.append("Turborepo")
     if (root / "nx.json").exists():
@@ -35,12 +33,12 @@ def detect_repo_type(root: Path) -> List[str]:
     return detected
 
 
-def parse_pnpm_workspace(root: Path) -> List[str]:
+def parse_pnpm_workspace(root: Path) -> list[str]:
     workspace_file = root / "pnpm-workspace.yaml"
     if not workspace_file.exists():
         return []
 
-    patterns: List[str] = []
+    patterns: list[str] = []
     in_packages = False
     for line in workspace_file.read_text(encoding="utf-8", errors="ignore").splitlines():
         stripped = line.strip()
@@ -51,12 +49,17 @@ def parse_pnpm_workspace(root: Path) -> List[str]:
             item = stripped[1:].strip().strip('"').strip("'")
             if item:
                 patterns.append(item)
-        elif in_packages and stripped and not stripped.startswith("#") and not stripped.startswith("-"):
+        elif (
+            in_packages
+            and stripped
+            and not stripped.startswith("#")
+            and not stripped.startswith("-")
+        ):
             in_packages = False
     return patterns
 
 
-def parse_package_workspaces(root: Path) -> List[str]:
+def parse_package_workspaces(root: Path) -> list[str]:
     pkg = load_json(root / "package.json")
     workspaces = pkg.get("workspaces")
     if isinstance(workspaces, list):
@@ -66,8 +69,8 @@ def parse_package_workspaces(root: Path) -> List[str]:
     return []
 
 
-def expand_workspace_patterns(root: Path, patterns: List[str]) -> List[Path]:
-    paths: Set[Path] = set()
+def expand_workspace_patterns(root: Path, patterns: list[str]) -> list[Path]:
+    paths: set[Path] = set()
     for pattern in patterns:
         for match in glob.glob(str(root / pattern)):
             p = Path(match)
@@ -76,8 +79,8 @@ def expand_workspace_patterns(root: Path, patterns: List[str]) -> List[Path]:
     return sorted(paths)
 
 
-def load_workspace_packages(workspaces: List[Path]) -> Dict[str, Dict]:
-    packages: Dict[str, Dict] = {}
+def load_workspace_packages(workspaces: list[Path]) -> dict[str, dict]:
+    packages: dict[str, dict] = {}
     for ws in workspaces:
         data = load_json(ws / "package.json")
         name = data.get("name") or ws.name
@@ -90,11 +93,11 @@ def load_workspace_packages(workspaces: List[Path]) -> Dict[str, Dict]:
     return packages
 
 
-def build_dependency_graph(packages: Dict[str, Dict]) -> Dict[str, List[str]]:
+def build_dependency_graph(packages: dict[str, dict]) -> dict[str, list[str]]:
     package_names = set(packages.keys())
-    graph: Dict[str, List[str]] = {}
+    graph: dict[str, list[str]] = {}
     for name, meta in packages.items():
-        deps: Set[str] = set()
+        deps: set[str] = set()
         for section in ("dependencies", "devDependencies", "peerDependencies"):
             dep_map = meta.get(section, {})
             if isinstance(dep_map, dict):
@@ -105,15 +108,17 @@ def build_dependency_graph(packages: Dict[str, Dict]) -> Dict[str, List[str]]:
     return graph
 
 
-def format_tree_paths(root: Path, workspaces: List[Path]) -> List[str]:
-    out: List[str] = []
+def format_tree_paths(root: Path, workspaces: list[Path]) -> list[str]:
+    out: list[str] = []
     for ws in workspaces:
         out.append(str(ws.relative_to(root)))
     return out
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Analyze monorepo type, workspaces, and internal dependency graph.")
+    parser = argparse.ArgumentParser(
+        description="Analyze monorepo type, workspaces, and internal dependency graph."
+    )
     parser.add_argument("path", help="Monorepo root path")
     parser.add_argument("--json", action="store_true", help="Output JSON")
     return parser.parse_args()

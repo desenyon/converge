@@ -11,19 +11,61 @@ import argparse
 import json
 import re
 import sys
-from collections import defaultdict
-
 
 # ---------------------------------------------------------------------------
 # Simple stemmer (no nltk)
 # ---------------------------------------------------------------------------
 
 STOP_WORDS = {
-    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
-    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
-    "how", "what", "why", "when", "where", "who", "which", "that", "this",
-    "it", "its", "do", "does", "your", "our", "my", "their", "we", "you",
-    "get", "make", "use", "using", "used", "can", "will", "should", "best",
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "with",
+    "by",
+    "from",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "how",
+    "what",
+    "why",
+    "when",
+    "where",
+    "who",
+    "which",
+    "that",
+    "this",
+    "it",
+    "its",
+    "do",
+    "does",
+    "your",
+    "our",
+    "my",
+    "their",
+    "we",
+    "you",
+    "get",
+    "make",
+    "use",
+    "using",
+    "used",
+    "can",
+    "will",
+    "should",
+    "best",
 }
 
 
@@ -34,12 +76,48 @@ def simple_stem(word: str) -> str:
         return w
     # Order matters — try longer suffixes first
     suffixes = [
-        "ization", "isation", "ational", "fulness", "ousness", "iveness",
-        "iveness", "ingness", "ations", "nesses", "ators", "ation",
-        "ating", "alism", "ality", "alize", "alise", "ation", "ator",
-        "ness", "ment", "less", "tion", "sion", "tion", "ing", "ers",
-        "ies", "ied", "ily", "ful", "ous", "ive", "ize", "ise", "est",
-        "ed", "er", "ly", "al", "ic", "s",
+        "ization",
+        "isation",
+        "ational",
+        "fulness",
+        "ousness",
+        "iveness",
+        "iveness",
+        "ingness",
+        "ations",
+        "nesses",
+        "ators",
+        "ation",
+        "ating",
+        "alism",
+        "ality",
+        "alize",
+        "alise",
+        "ation",
+        "ator",
+        "ness",
+        "ment",
+        "less",
+        "tion",
+        "sion",
+        "tion",
+        "ing",
+        "ers",
+        "ies",
+        "ied",
+        "ily",
+        "ful",
+        "ous",
+        "ive",
+        "ize",
+        "ise",
+        "est",
+        "ed",
+        "er",
+        "ly",
+        "al",
+        "ic",
+        "s",
     ]
     for sfx in suffixes:
         if w.endswith(sfx) and len(w) - len(sfx) >= 3:
@@ -55,6 +133,7 @@ def extract_stems(topic: str) -> set:
 # ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
+
 
 def compute_similarity(stems_a: set, stems_b: set) -> float:
     """Jaccard similarity between two stem sets."""
@@ -90,11 +169,13 @@ def build_clusters(topics: list, threshold: float = 0.15) -> list:
             best_cluster["topics"].append(topic)
             best_cluster["stems"] |= t_stems  # grow cluster centroid
         else:
-            clusters.append({
-                "pillar": topic,
-                "topics": [topic],
-                "stems": set(t_stems),
-            })
+            clusters.append(
+                {
+                    "pillar": topic,
+                    "topics": [topic],
+                    "stems": set(t_stems),
+                }
+            )
 
     # Identify best pillar: topic with most shared stems to others in cluster
     for cluster in clusters:
@@ -106,7 +187,8 @@ def build_clusters(topics: list, threshold: float = 0.15) -> list:
         for i, topic in enumerate(cluster["topics"]):
             conn = sum(
                 len(topic_stems[topic] & topic_stems[other])
-                for j, other in enumerate(cluster["topics"]) if i != j
+                for j, other in enumerate(cluster["topics"])
+                if i != j
             )
             if conn > best_conn:
                 best_conn = conn
@@ -120,13 +202,15 @@ def build_output(topics: list, clusters: list) -> dict:
     cluster_output = []
     for i, c in enumerate(clusters, 1):
         supporting = [t for t in c["topics"] if t != c["pillar"]]
-        cluster_output.append({
-            "cluster_id": i,
-            "pillar_topic": c["pillar"],
-            "size": len(c["topics"]),
-            "supporting_topics": supporting,
-            "suggested_url_slug": re.sub(r"[^a-z0-9]+", "-", c["pillar"].lower()).strip("-"),
-        })
+        cluster_output.append(
+            {
+                "cluster_id": i,
+                "pillar_topic": c["pillar"],
+                "size": len(c["topics"]),
+                "supporting_topics": supporting,
+                "suggested_url_slug": re.sub(r"[^a-z0-9]+", "-", c["pillar"].lower()).strip("-"),
+            }
+        )
 
     # Sort by cluster size desc
     cluster_output.sort(key=lambda x: -x["size"])
@@ -191,18 +275,23 @@ DEMO_TOPICS = [
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Topic cluster mapper — groups keywords into content clusters."
     )
     parser.add_argument("--file", help="Text file with one topic/keyword per line")
-    parser.add_argument("--threshold", type=float, default=0.15,
-                        help="Similarity threshold for clustering (default: 0.15)")
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.15,
+        help="Similarity threshold for clustering (default: 0.15)",
+    )
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args()
 
     if args.file:
-        with open(args.file, "r", encoding="utf-8") as f:
+        with open(args.file, encoding="utf-8") as f:
             topics = [line.strip() for line in f if line.strip()]
     else:
         topics = DEMO_TOPICS
@@ -221,7 +310,9 @@ def main():
         return
 
     print("=" * 62)
-    print(f"  TOPIC CLUSTER MAP   {output['total_topics']} topics → {output['total_clusters']} clusters")
+    print(
+        f"  TOPIC CLUSTER MAP   {output['total_topics']} topics → {output['total_clusters']} clusters"
+    )
     print("=" * 62)
 
     for cluster in output["clusters"]:

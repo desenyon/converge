@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from typing import Dict, List
 
 BASE_ROUNDS = {
     "junior": [
@@ -68,7 +67,7 @@ def normalize_level(level: str) -> str:
     return level
 
 
-def suggested_questions(round_name: str) -> List[str]:
+def suggested_questions(round_name: str) -> list[str]:
     name = round_name.lower()
     if "coding" in name:
         return QUESTION_BANK["coding"]
@@ -79,7 +78,7 @@ def suggested_questions(round_name: str) -> List[str]:
     return QUESTION_BANK["behavioral"]
 
 
-def generate_plan(role: str, level: str) -> Dict[str, object]:
+def generate_plan(role: str, level: str) -> dict[str, object]:
     normalized = normalize_level(level)
     rounds = []
     for idx, (name, minutes, focus) in enumerate(BASE_ROUNDS[normalized], start=1):
@@ -102,7 +101,9 @@ def generate_plan(role: str, level: str) -> Dict[str, object]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate an interview loop plan for a role and level.")
+    parser = argparse.ArgumentParser(
+        description="Generate an interview loop plan for a role and level."
+    )
     parser.add_argument("--role", required=True, help="Role name (e.g., Senior Software Engineer)")
     parser.add_argument("--level", required=True, help="Level: junior|mid|senior|staff")
     parser.add_argument("--json", action="store_true", help="Output as JSON")

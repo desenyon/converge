@@ -3,13 +3,13 @@ Serverless stack generator for AWS.
 Creates CloudFormation/CDK templates for serverless applications.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 
 class ServerlessStackGenerator:
     """Generate serverless application stacks."""
 
-    def __init__(self, app_name: str, requirements: Dict[str, Any]):
+    def __init__(self, app_name: str, requirements: dict[str, Any]):
         """
         Initialize with application requirements.
 
@@ -17,9 +17,9 @@ class ServerlessStackGenerator:
             app_name: Application name (used for resource naming)
             requirements: Dictionary with API, database, auth requirements
         """
-        self.app_name = app_name.lower().replace(' ', '-')
+        self.app_name = app_name.lower().replace(" ", "-")
         self.requirements = requirements
-        self.region = requirements.get('region', 'us-east-1')
+        self.region = requirements.get("region", "us-east-1")
 
     def generate_cloudformation_template(self) -> str:
         """
@@ -49,7 +49,7 @@ Parameters:
 
 Resources:
   # DynamoDB Table
-  {self.app_name.replace('-', '')}Table:
+  {self.app_name.replace("-", "")}Table:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub '${{Environment}}-{self.app_name}-data'
@@ -102,7 +102,7 @@ Resources:
                   - dynamodb:DeleteItem
                   - dynamodb:Query
                   - dynamodb:Scan
-                Resource: !GetAtt {self.app_name.replace('-', '')}Table.Arn
+                Resource: !GetAtt {self.app_name.replace("-", "")}Table.Arn
 
   # Lambda Function
   ApiFunction:
@@ -117,7 +117,7 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          TABLE_NAME: !Ref {self.app_name.replace('-', '')}Table
+          TABLE_NAME: !Ref {self.app_name.replace("-", "")}Table
           ENVIRONMENT: !Ref Environment
       Events:
         ApiEvent:
@@ -225,7 +225,7 @@ Outputs:
 
   TableName:
     Description: DynamoDB Table Name
-    Value: !Ref {self.app_name.replace('-', '')}Table
+    Value: !Ref {self.app_name.replace("-", "")}Table
     Export:
       Name: !Sub '${{Environment}}-{self.app_name}-TableName'
 """
@@ -245,7 +245,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import {{ Construct }} from 'constructs';
 
-export class {self.app_name.replace('-', '').title()}Stack extends cdk.Stack {{
+export class {self.app_name.replace("-", "").title()}Stack extends cdk.Stack {{
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {{
     super(scope, id, props);
 

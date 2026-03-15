@@ -29,12 +29,11 @@ JSON input format:
 
 import json
 import sys
-from collections import OrderedDict
-
 
 # ---------------------------------------------------------------------------
 # Core calculation functions
 # ---------------------------------------------------------------------------
+
 
 def calculate_referrals_per_month(params):
     """How many successful referrals per month?"""
@@ -79,7 +78,7 @@ def calculate_monthly_revenue(params, new_customers_per_month):
 
 def calculate_cac_via_referral(cost_data, new_customers_per_month):
     if new_customers_per_month == 0:
-        return float('inf')
+        return float("inf")
     return round(cost_data["total_cost"] / new_customers_per_month, 2)
 
 
@@ -87,7 +86,7 @@ def calculate_break_even_referral_rate(params):
     """
     What referral rate do we need so that CAC via referral equals
     reward_per_conversion + overhead_per_customer_amortized?
-    
+
     We want: total_cost / new_customers = cac_target
     Solving for referral_rate where cac_target = 50% of paid CAC (our target)
     """
@@ -108,7 +107,9 @@ def calculate_break_even_referral_rate(params):
         return None  # impossible — reward alone exceeds target CAC
 
     conversions_needed = overhead / (target_cac - reward_per_conversion)
-    referral_rate_needed = conversions_needed / (active_users * referrals_per_referrer * conversion_rate)
+    referral_rate_needed = conversions_needed / (
+        active_users * referrals_per_referrer * conversion_rate
+    )
 
     return round(referral_rate_needed, 4)
 
@@ -117,7 +118,7 @@ def calculate_optimal_reward(params):
     """
     What's the maximum reward you can afford while keeping CAC via referral
     under 60% of paid CAC?
-    
+
     max_total_reward = 0.60 × paid_CAC (using conversion-amortized overhead)
     """
     target_cac = params["cac"] * 0.60
@@ -134,7 +135,9 @@ def calculate_optimal_reward(params):
         "max_total_reward": round(max(max_reward, 0), 2),
         "recommended_referrer_reward": max(referrer_portion, 0),
         "recommended_referred_reward": max(referred_portion, 0),
-        "reward_as_pct_ltv": round((max_reward / params["ltv"]) * 100, 1) if params["ltv"] > 0 else 0,
+        "reward_as_pct_ltv": round((max_reward / params["ltv"]) * 100, 1)
+        if params["ltv"] > 0
+        else 0,
     }
 
 
@@ -182,15 +185,17 @@ def build_monthly_projection(params):
         cumulative_revenue += month_revenue
         cumulative_net = cumulative_revenue - cumulative_cost
 
-        rows.append({
-            "month": m,
-            "new_customers": round(new_per_month, 1),
-            "cumulative_customers": round(cumulative_customers, 1),
-            "monthly_cost": round(month_cost, 2),
-            "cumulative_cost": round(cumulative_cost, 2),
-            "monthly_ltv": round(month_revenue, 2),
-            "cumulative_net": round(cumulative_net, 2),
-        })
+        rows.append(
+            {
+                "month": m,
+                "new_customers": round(new_per_month, 1),
+                "cumulative_customers": round(cumulative_customers, 1),
+                "monthly_cost": round(month_cost, 2),
+                "cumulative_cost": round(cumulative_cost, 2),
+                "monthly_ltv": round(month_revenue, 2),
+                "cumulative_net": round(cumulative_net, 2),
+            }
+        )
 
     return rows
 
@@ -205,6 +210,7 @@ def find_break_even_month(projection):
 # ---------------------------------------------------------------------------
 # Formatting
 # ---------------------------------------------------------------------------
+
 
 def format_currency(value):
     return f"${value:,.2f}"
@@ -252,7 +258,9 @@ def print_report(params, results):
     print(f"  CAC via referral:           {format_currency(cac)}")
     print(f"  Paid CAC:                   {format_currency(paid_cac)}")
     savings_pct = ((paid_cac - cac) / paid_cac * 100) if paid_cac > 0 else 0
-    savings_label = f"{savings_pct:.0f}% cheaper than paid" if cac < paid_cac else "⚠️  More expensive than paid"
+    savings_label = (
+        f"{savings_pct:.0f}% cheaper than paid" if cac < paid_cac else "⚠️  More expensive than paid"
+    )
     print(f"  CAC comparison:             {savings_label}")
 
     print(f"\n💰 ROI OVER {params['months_to_model']} MONTHS")
@@ -271,35 +279,56 @@ def print_report(params, results):
         current_rate = params["referral_rate"]
         rate_gap = break_even_rate - current_rate
         if rate_gap > 0:
-            print(f"  Break-even referral rate:   {format_pct(break_even_rate * 100)} "
-                  f"(you're at {format_pct(current_rate * 100)} — need +{format_pct(rate_gap * 100)})")
+            print(
+                f"  Break-even referral rate:   {format_pct(break_even_rate * 100)} "
+                f"(you're at {format_pct(current_rate * 100)} — need +{format_pct(rate_gap * 100)})"
+            )
         else:
-            print(f"  Break-even referral rate:   {format_pct(break_even_rate * 100)} ✅ Already above break-even")
+            print(
+                f"  Break-even referral rate:   {format_pct(break_even_rate * 100)} ✅ Already above break-even"
+            )
     else:
-        print(f"  Break-even referral rate:   ⚠️  Reward alone exceeds target CAC — reduce reward or increase LTV")
+        print(
+            "  Break-even referral rate:   ⚠️  Reward alone exceeds target CAC — reduce reward or increase LTV"
+        )
 
-    print(f"\n  Optimal reward sizing (to keep CAC at ≤60% of paid CAC):")
+    print("\n  Optimal reward sizing (to keep CAC at ≤60% of paid CAC):")
     print(f"    Max total reward/referral:  {format_currency(optimal_reward['max_total_reward'])}")
-    print(f"    Recommended referrer:       {format_currency(optimal_reward['recommended_referrer_reward'])}")
-    print(f"    Recommended referred user:  {format_currency(optimal_reward['recommended_referred_reward'])}")
+    print(
+        f"    Recommended referrer:       {format_currency(optimal_reward['recommended_referrer_reward'])}"
+    )
+    print(
+        f"    Recommended referred user:  {format_currency(optimal_reward['recommended_referred_reward'])}"
+    )
     print(f"    Reward as % of LTV:         {format_pct(optimal_reward['reward_as_pct_ltv'])}")
 
     current_total_reward = params["referrer_reward"] + params["referred_reward"]
-    if current_total_reward > optimal_reward["max_total_reward"] and optimal_reward["max_total_reward"] > 0:
-        print(f"  ⚠️  Your current reward ({format_currency(current_total_reward)}) "
-              f"exceeds optimal ({format_currency(optimal_reward['max_total_reward'])})")
+    if (
+        current_total_reward > optimal_reward["max_total_reward"]
+        and optimal_reward["max_total_reward"] > 0
+    ):
+        print(
+            f"  ⚠️  Your current reward ({format_currency(current_total_reward)}) "
+            f"exceeds optimal ({format_currency(optimal_reward['max_total_reward'])})"
+        )
     elif optimal_reward["max_total_reward"] > 0:
-        print(f"  ✅ Your current reward ({format_currency(current_total_reward)}) is within optimal range")
+        print(
+            f"  ✅ Your current reward ({format_currency(current_total_reward)}) is within optimal range"
+        )
 
     print(f"\n📅 MONTHLY PROJECTION (first {min(6, len(projection))} months)")
-    print(f"  {'Month':>5}  {'New Cust':>9}  {'Cumul Cust':>11}  {'Monthly Cost':>13}  {'Cumul Net':>11}")
-    print(f"  {'-'*5}  {'-'*9}  {'-'*11}  {'-'*13}  {'-'*11}")
+    print(
+        f"  {'Month':>5}  {'New Cust':>9}  {'Cumul Cust':>11}  {'Monthly Cost':>13}  {'Cumul Net':>11}"
+    )
+    print(f"  {'-' * 5}  {'-' * 9}  {'-' * 11}  {'-' * 13}  {'-' * 11}")
     for row in projection[:6]:
         net_str = format_currency(row["cumulative_net"])
         if row["cumulative_net"] < 0:
             net_str = f"({format_currency(abs(row['cumulative_net']))})"
-        print(f"  {row['month']:>5}  {row['new_customers']:>9.1f}  {row['cumulative_customers']:>11.1f}  "
-              f"{format_currency(row['monthly_cost']):>13}  {net_str:>11}")
+        print(
+            f"  {row['month']:>5}  {row['new_customers']:>9.1f}  {row['cumulative_customers']:>11.1f}  "
+            f"{format_currency(row['monthly_cost']):>13}  {net_str:>11}"
+        )
 
     print("\n" + "=" * 60)
 
@@ -352,18 +381,21 @@ def run(params):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(
         description="Calculates referral program ROI. "
-                    "Models economics given LTV, CAC, referral rate, reward cost, "
-                    "and conversion rate."
+        "Models economics given LTV, CAC, referral rate, reward cost, "
+        "and conversion rate."
     )
     parser.add_argument(
-        "file", nargs="?", default=None,
+        "file",
+        nargs="?",
+        default=None,
         help="Path to a JSON file with referral program parameters. "
-             "If omitted, reads from stdin or runs embedded sample."
+        "If omitted, reads from stdin or runs embedded sample.",
     )
     args = parser.parse_args()
 
@@ -409,7 +441,7 @@ def main():
             "break_even_referral_rate": results["break_even_referral_rate"],
             "optimal_total_reward": results["optimal_reward"]["max_total_reward"],
             "net_benefit_12mo": results["roi"]["net_benefit"],
-        }
+        },
     }
 
     print("\n--- JSON Output ---")

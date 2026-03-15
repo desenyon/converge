@@ -2,8 +2,6 @@
 """Churn impact calculator — models revenue impact of churn reduction improvements."""
 
 import json
-import sys
-
 
 SAMPLE_INPUT = {
     "mrr": 50000,
@@ -13,7 +11,7 @@ SAMPLE_INPUT = {
     "target_save_rate_pct": 20,
     "current_recovery_rate_pct": 15,
     "target_recovery_rate_pct": 35,
-    "avg_customer_mrr": 150
+    "avg_customer_mrr": 150,
 }
 
 
@@ -87,10 +85,13 @@ def calculate(inputs):
             "ltv_impact_of_saved_customers": round(ltv_impact, 0),
         },
         "priorities": _prioritize(
-            voluntary_churned_mrr, involuntary_churned_mrr,
-            current_save, target_save,
-            current_recovery, target_recovery
-        )
+            voluntary_churned_mrr,
+            involuntary_churned_mrr,
+            current_save,
+            target_save,
+            current_recovery,
+            target_recovery,
+        ),
     }
 
 
@@ -112,7 +113,7 @@ def _prioritize(vol_mrr, inv_mrr, cur_save, tgt_save, cur_rec, tgt_rec):
         "voluntary_save_opportunity_mrr": round(save_opportunity, 0),
         "involuntary_recovery_opportunity_mrr": round(rec_opportunity, 0),
         "recommendation": primary,
-        "note": secondary
+        "note": secondary,
     }
 
 
@@ -123,44 +124,44 @@ def print_report(result):
     imp = result["improvement_impact"]
     pri = result["priorities"]
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("  CHURN IMPACT CALCULATOR")
-    print("="*60)
+    print("=" * 60)
 
-    print(f"\n📊 BASELINE")
+    print("\n📊 BASELINE")
     print(f"   MRR:                     ${b['mrr']:,.0f}")
     print(f"   Monthly churn rate:      {b['monthly_churn_rate_pct']}%")
     print(f"   Total MRR churned/mo:    ${b['total_churned_mrr_monthly']:,.0f}")
     print(f"   └─ Voluntary:            ${b['voluntary_churned_mrr']:,.0f}")
     print(f"   └─ Involuntary:          ${b['involuntary_churned_mrr']:,.0f}")
 
-    print(f"\n📉 CURRENT PERFORMANCE")
+    print("\n📉 CURRENT PERFORMANCE")
     print(f"   Save rate:               {cur['save_rate_pct']}%")
     print(f"   Payment recovery rate:   {cur['recovery_rate_pct']}%")
     print(f"   MRR saved monthly:       ${cur['monthly_saved_mrr']:,.0f}")
     print(f"   MRR saved annually:      ${cur['annual_saved_mrr']:,.0f}")
 
-    print(f"\n🎯 TARGET PERFORMANCE")
+    print("\n🎯 TARGET PERFORMANCE")
     print(f"   Save rate:               {tgt['save_rate_pct']}%")
     print(f"   Payment recovery rate:   {tgt['recovery_rate_pct']}%")
     print(f"   MRR saved monthly:       ${tgt['monthly_saved_mrr']:,.0f}")
     print(f"   MRR saved annually:      ${tgt['annual_saved_mrr']:,.0f}")
 
-    print(f"\n💰 INCREMENTAL IMPACT")
+    print("\n💰 INCREMENTAL IMPACT")
     print(f"   Additional MRR/month:    ${imp['incremental_mrr_monthly']:,.0f}")
     print(f"   Additional MRR/year:     ${imp['incremental_mrr_annual']:,.0f}")
     print(f"   Customers saved/month:   {imp['additional_customers_saved_monthly']}")
     print(f"   Implied LTV/customer:    ${imp['implied_ltv_per_customer']:,.0f}")
     print(f"   LTV impact:              ${imp['ltv_impact_of_saved_customers']:,.0f}")
 
-    print(f"\n🔍 PRIORITY RECOMMENDATION")
+    print("\n🔍 PRIORITY RECOMMENDATION")
     print(f"   Voluntary opportunity:   ${pri['voluntary_save_opportunity_mrr']:,.0f}/mo")
     print(f"   Involuntary opportunity: ${pri['involuntary_recovery_opportunity_mrr']:,.0f}/mo")
     print(f"   Focus on:               {pri['recommendation'].replace('-', ' ').title()}")
-    if pri['note']:
+    if pri["note"]:
         print(f"   Note:                   {pri['note'].replace('-', ' ')}")
 
-    print("\n" + "="*60 + "\n")
+    print("\n" + "=" * 60 + "\n")
 
 
 def main():
@@ -170,13 +171,12 @@ def main():
         description="Churn impact calculator — models revenue impact of churn reduction improvements."
     )
     parser.add_argument(
-        "input_file", nargs="?", default=None,
-        help="JSON file with churn metrics (default: run with sample data)"
+        "input_file",
+        nargs="?",
+        default=None,
+        help="JSON file with churn metrics (default: run with sample data)",
     )
-    parser.add_argument(
-        "--json", action="store_true",
-        help="Output results as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
     args = parser.parse_args()
 
     if args.input_file:

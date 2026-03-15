@@ -13,9 +13,8 @@ Output:
 import argparse
 import json
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class CLIError(Exception):
@@ -25,13 +24,13 @@ class CLIError(Exception):
 @dataclass
 class StackReport:
     repo: str
-    languages: List[str]
-    package_managers: List[str]
-    ci_targets: List[str]
-    test_commands: List[str]
-    build_commands: List[str]
-    lint_commands: List[str]
-    signals: Dict[str, bool]
+    languages: list[str]
+    package_managers: list[str]
+    ci_targets: list[str]
+    test_commands: list[str]
+    build_commands: list[str]
+    lint_commands: list[str]
+    signals: dict[str, bool]
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_payload(input_path: Optional[str]) -> Optional[dict]:
+def load_payload(input_path: str | None) -> dict | None:
     if input_path:
         try:
             return json.loads(Path(input_path).read_text(encoding="utf-8"))
@@ -60,7 +59,7 @@ def load_payload(input_path: Optional[str]) -> Optional[dict]:
     return None
 
 
-def read_package_scripts(repo: Path) -> Dict[str, str]:
+def read_package_scripts(repo: Path) -> dict[str, str]:
     pkg = repo / "package.json"
     if not pkg.exists():
         return {}
@@ -87,9 +86,9 @@ def detect(repo: Path) -> StackReport:
         "k8s": (repo / "k8s").exists() or (repo / "kubernetes").exists(),
     }
 
-    languages: List[str] = []
-    package_managers: List[str] = []
-    ci_targets: List[str] = ["github", "gitlab"]
+    languages: list[str] = []
+    package_managers: list[str] = []
+    ci_targets: list[str] = ["github", "gitlab"]
 
     if signals["package_json"]:
         languages.append("node")
@@ -108,9 +107,9 @@ def detect(repo: Path) -> StackReport:
         languages.append("go")
 
     scripts = read_package_scripts(repo)
-    lint_commands: List[str] = []
-    test_commands: List[str] = []
-    build_commands: List[str] = []
+    lint_commands: list[str] = []
+    test_commands: list[str] = []
+    build_commands: list[str] = []
 
     if "lint" in scripts:
         lint_commands.append("npm run lint")

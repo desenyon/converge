@@ -17,9 +17,7 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional
+from dataclasses import asdict, dataclass, field
 
 
 @dataclass
@@ -34,7 +32,7 @@ class AuditFinding:
 
 @dataclass
 class AuditReport:
-    findings: List[dict] = field(default_factory=list)
+    findings: list[dict] = field(default_factory=list)
     score: int = 0
     max_score: int = 100
     grade: str = ""
@@ -43,52 +41,77 @@ class AuditReport:
 
 
 DEMO_FINDINGS = [
-    AuditFinding("drive", "External sharing", "WARN",
-                 "External sharing is enabled for the domain",
-                 "Data exfiltration via shared links",
-                 "Review sharing settings in Admin Console > Apps > Google Workspace > Drive"),
-    AuditFinding("drive", "Link sharing defaults", "FAIL",
-                 "Default link sharing is set to 'Anyone with the link'",
-                 "Sensitive files accessible without authentication",
-                 "gws admin settings update drive --defaultLinkSharing restricted"),
-    AuditFinding("gmail", "Auto-forwarding", "PASS",
-                 "No auto-forwarding rules detected for admin accounts"),
-    AuditFinding("gmail", "SPF record", "PASS",
-                 "SPF record configured correctly"),
-    AuditFinding("gmail", "DMARC record", "WARN",
-                 "DMARC policy is set to 'none' (monitoring only)",
-                 "Email spoofing not actively blocked",
-                 "Update DMARC DNS record: v=DMARC1; p=quarantine; rua=mailto:dmarc@company.com"),
-    AuditFinding("gmail", "DKIM signing", "PASS",
-                 "DKIM signing is enabled"),
-    AuditFinding("calendar", "Default visibility", "WARN",
-                 "Calendar default visibility is 'See all event details'",
-                 "Meeting details visible to all domain users",
-                 "Admin Console > Apps > Calendar > Sharing settings > Set to 'Free/Busy'"),
-    AuditFinding("calendar", "External sharing", "PASS",
-                 "External calendar sharing is restricted"),
-    AuditFinding("oauth", "Third-party apps", "FAIL",
-                 "12 third-party OAuth apps with broad access detected",
-                 "Unauthorized data access via OAuth grants",
-                 "Review: Admin Console > Security > API controls > App access control"),
-    AuditFinding("oauth", "High-risk apps", "WARN",
-                 "3 apps have Drive full access scope",
-                 "Apps can read/modify all Drive files",
-                 "Audit each app: gws admin tokens list --json | filter by scope"),
-    AuditFinding("admin", "Super admin count", "WARN",
-                 "4 super admin accounts detected (recommended: 2-3)",
-                 "Increased attack surface for privilege escalation",
-                 "Reduce super admins: gws admin users list --query 'isAdmin=true' --json"),
-    AuditFinding("admin", "2-Step verification", "PASS",
-                 "2-Step verification enforced for all users"),
-    AuditFinding("admin", "Password policy", "PASS",
-                 "Minimum password length: 12 characters"),
-    AuditFinding("admin", "Login challenges", "PASS",
-                 "Suspicious login challenges enabled"),
+    AuditFinding(
+        "drive",
+        "External sharing",
+        "WARN",
+        "External sharing is enabled for the domain",
+        "Data exfiltration via shared links",
+        "Review sharing settings in Admin Console > Apps > Google Workspace > Drive",
+    ),
+    AuditFinding(
+        "drive",
+        "Link sharing defaults",
+        "FAIL",
+        "Default link sharing is set to 'Anyone with the link'",
+        "Sensitive files accessible without authentication",
+        "gws admin settings update drive --defaultLinkSharing restricted",
+    ),
+    AuditFinding(
+        "gmail", "Auto-forwarding", "PASS", "No auto-forwarding rules detected for admin accounts"
+    ),
+    AuditFinding("gmail", "SPF record", "PASS", "SPF record configured correctly"),
+    AuditFinding(
+        "gmail",
+        "DMARC record",
+        "WARN",
+        "DMARC policy is set to 'none' (monitoring only)",
+        "Email spoofing not actively blocked",
+        "Update DMARC DNS record: v=DMARC1; p=quarantine; rua=mailto:dmarc@company.com",
+    ),
+    AuditFinding("gmail", "DKIM signing", "PASS", "DKIM signing is enabled"),
+    AuditFinding(
+        "calendar",
+        "Default visibility",
+        "WARN",
+        "Calendar default visibility is 'See all event details'",
+        "Meeting details visible to all domain users",
+        "Admin Console > Apps > Calendar > Sharing settings > Set to 'Free/Busy'",
+    ),
+    AuditFinding("calendar", "External sharing", "PASS", "External calendar sharing is restricted"),
+    AuditFinding(
+        "oauth",
+        "Third-party apps",
+        "FAIL",
+        "12 third-party OAuth apps with broad access detected",
+        "Unauthorized data access via OAuth grants",
+        "Review: Admin Console > Security > API controls > App access control",
+    ),
+    AuditFinding(
+        "oauth",
+        "High-risk apps",
+        "WARN",
+        "3 apps have Drive full access scope",
+        "Apps can read/modify all Drive files",
+        "Audit each app: gws admin tokens list --json | filter by scope",
+    ),
+    AuditFinding(
+        "admin",
+        "Super admin count",
+        "WARN",
+        "4 super admin accounts detected (recommended: 2-3)",
+        "Increased attack surface for privilege escalation",
+        "Reduce super admins: gws admin users list --query 'isAdmin=true' --json",
+    ),
+    AuditFinding(
+        "admin", "2-Step verification", "PASS", "2-Step verification enforced for all users"
+    ),
+    AuditFinding("admin", "Password policy", "PASS", "Minimum password length: 12 characters"),
+    AuditFinding("admin", "Login challenges", "PASS", "Suspicious login challenges enabled"),
 ]
 
 
-def run_gws_command(cmd: List[str]) -> Optional[str]:
+def run_gws_command(cmd: list[str]) -> str | None:
     """Run a gws command and return stdout, or None on failure."""
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
@@ -99,7 +122,7 @@ def run_gws_command(cmd: List[str]) -> Optional[str]:
         return None
 
 
-def audit_drive() -> List[AuditFinding]:
+def audit_drive() -> list[AuditFinding]:
     """Audit Drive sharing and security settings."""
     findings = []
 
@@ -110,84 +133,93 @@ def audit_drive() -> List[AuditFinding]:
             data = json.loads(output)
             # Check if external sharing is enabled
             if data.get("canShareOutsideDomain", True):
-                findings.append(AuditFinding(
-                    "drive", "External sharing", "WARN",
-                    "External sharing is enabled",
-                    "Data exfiltration via shared links",
-                    "Review Admin Console > Apps > Drive > Sharing settings"
-                ))
+                findings.append(
+                    AuditFinding(
+                        "drive",
+                        "External sharing",
+                        "WARN",
+                        "External sharing is enabled",
+                        "Data exfiltration via shared links",
+                        "Review Admin Console > Apps > Drive > Sharing settings",
+                    )
+                )
             else:
-                findings.append(AuditFinding(
-                    "drive", "External sharing", "PASS",
-                    "External sharing is restricted"
-                ))
+                findings.append(
+                    AuditFinding(
+                        "drive", "External sharing", "PASS", "External sharing is restricted"
+                    )
+                )
         except json.JSONDecodeError:
-            findings.append(AuditFinding(
-                "drive", "External sharing", "WARN",
-                "Could not parse Drive settings"
-            ))
+            findings.append(
+                AuditFinding("drive", "External sharing", "WARN", "Could not parse Drive settings")
+            )
     else:
-        findings.append(AuditFinding(
-            "drive", "External sharing", "WARN",
-            "Could not retrieve Drive settings"
-        ))
+        findings.append(
+            AuditFinding("drive", "External sharing", "WARN", "Could not retrieve Drive settings")
+        )
 
     return findings
 
 
-def audit_gmail() -> List[AuditFinding]:
+def audit_gmail() -> list[AuditFinding]:
     """Audit Gmail forwarding and email security."""
     findings = []
 
     # Check forwarding rules
-    output = run_gws_command(["gws", "gmail", "users.settings.forwardingAddresses", "list", "me", "--json"])
+    output = run_gws_command(
+        ["gws", "gmail", "users.settings.forwardingAddresses", "list", "me", "--json"]
+    )
     if output:
         try:
             data = json.loads(output)
             addrs = data if isinstance(data, list) else data.get("forwardingAddresses", [])
             if addrs:
-                findings.append(AuditFinding(
-                    "gmail", "Auto-forwarding", "WARN",
-                    f"{len(addrs)} forwarding addresses configured",
-                    "Data exfiltration via email forwarding",
-                    "Review: gws gmail users.settings.forwardingAddresses list me --json"
-                ))
+                findings.append(
+                    AuditFinding(
+                        "gmail",
+                        "Auto-forwarding",
+                        "WARN",
+                        f"{len(addrs)} forwarding addresses configured",
+                        "Data exfiltration via email forwarding",
+                        "Review: gws gmail users.settings.forwardingAddresses list me --json",
+                    )
+                )
             else:
-                findings.append(AuditFinding(
-                    "gmail", "Auto-forwarding", "PASS",
-                    "No forwarding addresses configured"
-                ))
+                findings.append(
+                    AuditFinding(
+                        "gmail", "Auto-forwarding", "PASS", "No forwarding addresses configured"
+                    )
+                )
         except json.JSONDecodeError:
             pass
     else:
-        findings.append(AuditFinding(
-            "gmail", "Auto-forwarding", "WARN",
-            "Could not check forwarding settings"
-        ))
+        findings.append(
+            AuditFinding("gmail", "Auto-forwarding", "WARN", "Could not check forwarding settings")
+        )
 
     return findings
 
 
-def audit_calendar() -> List[AuditFinding]:
+def audit_calendar() -> list[AuditFinding]:
     """Audit Calendar sharing settings."""
     findings = []
 
     output = run_gws_command(["gws", "calendar", "calendarList", "get", "primary", "--json"])
     if output:
-        findings.append(AuditFinding(
-            "calendar", "Primary calendar", "PASS",
-            "Primary calendar accessible"
-        ))
+        findings.append(
+            AuditFinding("calendar", "Primary calendar", "PASS", "Primary calendar accessible")
+        )
     else:
-        findings.append(AuditFinding(
-            "calendar", "Primary calendar", "WARN",
-            "Could not access primary calendar"
-        ))
+        findings.append(
+            AuditFinding(
+                "calendar", "Primary calendar", "WARN", "Could not access primary calendar"
+            )
+        )
 
     return findings
 
 
-def run_live_audit(services: List[str]) -> AuditReport:
+def run_live_audit(services: list[str]) -> AuditReport:
     """Run live audit against actual gws installation."""
     report = AuditReport()
     all_findings = []
@@ -264,8 +296,11 @@ Examples:
         """,
     )
     parser.add_argument("--json", action="store_true", help="Output JSON")
-    parser.add_argument("--services", default="gmail,drive,calendar",
-                        help="Comma-separated services to audit (default: gmail,drive,calendar)")
+    parser.add_argument(
+        "--services",
+        default="gmail,drive,calendar",
+        help="Comma-separated services to audit (default: gmail,drive,calendar)",
+    )
     parser.add_argument("--demo", action="store_true", help="Run with demo data")
     args = parser.parse_args()
 
@@ -279,11 +314,11 @@ Examples:
     if args.json:
         print(json.dumps(asdict(report), indent=2))
     else:
-        print(f"\n{'='*60}")
-        print(f"  GOOGLE WORKSPACE SECURITY AUDIT")
+        print(f"\n{'=' * 60}")
+        print("  GOOGLE WORKSPACE SECURITY AUDIT")
         if report.demo_mode:
-            print(f"  (DEMO MODE — sample data)")
-        print(f"{'='*60}\n")
+            print("  (DEMO MODE — sample data)")
+        print(f"{'=' * 60}\n")
         print(f"  Score: {report.score}/{report.max_score} (Grade: {report.grade})\n")
 
         current_area = ""
@@ -291,7 +326,7 @@ Examples:
             if f["area"] != current_area:
                 current_area = f["area"]
                 print(f"\n  {current_area.upper()}")
-                print(f"  {'-'*40}")
+                print(f"  {'-' * 40}")
 
             icon = {"PASS": "PASS", "WARN": "WARN", "FAIL": "FAIL"}.get(f["status"], "????")
             print(f"  [{icon}] {f['check']}: {f['message']}")
@@ -300,9 +335,9 @@ Examples:
             if f.get("remediation") and f["status"] != "PASS":
                 print(f"         Fix: {f['remediation']}")
 
-        print(f"\n  {'='*56}")
+        print(f"\n  {'=' * 56}")
         print(f"  {report.summary}")
-        print(f"\n{'='*60}\n")
+        print(f"\n{'=' * 60}\n")
 
 
 if __name__ == "__main__":

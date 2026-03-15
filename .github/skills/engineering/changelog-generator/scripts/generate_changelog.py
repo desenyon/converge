@@ -14,11 +14,9 @@ import json
 import re
 import subprocess
 import sys
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Optional
-
 
 COMMIT_RE = re.compile(
     r"^(?P<type>feat|fix|perf|refactor|docs|test|build|ci|chore|security|deprecated|remove)"
@@ -44,7 +42,7 @@ class CLIError(Exception):
 class ParsedCommit:
     raw: str
     ctype: str
-    scope: Optional[str]
+    scope: str | None
     summary: str
     breaking: bool
 
@@ -53,8 +51,8 @@ class ParsedCommit:
 class ChangelogEntry:
     version: str
     release_date: str
-    sections: Dict[str, List[str]] = field(default_factory=dict)
-    breaking_changes: List[str] = field(default_factory=list)
+    sections: dict[str, list[str]] = field(default_factory=dict)
+    breaking_changes: list[str] = field(default_factory=list)
     bump: str = "patch"
 
 
@@ -65,28 +63,40 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--to-tag", help="Git tag end (inclusive).")
     parser.add_argument("--from-ref", help="Git ref start (exclusive).")
     parser.add_argument("--to-ref", help="Git ref end (inclusive).")
-    parser.add_argument("--next-version", default="Unreleased", help="Version label for the generated entry.")
-    parser.add_argument("--date", dest="entry_date", default=str(date.today()), help="Release date (YYYY-MM-DD).")
-    parser.add_argument("--format", choices=["markdown", "json"], default="markdown", help="Output format.")
-    parser.add_argument("--write", help="Prepend generated markdown entry into this changelog file.")
+    parser.add_argument(
+        "--next-version", default="Unreleased", help="Version label for the generated entry."
+    )
+    parser.add_argument(
+        "--date", dest="entry_date", default=str(date.today()), help="Release date (YYYY-MM-DD)."
+    )
+    parser.add_argument(
+        "--format", choices=["markdown", "json"], default="markdown", help="Output format."
+    )
+    parser.add_argument(
+        "--write", help="Prepend generated markdown entry into this changelog file."
+    )
     return parser.parse_args()
 
 
-def read_lines_from_file(path: str) -> List[str]:
+def read_lines_from_file(path: str) -> list[str]:
     try:
-        return [line.strip() for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
+        return [
+            line.strip()
+            for line in Path(path).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
     except Exception as exc:
         raise CLIError(f"Failed reading --input file: {exc}") from exc
 
 
-def read_lines_from_stdin() -> List[str]:
+def read_lines_from_stdin() -> list[str]:
     if sys.stdin.isatty():
         return []
     payload = sys.stdin.read()
     return [line.strip() for line in payload.splitlines() if line.strip()]
 
 
-def read_lines_from_git(args: argparse.Namespace) -> List[str]:
+def read_lines_from_git(args: argparse.Namespace) -> list[str]:
     if args.from_tag or args.to_tag:
         if not args.to_tag:
             raise CLIError("--to-tag is required when using tag range.")
@@ -114,7 +124,7 @@ def read_lines_from_git(args: argparse.Namespace) -> List[str]:
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
-def load_commits(args: argparse.Namespace) -> List[str]:
+def load_commits(args: argparse.Namespace) -> list[str]:
     if args.input:
         return read_lines_from_file(args.input)
 
@@ -129,8 +139,8 @@ def load_commits(args: argparse.Namespace) -> List[str]:
     raise CLIError("No commit input found. Use --input, stdin, or git range flags.")
 
 
-def parse_commits(lines: List[str]) -> List[ParsedCommit]:
-    parsed: List[ParsedCommit] = []
+def parse_commits(lines: list[str]) -> list[ParsedCommit]:
+    parsed: list[ParsedCommit] = []
     for line in lines:
         match = COMMIT_RE.match(line)
         if not match:
@@ -139,11 +149,13 @@ def parse_commits(lines: List[str]) -> List[ParsedCommit]:
         scope = match.group("scope")
         summary = match.group("summary")
         breaking = bool(match.group("breaking")) or "BREAKING CHANGE" in line
-        parsed.append(ParsedCommit(raw=line, ctype=ctype, scope=scope, summary=summary, breaking=breaking))
+        parsed.append(
+            ParsedCommit(raw=line, ctype=ctype, scope=scope, summary=summary, breaking=breaking)
+        )
     return parsed
 
 
-def determine_bump(commits: List[ParsedCommit]) -> str:
+def determine_bump(commits: list[ParsedCommit]) -> str:
     if any(c.breaking for c in commits):
         return "major"
     if any(c.ctype == "feat" for c in commits):
@@ -151,8 +163,8 @@ def determine_bump(commits: List[ParsedCommit]) -> str:
     return "patch"
 
 
-def build_entry(commits: List[ParsedCommit], version: str, entry_date: str) -> ChangelogEntry:
-    sections: Dict[str, List[str]] = {
+def build_entry(commits: list[ParsedCommit], version: str, entry_date: str) -> ChangelogEntry:
+    sections: dict[str, list[str]] = {
         "Security": [],
         "Added": [],
         "Changed": [],
@@ -160,7 +172,7 @@ def build_entry(commits: List[ParsedCommit], version: str, entry_date: str) -> C
         "Removed": [],
         "Fixed": [],
     }
-    breaking_changes: List[str] = []
+    breaking_changes: list[str] = []
 
     for commit in commits:
         if commit.breaking:

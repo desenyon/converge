@@ -3,7 +3,7 @@ PowerShell script generator for Microsoft 365 administration tasks.
 Creates ready-to-use scripts with error handling and best practices.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 
 class PowerShellScriptGenerator:
@@ -18,7 +18,7 @@ class PowerShellScriptGenerator:
         """
         self.tenant_domain = tenant_domain
 
-    def generate_conditional_access_policy_script(self, policy_config: Dict[str, Any]) -> str:
+    def generate_conditional_access_policy_script(self, policy_config: dict[str, Any]) -> str:
         """
         Generate script to create Conditional Access policy.
 
@@ -28,10 +28,10 @@ class PowerShellScriptGenerator:
         Returns:
             PowerShell script
         """
-        policy_name = policy_config.get('name', 'MFA Policy')
-        require_mfa = policy_config.get('require_mfa', True)
-        include_users = policy_config.get('include_users', 'All')
-        exclude_users = policy_config.get('exclude_users', [])
+        policy_name = policy_config.get("name", "MFA Policy")
+        require_mfa = policy_config.get("require_mfa", True)
+        include_users = policy_config.get("include_users", "All")
+        exclude_users = policy_config.get("exclude_users", [])
 
         script = f"""<#
 .SYNOPSIS
@@ -110,7 +110,7 @@ Disconnect-MgGraph
         Returns:
             PowerShell script for security assessment
         """
-        script = """<#
+        script = r"""<#
 .SYNOPSIS
     Microsoft 365 Security Audit Report
 

@@ -7,8 +7,8 @@ import argparse
 import json
 import os
 from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List
 
 IGNORED_DIRS = {
     ".git",
@@ -71,7 +71,7 @@ def iter_files(root: Path) -> Iterable[Path]:
                 yield path
 
 
-def detect_languages(paths: Iterable[Path]) -> Dict[str, int]:
+def detect_languages(paths: Iterable[Path]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     for path in paths:
         lang = EXT_TO_LANG.get(path.suffix.lower())
@@ -80,16 +80,16 @@ def detect_languages(paths: Iterable[Path]) -> Dict[str, int]:
     return dict(sorted(counts.items(), key=lambda item: (-item[1], item[0])))
 
 
-def find_key_configs(root: Path) -> List[str]:
-    found: List[str] = []
+def find_key_configs(root: Path) -> list[str]:
+    found: list[str] = []
     for rel in KEY_CONFIG_FILES:
         if (root / rel).exists():
             found.append(rel)
     return found
 
 
-def top_level_structure(root: Path, max_depth: int) -> List[str]:
-    lines: List[str] = []
+def top_level_structure(root: Path, max_depth: int) -> list[str]:
+    lines: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root):
         rel = Path(dirpath).relative_to(root)
         depth = 0 if str(rel) == "." else len(rel.parts)
@@ -113,7 +113,7 @@ def top_level_structure(root: Path, max_depth: int) -> List[str]:
     return lines
 
 
-def build_report(root: Path, max_depth: int) -> Dict[str, object]:
+def build_report(root: Path, max_depth: int) -> dict[str, object]:
     files = list(iter_files(root))
     languages = detect_languages(files)
     total_files = len(files)
@@ -146,7 +146,7 @@ def format_size(num_bytes: int) -> str:
     return f"{num_bytes}B"
 
 
-def print_text(report: Dict[str, object]) -> None:
+def print_text(report: dict[str, object]) -> None:
     print("Codebase Onboarding Summary")
     print(f"Root: {report['root']}")
     print(f"Total files: {report['file_count']}")
@@ -180,9 +180,13 @@ def print_text(report: Dict[str, object]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Scan a repository and generate onboarding summary facts.")
+    parser = argparse.ArgumentParser(
+        description="Scan a repository and generate onboarding summary facts."
+    )
     parser.add_argument("path", help="Path to project directory")
-    parser.add_argument("--max-depth", type=int, default=2, help="Max depth for structure output (default: 2)")
+    parser.add_argument(
+        "--max-depth", type=int, default=2, help="Max depth for structure output (default: 2)"
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON output")
     return parser.parse_args()
 

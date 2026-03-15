@@ -31,31 +31,29 @@ matrix.json format:
 import argparse
 import json
 import sys
-from collections import defaultdict
-
 
 # ---------------------------------------------------------------------------
 # Status helpers
 # ---------------------------------------------------------------------------
 
 STATUS_SCORE = {
-    "full":    2,
+    "full": 2,
     "partial": 1,
-    "no":      0,
+    "no": 0,
     "planned": 0,  # planned ≠ shipped; conservative scoring
 }
 
 STATUS_LABEL = {
-    "full":    "✅",
+    "full": "✅",
     "partial": "🔶",
-    "no":      "❌",
+    "no": "❌",
     "planned": "🗓",
 }
 
 STATUS_TEXT = {
-    "full":    "Full",
+    "full": "Full",
     "partial": "Partial",
-    "no":      "No",
+    "no": "No",
     "planned": "Planned",
 }
 
@@ -69,6 +67,7 @@ FEATURE_IMPORTANCE = {
 # Core builder
 # ---------------------------------------------------------------------------
 
+
 def normalise_status(s: str) -> str:
     s = (s or "no").strip().lower()
     return s if s in STATUS_SCORE else "no"
@@ -76,14 +75,14 @@ def normalise_status(s: str) -> str:
 
 def build_matrix(data: dict) -> dict:
     your_product = data.get("your_product", "Your Product")
-    features     = data.get("features", [])
+    features = data.get("features", [])
 
     if not features:
         raise ValueError("No features provided in input.")
 
     # Collect competitor names (ordered, deduplicated)
     competitors = []
-    seen        = set()
+    seen = set()
     for f in features:
         for c in f.get("competitors", {}):
             if c not in seen:
@@ -95,44 +94,47 @@ def build_matrix(data: dict) -> dict:
     # --- per-feature analysis ---
     feature_rows = []
     for f in features:
-        fname     = f.get("name", "?")
-        category  = f.get("category", "General")
-        weight    = f.get("weight", 1)
-        your_raw  = normalise_status(f.get("your_status", "no"))
-        your_s    = STATUS_SCORE[your_raw]
-        comp_raw  = {c: normalise_status(f.get("competitors", {}).get(c, "no"))
-                     for c in competitors}
-        comp_s    = {c: STATUS_SCORE[comp_raw[c]] for c in competitors}
+        fname = f.get("name", "?")
+        category = f.get("category", "General")
+        weight = f.get("weight", 1)
+        your_raw = normalise_status(f.get("your_status", "no"))
+        your_s = STATUS_SCORE[your_raw]
+        comp_raw = {c: normalise_status(f.get("competitors", {}).get(c, "no")) for c in competitors}
+        comp_s = {c: STATUS_SCORE[comp_raw[c]] for c in competitors}
 
-        you_win   = all(your_s > comp_s[c] for c in competitors) if competitors else False
-        you_lose  = any(your_s < comp_s[c] for c in competitors)
-        your_max  = max(comp_s.values()) if comp_s else 0
-        advantage = your_s - your_max   # positive = you're better overall
+        you_win = all(your_s > comp_s[c] for c in competitors) if competitors else False
+        you_lose = any(your_s < comp_s[c] for c in competitors)
+        your_max = max(comp_s.values()) if comp_s else 0
+        advantage = your_s - your_max  # positive = you're better overall
 
-        feature_rows.append({
-            "name":          fname,
-            "category":      category,
-            "weight":        weight,
-            "your_status":   your_raw,
-            "your_score":    your_s,
-            "competitors":   comp_raw,
-            "comp_scores":   comp_s,
-            "you_win":       you_win,
-            "you_lose":      you_lose,
-            "advantage":     advantage,
-            "notes":         f.get("notes", ""),
-        })
+        feature_rows.append(
+            {
+                "name": fname,
+                "category": category,
+                "weight": weight,
+                "your_status": your_raw,
+                "your_score": your_s,
+                "competitors": comp_raw,
+                "comp_scores": comp_s,
+                "you_win": you_win,
+                "you_lose": you_lose,
+                "advantage": advantage,
+                "notes": f.get("notes", ""),
+            }
+        )
 
     # --- competitive scores per competitor ---
     comp_scores = {}
     for c in competitors:
-        wins   = sum(1 for r in feature_rows if r["your_score"] > r["comp_scores"].get(c, 0))
-        ties   = sum(1 for r in feature_rows if r["your_score"] == r["comp_scores"].get(c, 0))
+        wins = sum(1 for r in feature_rows if r["your_score"] > r["comp_scores"].get(c, 0))
+        ties = sum(1 for r in feature_rows if r["your_score"] == r["comp_scores"].get(c, 0))
         losses = sum(1 for r in feature_rows if r["your_score"] < r["comp_scores"].get(c, 0))
-        total  = len(feature_rows)
-        score  = round((wins / total) * 100) if total else 0
+        total = len(feature_rows)
+        score = round((wins / total) * 100) if total else 0
         comp_scores[c] = {
-            "wins": wins, "ties": ties, "losses": losses,
+            "wins": wins,
+            "ties": ties,
+            "losses": losses,
             "win_pct": score,
             "verdict": _verdict(score),
         }
@@ -140,35 +142,39 @@ def build_matrix(data: dict) -> dict:
     # Overall competitive score (average win% across all competitors)
     overall_win_pct = (
         round(sum(v["win_pct"] for v in comp_scores.values()) / len(comp_scores))
-        if comp_scores else 0
+        if comp_scores
+        else 0
     )
 
     # Advantages and gaps
     advantages = [r["name"] for r in feature_rows if r["advantage"] > 0]
-    gaps       = [r["name"] for r in feature_rows if r["advantage"] < 0]
-    parity     = [r["name"] for r in feature_rows if r["advantage"] == 0]
+    gaps = [r["name"] for r in feature_rows if r["advantage"] < 0]
+    parity = [r["name"] for r in feature_rows if r["advantage"] == 0]
 
     return {
         "meta": {
-            "your_product":     your_product,
-            "competitors":      competitors,
-            "categories":       categories,
-            "total_features":   len(feature_rows),
-            "overall_win_pct":  overall_win_pct,
-            "verdict":          _verdict(overall_win_pct),
+            "your_product": your_product,
+            "competitors": competitors,
+            "categories": categories,
+            "total_features": len(feature_rows),
+            "overall_win_pct": overall_win_pct,
+            "verdict": _verdict(overall_win_pct),
         },
         "competitor_scores": comp_scores,
-        "advantages":        advantages,
-        "gaps":              gaps,
-        "parity":            parity,
-        "features":          feature_rows,
+        "advantages": advantages,
+        "gaps": gaps,
+        "parity": parity,
+        "features": feature_rows,
     }
 
 
 def _verdict(win_pct: int) -> str:
-    if win_pct >= 70: return "Strong advantage"
-    if win_pct >= 50: return "Slight advantage"
-    if win_pct >= 35: return "Competitive parity"
+    if win_pct >= 70:
+        return "Strong advantage"
+    if win_pct >= 50:
+        return "Slight advantage"
+    if win_pct >= 35:
+        return "Competitive parity"
     return "Trailing"
 
 
@@ -176,29 +182,34 @@ def _verdict(win_pct: int) -> str:
 # Markdown output
 # ---------------------------------------------------------------------------
 
+
 def build_markdown(result: dict) -> str:
-    m    = result["meta"]
+    m = result["meta"]
     rows = result["features"]
     comp = m["competitors"]
 
     lines = []
     lines.append(f"# Feature Comparison: {m['your_product']} vs Competitors\n")
-    lines.append(f"_Generated by comparison_matrix_builder.py — {m['total_features']} features, "
-                 f"{len(comp)} competitor(s)_\n")
+    lines.append(
+        f"_Generated by comparison_matrix_builder.py — {m['total_features']} features, "
+        f"{len(comp)} competitor(s)_\n"
+    )
 
     # Summary table
     lines.append("## Competitive Score Summary\n")
     lines.append("| Competitor | You Win | Tie | You Lose | Win % | Verdict |")
     lines.append("|---|---|---|---|---|---|")
     for c, s in result["competitor_scores"].items():
-        lines.append(f"| {c} | {s['wins']} | {s['ties']} | {s['losses']} | "
-                     f"**{s['win_pct']}%** | {s['verdict']} |")
+        lines.append(
+            f"| {c} | {s['wins']} | {s['ties']} | {s['losses']} | "
+            f"**{s['win_pct']}%** | {s['verdict']} |"
+        )
     lines.append(f"\n**Overall win rate: {m['overall_win_pct']}% — {m['verdict']}**\n")
 
     # Feature matrix by category
     lines.append("## Feature Matrix\n")
     header = f"| Feature | {m['your_product']} | " + " | ".join(comp) + " | Notes |"
-    sep    = "|---|---|" + "|".join(["---"] * len(comp)) + "|---|"
+    sep = "|---|---|" + "|".join(["---"] * len(comp)) + "|---|"
     lines.append(header)
     lines.append(sep)
 
@@ -208,9 +219,9 @@ def build_markdown(result: dict) -> str:
         if cat != current_cat:
             lines.append(f"| **{cat}** | | " + " | ".join([""] * len(comp)) + " |  |")
             current_cat = cat
-        you_icon  = STATUS_LABEL[r["your_status"]]
+        you_icon = STATUS_LABEL[r["your_status"]]
         comp_icons = " | ".join(STATUS_LABEL[r["competitors"].get(c, "no")] for c in comp)
-        note      = r["notes"] or ""
+        note = r["notes"] or ""
         # Highlight row if it's a unique advantage
         fname = f"**{r['name']}**" if r["advantage"] > 0 else r["name"]
         lines.append(f"| {fname} | {you_icon} | {comp_icons} | {note} |")
@@ -244,6 +255,7 @@ def build_markdown(result: dict) -> str:
 # Pretty terminal output
 # ---------------------------------------------------------------------------
 
+
 def pretty_print(result: dict) -> None:
     m = result["meta"]
     print("\n" + "=" * 70)
@@ -252,15 +264,17 @@ def pretty_print(result: dict) -> None:
     print(f"\n  Total features analysed : {m['total_features']}")
     print(f"  Overall win rate        : {m['overall_win_pct']}%  ({m['verdict']})")
 
-    print(f"\n{'─'*70}")
+    print(f"\n{'─' * 70}")
     print(f"  {'COMPETITOR':<22}  {'WIN%':>5}  {'WINS':>5}  {'TIES':>5}  {'LOSSES':>7}  VERDICT")
-    print(f"{'─'*70}")
+    print(f"{'─' * 70}")
     for c, s in result["competitor_scores"].items():
         bar = "█" * (s["win_pct"] // 10) + "░" * (10 - s["win_pct"] // 10)
-        print(f"  {c:<22}  {s['win_pct']:>4}%  {s['wins']:>5}  {s['ties']:>5}  "
-              f"{s['losses']:>7}  {bar}  {s['verdict']}")
+        print(
+            f"  {c:<22}  {s['win_pct']:>4}%  {s['wins']:>5}  {s['ties']:>5}  "
+            f"{s['losses']:>7}  {bar}  {s['verdict']}"
+        )
 
-    print(f"\n{'─'*70}")
+    print(f"\n{'─' * 70}")
     col_w = 20
     header = f"  {'FEATURE':<28} | {'YOU':^8}"
     for c in m["competitors"]:
@@ -273,8 +287,8 @@ def pretty_print(result: dict) -> None:
         if r["category"] != current_cat:
             print(f"\n  [{r['category']}]")
             current_cat = r["category"]
-        you_icon  = STATUS_LABEL[r["your_status"]]
-        line = f"  {'  '+r['name']:<28} | {you_icon:^8}"
+        you_icon = STATUS_LABEL[r["your_status"]]
+        line = f"  {'  ' + r['name']:<28} | {you_icon:^8}"
         for c in m["competitors"]:
             ci = STATUS_LABEL[r["competitors"].get(c, "no")]
             line += f" | {ci:^8}"
@@ -292,8 +306,10 @@ def pretty_print(result: dict) -> None:
     for g in result["gaps"]:
         print(f"    • {g}")
 
-    print(f"\n  Legend: {STATUS_LABEL['full']} Full  {STATUS_LABEL['partial']} Partial  "
-          f"{STATUS_LABEL['no']} No  {STATUS_LABEL['planned']} Planned\n")
+    print(
+        f"\n  Legend: {STATUS_LABEL['full']} Full  {STATUS_LABEL['partial']} Partial  "
+        f"{STATUS_LABEL['no']} No  {STATUS_LABEL['planned']} Planned\n"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -303,19 +319,110 @@ def pretty_print(result: dict) -> None:
 DEMO_DATA = {
     "your_product": "SwiftBase",
     "features": [
-        {"name": "SSO / SAML",          "category": "Security",     "weight": 3, "your_status": "full",    "competitors": {"AcmeSaaS": "no",      "ProStack": "partial"}, "notes": "All plans"},
-        {"name": "2FA / MFA",            "category": "Security",     "weight": 3, "your_status": "full",    "competitors": {"AcmeSaaS": "full",    "ProStack": "full"},    "notes": ""},
-        {"name": "SOC 2 Type II",        "category": "Security",     "weight": 3, "your_status": "planned", "competitors": {"AcmeSaaS": "full",    "ProStack": "no"},      "notes": "Q3 target"},
-        {"name": "Role-based access",    "category": "Security",     "weight": 2, "your_status": "full",    "competitors": {"AcmeSaaS": "partial", "ProStack": "full"},    "notes": ""},
-        {"name": "REST API",             "category": "Integrations", "weight": 3, "your_status": "full",    "competitors": {"AcmeSaaS": "full",    "ProStack": "full"},    "notes": ""},
-        {"name": "GraphQL API",          "category": "Integrations", "weight": 2, "your_status": "full",    "competitors": {"AcmeSaaS": "no",      "ProStack": "partial"}, "notes": ""},
-        {"name": "Zapier Integration",   "category": "Integrations", "weight": 2, "your_status": "partial", "competitors": {"AcmeSaaS": "full",    "ProStack": "full"},    "notes": "10 zaps only"},
-        {"name": "Webhooks",             "category": "Integrations", "weight": 2, "your_status": "full",    "competitors": {"AcmeSaaS": "full",    "ProStack": "no"},      "notes": ""},
-        {"name": "Custom domain",        "category": "Branding",     "weight": 2, "your_status": "full",    "competitors": {"AcmeSaaS": "partial", "ProStack": "full"},    "notes": ""},
-        {"name": "White-label / rebrand","category": "Branding",     "weight": 2, "your_status": "full",    "competitors": {"AcmeSaaS": "no",      "ProStack": "partial"}, "notes": "Agency plan"},
-        {"name": "Priority support",     "category": "Support",      "weight": 2, "your_status": "full",    "competitors": {"AcmeSaaS": "partial", "ProStack": "full"},    "notes": "24/7"},
-        {"name": "Dedicated CSM",        "category": "Support",      "weight": 2, "your_status": "no",      "competitors": {"AcmeSaaS": "full",    "ProStack": "full"},    "notes": "Enterprise only"},
-        {"name": "SLA guarantee",        "category": "Support",      "weight": 3, "your_status": "no",      "competitors": {"AcmeSaaS": "full",    "ProStack": "no"},      "notes": "Roadmap"},
+        {
+            "name": "SSO / SAML",
+            "category": "Security",
+            "weight": 3,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "no", "ProStack": "partial"},
+            "notes": "All plans",
+        },
+        {
+            "name": "2FA / MFA",
+            "category": "Security",
+            "weight": 3,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "full", "ProStack": "full"},
+            "notes": "",
+        },
+        {
+            "name": "SOC 2 Type II",
+            "category": "Security",
+            "weight": 3,
+            "your_status": "planned",
+            "competitors": {"AcmeSaaS": "full", "ProStack": "no"},
+            "notes": "Q3 target",
+        },
+        {
+            "name": "Role-based access",
+            "category": "Security",
+            "weight": 2,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "partial", "ProStack": "full"},
+            "notes": "",
+        },
+        {
+            "name": "REST API",
+            "category": "Integrations",
+            "weight": 3,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "full", "ProStack": "full"},
+            "notes": "",
+        },
+        {
+            "name": "GraphQL API",
+            "category": "Integrations",
+            "weight": 2,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "no", "ProStack": "partial"},
+            "notes": "",
+        },
+        {
+            "name": "Zapier Integration",
+            "category": "Integrations",
+            "weight": 2,
+            "your_status": "partial",
+            "competitors": {"AcmeSaaS": "full", "ProStack": "full"},
+            "notes": "10 zaps only",
+        },
+        {
+            "name": "Webhooks",
+            "category": "Integrations",
+            "weight": 2,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "full", "ProStack": "no"},
+            "notes": "",
+        },
+        {
+            "name": "Custom domain",
+            "category": "Branding",
+            "weight": 2,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "partial", "ProStack": "full"},
+            "notes": "",
+        },
+        {
+            "name": "White-label / rebrand",
+            "category": "Branding",
+            "weight": 2,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "no", "ProStack": "partial"},
+            "notes": "Agency plan",
+        },
+        {
+            "name": "Priority support",
+            "category": "Support",
+            "weight": 2,
+            "your_status": "full",
+            "competitors": {"AcmeSaaS": "partial", "ProStack": "full"},
+            "notes": "24/7",
+        },
+        {
+            "name": "Dedicated CSM",
+            "category": "Support",
+            "weight": 2,
+            "your_status": "no",
+            "competitors": {"AcmeSaaS": "full", "ProStack": "full"},
+            "notes": "Enterprise only",
+        },
+        {
+            "name": "SLA guarantee",
+            "category": "Support",
+            "weight": 3,
+            "your_status": "no",
+            "competitors": {"AcmeSaaS": "full", "ProStack": "no"},
+            "notes": "Roadmap",
+        },
     ],
 }
 
@@ -324,18 +431,18 @@ DEMO_DATA = {
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Build a competitive feature comparison matrix (stdlib only).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--input",    type=str, default=None,
-                        help="Path to JSON input file")
-    parser.add_argument("--json",     action="store_true",
-                        help="Output analysis as JSON")
-    parser.add_argument("--markdown", action="store_true",
-                        help="Output comparison table as Markdown")
+    parser.add_argument("--input", type=str, default=None, help="Path to JSON input file")
+    parser.add_argument("--json", action="store_true", help="Output analysis as JSON")
+    parser.add_argument(
+        "--markdown", action="store_true", help="Output comparison table as Markdown"
+    )
     return parser.parse_args()
 
 

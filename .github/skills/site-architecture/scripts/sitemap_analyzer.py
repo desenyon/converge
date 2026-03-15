@@ -15,15 +15,13 @@ Stdlib only — no external dependencies.
 """
 
 import json
-import sys
 import re
-import select
-import urllib.request
+import sys
 import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from urllib.parse import urlparse
-import xml.etree.ElementTree as ET
-
 
 # ─── Namespaces used in sitemaps ─────────────────────────────────────────────
 
@@ -94,6 +92,7 @@ SAMPLE_SITEMAP = """<?xml version="1.0" encoding="UTF-8"?>
 
 # ─── URL Analysis ─────────────────────────────────────────────────────────────
 
+
 def get_depth(path: str) -> int:
     """Return depth of a URL path. / = 0, /blog = 1, /blog/post = 2, etc."""
     parts = [p for p in path.strip("/").split("/") if p]
@@ -107,7 +106,7 @@ def get_path_pattern(path: str) -> str:
     for p in parts:
         if p:
             # Keep static segments (likely structure), replace dynamic-looking ones
-            if re.match(r'^[a-z][-a-z]+$', p) and len(p) < 30:
+            if re.match(r"^[a-z][-a-z]+$", p) and len(p) < 30:
                 normalized.append(p)
             else:
                 normalized.append("{slug}")
@@ -144,12 +143,13 @@ def detect_path_siblings(urls: list) -> list:
 
 # ─── Sitemap Parser ──────────────────────────────────────────────────────────
 
+
 def parse_sitemap(content: str) -> list:
     """Parse sitemap XML and return list of URL dicts."""
     urls = []
 
     # Strip namespace declarations for simpler parsing
-    content_clean = re.sub(r'xmlns[^=]*="[^"]*"', '', content)
+    content_clean = re.sub(r'xmlns[^=]*="[^"]*"', "", content)
 
     try:
         root = ET.fromstring(content_clean)
@@ -161,28 +161,45 @@ def parse_sitemap(content: str) -> list:
     if root.tag.endswith("sitemapindex") or root.tag == "sitemapindex":
         print("ℹ️  This is a sitemap index file — it points to child sitemaps.")
         print("   Child sitemaps:")
-        for sitemap in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc") or root.findall(".//loc"):
+        for sitemap in root.findall(
+            ".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
+        ) or root.findall(".//loc"):
             print(f"   - {sitemap.text}")
         print("   Run this tool on each child sitemap for full analysis.")
         return []
 
     # Regular urlset
-    for url_el in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}url") or root.findall(".//url"):
-        loc_el = url_el.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc") or url_el.find("loc")
-        lastmod_el = url_el.find("{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod") or url_el.find("lastmod")
-        priority_el = url_el.find("{http://www.sitemaps.org/schemas/sitemap/0.9}priority") or url_el.find("priority")
+    for url_el in root.findall(
+        ".//{http://www.sitemaps.org/schemas/sitemap/0.9}url"
+    ) or root.findall(".//url"):
+        loc_el = url_el.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc") or url_el.find(
+            "loc"
+        )
+        lastmod_el = url_el.find(
+            "{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod"
+        ) or url_el.find("lastmod")
+        priority_el = url_el.find(
+            "{http://www.sitemaps.org/schemas/sitemap/0.9}priority"
+        ) or url_el.find("priority")
 
         if loc_el is not None and loc_el.text:
-            urls.append({
-                "url": loc_el.text.strip(),
-                "lastmod": lastmod_el.text.strip() if lastmod_el is not None and lastmod_el.text else None,
-                "priority": float(priority_el.text.strip()) if priority_el is not None and priority_el.text else None,
-            })
+            urls.append(
+                {
+                    "url": loc_el.text.strip(),
+                    "lastmod": lastmod_el.text.strip()
+                    if lastmod_el is not None and lastmod_el.text
+                    else None,
+                    "priority": float(priority_el.text.strip())
+                    if priority_el is not None and priority_el.text
+                    else None,
+                }
+            )
 
     return urls
 
 
 # ─── Analysis Engine ─────────────────────────────────────────────────────────
+
 
 def analyze_urls(urls: list) -> dict:
     raw_urls = [u["url"] for u in urls]
@@ -198,7 +215,9 @@ def analyze_urls(urls: list) -> dict:
 
     duplicate_slugs = detect_path_siblings(raw_urls)
 
-    deep_urls = [(u, get_depth(urlparse(u).path)) for u in raw_urls if get_depth(urlparse(u).path) >= 4]
+    deep_urls = [
+        (u, get_depth(urlparse(u).path)) for u in raw_urls if get_depth(urlparse(u).path) >= 4
+    ]
 
     # Extract top-level directories
     top_dirs = Counter()
@@ -219,6 +238,7 @@ def analyze_urls(urls: list) -> dict:
 
 
 # ─── Report Printer ──────────────────────────────────────────────────────────
+
 
 def grade_depth_distribution(dist: dict) -> str:
     deep = sum(v for k, v in dist.items() if k >= 4)
@@ -281,7 +301,9 @@ def print_report(analysis: dict) -> None:
             print(f"   ... and {len(analysis['deep_pages']) - 5} more")
 
     if analysis["duplicate_slug_candidates"]:
-        print(f"\n── Potential Duplicate Path Issues ({len(analysis['duplicate_slug_candidates'])}) ──")
+        print(
+            f"\n── Potential Duplicate Path Issues ({len(analysis['duplicate_slug_candidates'])}) ──"
+        )
         print("   ⚠️  Same slug appears in multiple directories — possible duplicate content.")
         for item in analysis["duplicate_slug_candidates"][:5]:
             print(f"   Slug: '{item['slug']}'")
@@ -296,10 +318,14 @@ def print_report(analysis: dict) -> None:
         print("   1. Remove dynamic URLs (with ?) from sitemap.")
         has_issues = True
     if analysis["deep_pages"]:
-        print(f"   {'2' if has_issues else '1'}. Flatten deep URL structures or add internal shortcut links.")
+        print(
+            f"   {'2' if has_issues else '1'}. Flatten deep URL structures or add internal shortcut links."
+        )
         has_issues = True
     if analysis["duplicate_slug_candidates"]:
-        print(f"   {'3' if has_issues else '1'}. Review duplicate slug paths — consolidate or add canonical tags.")
+        print(
+            f"   {'3' if has_issues else '1'}. Review duplicate slug paths — consolidate or add canonical tags."
+        )
         has_issues = True
     if not has_issues:
         print("   ✅ No major structural issues detected in this sitemap.")
@@ -308,6 +334,7 @@ def print_report(analysis: dict) -> None:
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
+
 
 def load_content(source: str) -> str:
     """Load sitemap from file path, URL, or stdin."""
@@ -320,7 +347,7 @@ def load_content(source: str) -> str:
             sys.exit(1)
     else:
         try:
-            with open(source, "r", encoding="utf-8") as f:
+            with open(source, encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
             print(f"Error: File not found: {source}", file=sys.stderr)
@@ -332,12 +359,14 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Analyzes sitemap.xml files for structure, depth, and potential issues. "
-                    "Reports depth distribution, URL patterns, orphan candidates, and duplicates."
+        "Reports depth distribution, URL patterns, orphan candidates, and duplicates."
     )
     parser.add_argument(
-        "file", nargs="?", default=None,
+        "file",
+        nargs="?",
+        default=None,
         help="Path to a sitemap.xml file or URL (https://...). "
-             "Use '-' to read from stdin. If omitted, runs embedded sample."
+        "Use '-' to read from stdin. If omitted, runs embedded sample.",
     )
     args = parser.parse_args()
 

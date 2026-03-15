@@ -18,12 +18,9 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
-from dataclasses import dataclass, field, asdict
-from typing import List, Dict
+from dataclasses import asdict, dataclass, field
 
-
-SERVICE_SCOPES: Dict[str, List[str]] = {
+SERVICE_SCOPES: dict[str, list[str]] = {
     "gmail": [
         "https://www.googleapis.com/auth/gmail.modify",
         "https://www.googleapis.com/auth/gmail.send",
@@ -183,7 +180,7 @@ class ValidationResult:
 class ValidationReport:
     auth_method: str = ""
     user: str = ""
-    results: List[dict] = field(default_factory=list)
+    results: list[dict] = field(default_factory=list)
     summary: str = ""
     demo_mode: bool = False
 
@@ -207,8 +204,7 @@ def check_auth_status() -> dict:
     """Check current gws auth status."""
     try:
         result = subprocess.run(
-            ["gws", "auth", "status", "--json"],
-            capture_output=True, text=True, timeout=15
+            ["gws", "auth", "status", "--json"], capture_output=True, text=True, timeout=15
         )
         if result.returncode == 0:
             try:
@@ -220,7 +216,7 @@ def check_auth_status() -> dict:
         return {"status": "gws_not_found"}
 
 
-def validate_services(services: List[str]) -> ValidationReport:
+def validate_services(services: list[str]) -> ValidationReport:
     """Validate auth by testing each service."""
     report = ValidationReport()
 
@@ -247,24 +243,22 @@ def validate_services(services: List[str]) -> ValidationReport:
     for svc in services:
         cmd = service_cmds.get(svc)
         if not cmd:
-            report.results.append(asdict(
-                ValidationResult(svc, "WARN", f"No test available for {svc}")
-            ))
+            report.results.append(
+                asdict(ValidationResult(svc, "WARN", f"No test available for {svc}"))
+            )
             continue
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if result.returncode == 0:
-                report.results.append(asdict(
-                    ValidationResult(svc, "PASS", f"{svc.title()} API accessible")
-                ))
+                report.results.append(
+                    asdict(ValidationResult(svc, "PASS", f"{svc.title()} API accessible"))
+                )
             else:
-                report.results.append(asdict(
-                    ValidationResult(svc, "FAIL", result.stderr.strip()[:100])
-                ))
+                report.results.append(
+                    asdict(ValidationResult(svc, "FAIL", result.stderr.strip()[:100]))
+                )
         except (subprocess.TimeoutExpired, OSError) as e:
-            report.results.append(asdict(
-                ValidationResult(svc, "FAIL", str(e)[:100])
-            ))
+            report.results.append(asdict(ValidationResult(svc, "FAIL", str(e)[:100])))
 
     passed = sum(1 for r in report.results if r["status"] == "PASS")
     total = len(report.results)
@@ -286,17 +280,16 @@ Examples:
   %(prog)s --validate --json            # Validate all services (JSON)
         """,
     )
-    parser.add_argument("--guide", choices=["oauth", "service-account"],
-                        help="Print setup guide")
+    parser.add_argument("--guide", choices=["oauth", "service-account"], help="Print setup guide")
     parser.add_argument("--scopes", help="Comma-separated services to show scopes for")
-    parser.add_argument("--generate-env", action="store_true",
-                        help="Generate .env template")
-    parser.add_argument("--check", action="store_true",
-                        help="Check current auth status")
-    parser.add_argument("--validate", action="store_true",
-                        help="Validate auth by testing services")
-    parser.add_argument("--services", default="gmail,drive,calendar,sheets,tasks",
-                        help="Services to validate (default: gmail,drive,calendar,sheets,tasks)")
+    parser.add_argument("--generate-env", action="store_true", help="Generate .env template")
+    parser.add_argument("--check", action="store_true", help="Check current auth status")
+    parser.add_argument("--validate", action="store_true", help="Validate auth by testing services")
+    parser.add_argument(
+        "--services",
+        default="gmail,drive,calendar,sheets,tasks",
+        help="Services to validate (default: gmail,drive,calendar,sheets,tasks)",
+    )
     parser.add_argument("--json", action="store_true", help="Output JSON")
     args = parser.parse_args()
 
@@ -319,9 +312,9 @@ Examples:
                 output[svc] = SERVICE_SCOPES.get(svc, [])
             print(json.dumps(output, indent=2))
         else:
-            print(f"\n{'='*60}")
-            print(f"  REQUIRED OAUTH SCOPES")
-            print(f"{'='*60}\n")
+            print(f"\n{'=' * 60}")
+            print("  REQUIRED OAUTH SCOPES")
+            print(f"{'=' * 60}\n")
             for svc in services:
                 scopes = SERVICE_SCOPES.get(svc, [])
                 print(f"  {svc.upper()}:")
@@ -336,9 +329,9 @@ Examples:
             for svc in services:
                 all_scopes.extend(SERVICE_SCOPES.get(svc, []))
             if all_scopes:
-                print(f"  COMBINED (for consent screen):")
+                print("  COMBINED (for consent screen):")
                 print(f"  {','.join(all_scopes)}")
-            print(f"\n{'='*60}\n")
+            print(f"\n{'=' * 60}\n")
         return
 
     if args.generate_env:
@@ -349,8 +342,10 @@ Examples:
         if shutil.which("gws"):
             status = check_auth_status()
         else:
-            status = {"status": "gws_not_found",
-                      "note": "Install gws first: cargo install gws-cli  OR  https://github.com/googleworkspace/cli/releases"}
+            status = {
+                "status": "gws_not_found",
+                "note": "Install gws first: cargo install gws-cli  OR  https://github.com/googleworkspace/cli/releases",
+            }
         if args.json:
             print(json.dumps(status, indent=2))
         else:
@@ -371,11 +366,11 @@ Examples:
         if args.json:
             print(json.dumps(asdict(report), indent=2))
         else:
-            print(f"\n{'='*60}")
-            print(f"  AUTH VALIDATION REPORT")
+            print(f"\n{'=' * 60}")
+            print("  AUTH VALIDATION REPORT")
             if report.demo_mode:
-                print(f"  (DEMO MODE)")
-            print(f"{'='*60}\n")
+                print("  (DEMO MODE)")
+            print(f"{'=' * 60}\n")
             if report.user:
                 print(f"  User: {report.user}")
                 print(f"  Method: {report.auth_method}\n")
@@ -383,7 +378,7 @@ Examples:
                 icon = "PASS" if r["status"] == "PASS" else "FAIL"
                 print(f"  [{icon}] {r['service']}: {r['message']}")
             print(f"\n  {report.summary}")
-            print(f"\n{'='*60}\n")
+            print(f"\n{'=' * 60}\n")
 
 
 if __name__ == "__main__":

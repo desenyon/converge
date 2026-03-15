@@ -2,7 +2,6 @@
 """Tracking plan generator — produces event taxonomy, GTM config, and GA4 dimension recommendations."""
 
 import json
-import sys
 from collections import defaultdict
 
 SAMPLE_INPUT = {
@@ -12,16 +11,16 @@ SAMPLE_INPUT = {
         {"name": "Pricing", "path": "/pricing"},
         {"name": "Signup", "path": "/signup"},
         {"name": "Dashboard", "path": "/app/dashboard"},
-        {"name": "Onboarding", "path": "/app/onboarding"}
+        {"name": "Onboarding", "path": "/app/onboarding"},
     ],
     "conversion_actions": [
         {"name": "Signup", "type": "registration", "value": 0},
         {"name": "Trial Start", "type": "trial", "value": 0},
         {"name": "Subscription Purchase", "type": "purchase", "value": 99},
-        {"name": "Demo Request", "type": "lead", "value": 0}
+        {"name": "Demo Request", "type": "lead", "value": 0},
     ],
     "paid_channels": ["google_ads", "meta"],
-    "consent_required": True
+    "consent_required": True,
 }
 
 
@@ -32,105 +31,116 @@ EVENT_TEMPLATES = {
                 "event": "pricing_viewed",
                 "trigger": "User navigates to /pricing",
                 "parameters": ["page_location", "utm_source", "referrer_page"],
-                "priority": "high"
+                "priority": "high",
             },
             {
                 "event": "demo_requested",
                 "trigger": "User submits demo request form",
                 "parameters": ["source", "page_location", "form_name"],
                 "priority": "high",
-                "is_conversion": True
+                "is_conversion": True,
             },
             {
                 "event": "content_downloaded",
                 "trigger": "User downloads gated content",
                 "parameters": ["content_name", "content_type", "gated"],
-                "priority": "medium"
-            }
+                "priority": "medium",
+            },
         ],
         "registration": [
             {
                 "event": "signup_started",
                 "trigger": "User clicks primary signup CTA",
                 "parameters": ["page_location", "cta_text", "plan_name"],
-                "priority": "high"
+                "priority": "high",
             },
             {
                 "event": "signup_completed",
                 "trigger": "User account successfully created",
                 "parameters": ["method", "user_id", "plan_name"],
                 "priority": "critical",
-                "is_conversion": True
+                "is_conversion": True,
             },
             {
                 "event": "trial_started",
                 "trigger": "Free trial begins",
                 "parameters": ["plan_name", "trial_length_days", "user_id"],
                 "priority": "critical",
-                "is_conversion": True
-            }
+                "is_conversion": True,
+            },
         ],
         "onboarding": [
             {
                 "event": "onboarding_started",
                 "trigger": "User enters onboarding flow",
                 "parameters": ["user_id", "onboarding_variant"],
-                "priority": "high"
+                "priority": "high",
             },
             {
                 "event": "onboarding_step_completed",
                 "trigger": "User completes each onboarding step",
                 "parameters": ["step_name", "step_number", "user_id", "time_spent_seconds"],
-                "priority": "high"
+                "priority": "high",
             },
             {
                 "event": "onboarding_completed",
                 "trigger": "User completes full onboarding",
                 "parameters": ["steps_total", "user_id", "time_to_complete_seconds"],
-                "priority": "high"
+                "priority": "high",
             },
             {
                 "event": "feature_activated",
                 "trigger": "User activates a key feature for first time",
                 "parameters": ["feature_name", "user_id", "activation_method"],
-                "priority": "medium"
-            }
+                "priority": "medium",
+            },
         ],
         "conversion": [
             {
                 "event": "plan_selected",
                 "trigger": "User clicks on a pricing plan",
                 "parameters": ["plan_name", "billing_period", "value"],
-                "priority": "critical"
+                "priority": "critical",
             },
             {
                 "event": "checkout_started",
                 "trigger": "User enters checkout flow",
                 "parameters": ["plan_name", "value", "currency", "billing_period"],
-                "priority": "critical"
+                "priority": "critical",
             },
             {
                 "event": "checkout_completed",
                 "trigger": "Payment successfully processed",
-                "parameters": ["plan_name", "value", "currency", "transaction_id", "billing_period"],
+                "parameters": [
+                    "plan_name",
+                    "value",
+                    "currency",
+                    "transaction_id",
+                    "billing_period",
+                ],
                 "priority": "critical",
-                "is_conversion": True
-            }
+                "is_conversion": True,
+            },
         ],
         "retention": [
             {
                 "event": "subscription_cancelled",
                 "trigger": "User confirms cancellation",
-                "parameters": ["cancel_reason", "plan_name", "save_offer_shown", "save_offer_accepted"],
-                "priority": "high"
+                "parameters": [
+                    "cancel_reason",
+                    "plan_name",
+                    "save_offer_shown",
+                    "save_offer_accepted",
+                ],
+                "priority": "high",
             },
             {
                 "event": "subscription_reactivated",
                 "trigger": "Cancelled user reactivates",
                 "parameters": ["plan_name", "days_since_cancel"],
-                "priority": "high"
-            }
-        ]
+                "priority": "high",
+            },
+        ],
     },
     "ecommerce": {
         "acquisition": [
@@ -138,54 +148,82 @@ EVENT_TEMPLATES = {
                 "event": "product_viewed",
                 "trigger": "User views a product page",
                 "parameters": ["item_id", "item_name", "item_category", "value"],
-                "priority": "high"
+                "priority": "high",
             },
             {
                 "event": "search_performed",
                 "trigger": "User submits a search query",
                 "parameters": ["search_term", "results_count"],
-                "priority": "medium"
-            }
+                "priority": "medium",
+            },
         ],
         "conversion": [
             {
                 "event": "add_to_cart",
                 "trigger": "User adds item to cart",
                 "parameters": ["item_id", "item_name", "value", "currency", "quantity"],
-                "priority": "critical"
+                "priority": "critical",
             },
             {
                 "event": "checkout_started",
                 "trigger": "User begins checkout",
                 "parameters": ["value", "currency", "num_items"],
-                "priority": "critical"
+                "priority": "critical",
             },
             {
                 "event": "checkout_completed",
                 "trigger": "Order placed successfully",
                 "parameters": ["transaction_id", "value", "currency", "tax", "shipping"],
                 "priority": "critical",
-                "is_conversion": True
-            }
-        ]
-    }
+                "is_conversion": True,
+            },
+        ],
+    },
 }
 
 CUSTOM_DIMENSIONS = {
     "user_scoped": [
         {"name": "User ID", "parameter": "user_id", "description": "Internal user identifier"},
         {"name": "Plan Name", "parameter": "plan_name", "description": "Current subscription plan"},
-        {"name": "Billing Period", "parameter": "billing_period", "description": "Monthly or annual"},
-        {"name": "Signup Method", "parameter": "signup_method", "description": "Email, Google, SSO"},
-        {"name": "Onboarding Status", "parameter": "onboarding_completed", "description": "Boolean: completed onboarding?"}
+        {
+            "name": "Billing Period",
+            "parameter": "billing_period",
+            "description": "Monthly or annual",
+        },
+        {
+            "name": "Signup Method",
+            "parameter": "signup_method",
+            "description": "Email, Google, SSO",
+        },
+        {
+            "name": "Onboarding Status",
+            "parameter": "onboarding_completed",
+            "description": "Boolean: completed onboarding?",
+        },
     ],
     "event_scoped": [
-        {"name": "Cancel Reason", "parameter": "cancel_reason", "description": "Exit survey selection"},
-        {"name": "Feature Name", "parameter": "feature_name", "description": "Feature being used/activated"},
+        {
+            "name": "Cancel Reason",
+            "parameter": "cancel_reason",
+            "description": "Exit survey selection",
+        },
+        {
+            "name": "Feature Name",
+            "parameter": "feature_name",
+            "description": "Feature being used/activated",
+        },
         {"name": "Form Name", "parameter": "form_name", "description": "Which form was submitted"},
-        {"name": "Content Name", "parameter": "content_name", "description": "Downloaded/viewed content"},
-        {"name": "Error Type", "parameter": "error_type", "description": "Type of error encountered"}
-    ]
+        {
+            "name": "Content Name",
+            "parameter": "content_name",
+            "description": "Downloaded/viewed content",
+        },
+        {
+            "name": "Error Type",
+            "parameter": "error_type",
+            "description": "Type of error encountered",
+        },
+    ],
 }
 
 
@@ -220,34 +258,40 @@ def generate_tracking_plan(inputs):
     # GTM tag configuration
     gtm_tags = []
     for ev in all_events:
-        gtm_tags.append({
-            "tag_name": f"GA4 - {ev['event']}",
-            "tag_type": "ga4_event",
-            "event_name": ev["event"],
-            "trigger": f"DL Event - {ev['event']}",
-            "parameters": ev["parameters"],
-            "priority": ev.get("priority", "medium")
-        })
+        gtm_tags.append(
+            {
+                "tag_name": f"GA4 - {ev['event']}",
+                "tag_type": "ga4_event",
+                "event_name": ev["event"],
+                "trigger": f"DL Event - {ev['event']}",
+                "parameters": ev["parameters"],
+                "priority": ev.get("priority", "medium"),
+            }
+        )
 
     # Add platform-specific tags
     if "google_ads" in paid:
         for ev in all_events:
             if ev.get("is_conversion"):
-                gtm_tags.append({
-                    "tag_name": f"Google Ads - {ev['event']}",
-                    "tag_type": "google_ads_conversion",
-                    "event_name": ev["event"],
-                    "trigger": f"DL Event - {ev['event']}",
-                    "note": "Import from GA4 conversions (preferred) or configure conversion ID"
-                })
+                gtm_tags.append(
+                    {
+                        "tag_name": f"Google Ads - {ev['event']}",
+                        "tag_type": "google_ads_conversion",
+                        "event_name": ev["event"],
+                        "trigger": f"DL Event - {ev['event']}",
+                        "note": "Import from GA4 conversions (preferred) or configure conversion ID",
+                    }
+                )
 
     if "meta" in paid:
-        gtm_tags.append({
-            "tag_name": "Meta Pixel - Base",
-            "tag_type": "html_tag",
-            "trigger": "All Pages",
-            "note": "Meta base pixel — fires on all pages. Add Standard Events separately."
-        })
+        gtm_tags.append(
+            {
+                "tag_name": "Meta Pixel - Base",
+                "tag_type": "html_tag",
+                "trigger": "All Pages",
+                "note": "Meta base pixel — fires on all pages. Add Standard Events separately.",
+            }
+        )
 
     # Consent configuration
     consent_config = None
@@ -257,10 +301,10 @@ def generate_tracking_plan(inputs):
             "defaults": {
                 "analytics_storage": "denied",
                 "ad_storage": "denied",
-                "functionality_storage": "denied"
+                "functionality_storage": "denied",
             },
             "update_trigger": "cookie_consent_update",
-            "note": "Implement before GTM loads. Requires CMP integration (Cookiebot, OneTrust, etc.)."
+            "note": "Implement before GTM loads. Requires CMP integration (Cookiebot, OneTrust, etc.).",
         }
 
     return {
@@ -271,7 +315,7 @@ def generate_tracking_plan(inputs):
                 "trigger": ev["trigger"],
                 "parameters": ev["parameters"],
                 "priority": ev.get("priority", "medium"),
-                "is_conversion": ev.get("is_conversion", False)
+                "is_conversion": ev.get("is_conversion", False),
             }
             for ev in all_events
         ],
@@ -279,7 +323,7 @@ def generate_tracking_plan(inputs):
         "gtm_configuration": {
             "tags": gtm_tags,
             "variable_count": len(set(p for ev in all_events for p in ev["parameters"])),
-            "trigger_count": len(all_events)
+            "trigger_count": len(all_events),
         },
         "ga4_custom_dimensions": CUSTOM_DIMENSIONS,
         "consent_mode": consent_config,
@@ -291,15 +335,15 @@ def generate_tracking_plan(inputs):
             "5. Mark conversion events in GA4 (Admin > Conversions)",
             "6. Link GA4 to Google Ads if running paid search",
             "7. Enable internal traffic filter",
-            "8. Implement consent mode if required"
-        ]
+            "8. Implement consent mode if required",
+        ],
     }
 
 
 def print_report(result, inputs):
-    print("\n" + "="*65)
+    print("\n" + "=" * 65)
     print("  TRACKING PLAN GENERATOR")
-    print("="*65)
+    print("=" * 65)
 
     print(f"\n📋 BUSINESS TYPE: {inputs.get('business_type', 'saas').upper()}")
 
@@ -317,8 +361,14 @@ def print_report(result, inputs):
             for ev in evs:
                 conv = " ← CONVERSION" if ev["is_conversion"] else ""
                 print(f"     {ev['event']}{conv}")
-                print(f"       Params: {', '.join(ev['parameters'][:4])}" +
-                      (f"... +{len(ev['parameters'])-4} more" if len(ev['parameters']) > 4 else ""))
+                print(
+                    f"       Params: {', '.join(ev['parameters'][:4])}"
+                    + (
+                        f"... +{len(ev['parameters']) - 4} more"
+                        if len(ev["parameters"]) > 4
+                        else ""
+                    )
+                )
 
     conversions = result["conversion_events"]
     print(f"\n🎯 CONVERSION EVENTS ({len(conversions)})")
@@ -326,29 +376,33 @@ def print_report(result, inputs):
         print(f"   • {ev}")
 
     dims = result["ga4_custom_dimensions"]
-    print(f"\n📐 CUSTOM DIMENSIONS")
-    print(f"   User-scoped ({len(dims['user_scoped'])}): " +
-          ", ".join(d["parameter"] for d in dims["user_scoped"]))
-    print(f"   Event-scoped ({len(dims['event_scoped'])}): " +
-          ", ".join(d["parameter"] for d in dims["event_scoped"]))
+    print("\n📐 CUSTOM DIMENSIONS")
+    print(
+        f"   User-scoped ({len(dims['user_scoped'])}): "
+        + ", ".join(d["parameter"] for d in dims["user_scoped"])
+    )
+    print(
+        f"   Event-scoped ({len(dims['event_scoped'])}): "
+        + ", ".join(d["parameter"] for d in dims["event_scoped"])
+    )
 
     gtm = result["gtm_configuration"]
-    print(f"\n🏷️  GTM CONFIGURATION")
+    print("\n🏷️  GTM CONFIGURATION")
     print(f"   Tags to create:     {len(gtm['tags'])}")
     print(f"   Triggers to create: {gtm['trigger_count']}")
     print(f"   Variables to create:{gtm['variable_count']}")
 
     if result["consent_mode"]:
-        print(f"\n🔒 CONSENT MODE: Advanced (required)")
-        print(f"   Default state: analytics_storage=denied, ad_storage=denied")
+        print("\n🔒 CONSENT MODE: Advanced (required)")
+        print("   Default state: analytics_storage=denied, ad_storage=denied")
 
-    print(f"\n📋 IMPLEMENTATION ORDER")
+    print("\n📋 IMPLEMENTATION ORDER")
     for step in result["implementation_order"]:
         print(f"   {step}")
 
-    print("\n" + "="*65)
+    print("\n" + "=" * 65)
     print("  Run with --json flag to output full config as JSON")
-    print("="*65 + "\n")
+    print("=" * 65 + "\n")
 
 
 def main():
@@ -358,13 +412,12 @@ def main():
         description="Tracking plan generator — produces event taxonomy, GTM config, and GA4 dimension recommendations."
     )
     parser.add_argument(
-        "input_file", nargs="?", default=None,
-        help="JSON file with business config (default: run with sample SaaS data)"
+        "input_file",
+        nargs="?",
+        default=None,
+        help="JSON file with business config (default: run with sample SaaS data)",
     )
-    parser.add_argument(
-        "--json", action="store_true",
-        help="Output full config as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output full config as JSON")
     args = parser.parse_args()
 
     if args.input_file:

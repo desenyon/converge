@@ -10,20 +10,36 @@ Usage:
 
 import argparse
 import json
-import math
 import re
 import sys
-
 
 # ---------------------------------------------------------------------------
 # Word lists
 # ---------------------------------------------------------------------------
 
 FILLER_WORDS = [
-    "very", "really", "just", "actually", "basically", "literally",
-    "honestly", "totally", "absolutely", "definitely", "certainly",
-    "obviously", "clearly", "quite", "rather", "somewhat", "fairly",
-    "pretty", "simply", "truly", "genuinely", "essentially",
+    "very",
+    "really",
+    "just",
+    "actually",
+    "basically",
+    "literally",
+    "honestly",
+    "totally",
+    "absolutely",
+    "definitely",
+    "certainly",
+    "obviously",
+    "clearly",
+    "quite",
+    "rather",
+    "somewhat",
+    "fairly",
+    "pretty",
+    "simply",
+    "truly",
+    "genuinely",
+    "essentially",
 ]
 
 # Simple passive voice detection: "was/were/is/are/been/being + past participle"
@@ -33,6 +49,7 @@ PASSIVE_PATTERN = re.compile(
 )
 
 ADVERB_PATTERN = re.compile(r"\b\w+ly\b", re.IGNORECASE)
+
 
 # Syllable estimation: count vowel groups
 def count_syllables(word: str) -> int:
@@ -60,6 +77,7 @@ def split_words(text: str) -> list:
 # Metrics
 # ---------------------------------------------------------------------------
 
+
 def flesch_reading_ease(avg_sentence_len: float, avg_syllables: float) -> float:
     """Flesch Reading Ease formula."""
     score = 206.835 - (1.015 * avg_sentence_len) - (84.6 * avg_syllables)
@@ -73,12 +91,18 @@ def flesch_kincaid_grade(avg_sentence_len: float, avg_syllables: float) -> float
 
 
 def ease_label(score: float) -> str:
-    if score >= 90: return "Very Easy (5th grade)"
-    if score >= 80: return "Easy (6th grade)"
-    if score >= 70: return "Fairly Easy (7th grade)"
-    if score >= 60: return "Standard (8-9th grade)"
-    if score >= 50: return "Fairly Difficult (10-12th grade)"
-    if score >= 30: return "Difficult (College)"
+    if score >= 90:
+        return "Very Easy (5th grade)"
+    if score >= 80:
+        return "Easy (6th grade)"
+    if score >= 70:
+        return "Fairly Easy (7th grade)"
+    if score >= 60:
+        return "Standard (8-9th grade)"
+    if score >= 50:
+        return "Fairly Difficult (10-12th grade)"
+    if score >= 30:
+        return "Difficult (College)"
     return "Very Confusing (Professional)"
 
 
@@ -111,16 +135,33 @@ def analyze_text(text: str) -> dict:
     # Adverbs
     adverb_matches = ADVERB_PATTERN.findall(text)
     # Filter obvious non-adverbs
-    non_adverb = {"family", "early", "only", "likely", "nearly", "really",
-                  "daily", "weekly", "monthly", "yearly", "friendly", "lovely",
-                  "lonely", "lively", "elderly", "costly"}
+    non_adverb = {
+        "family",
+        "early",
+        "only",
+        "likely",
+        "nearly",
+        "really",
+        "daily",
+        "weekly",
+        "monthly",
+        "yearly",
+        "friendly",
+        "lovely",
+        "lonely",
+        "lively",
+        "elderly",
+        "costly",
+    }
     adverbs = [a for a in adverb_matches if a.lower() not in non_adverb]
     adverb_density = round(len(adverbs) / num_words * 100, 1)
 
     # Filler words
     text_lower = text.lower()
     word_tokens_lower = [w.lower() for w in words]
-    filler_found = {fw: word_tokens_lower.count(fw) for fw in FILLER_WORDS if fw in word_tokens_lower}
+    filler_found = {
+        fw: word_tokens_lower.count(fw) for fw in FILLER_WORDS if fw in word_tokens_lower
+    }
     filler_total = sum(filler_found.values())
 
     # Scoring:
@@ -197,6 +238,7 @@ builds trust. Vague promises are ignored.
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Readability scorer for marketing copy — Flesch, passive voice, filler words."
@@ -206,7 +248,7 @@ def main():
     args = parser.parse_args()
 
     if args.file:
-        with open(args.file, "r", encoding="utf-8", errors="replace") as f:
+        with open(args.file, encoding="utf-8", errors="replace") as f:
             text = f.read()
     elif not sys.stdin.isatty():
         text = sys.stdin.read()
@@ -246,7 +288,7 @@ def main():
     print(f"  {fre['label']}")
     print(f"  Target: {fre['target']}")
     print()
-    print(f"  📊 Stats")
+    print("  📊 Stats")
     print(f"     Words:              {stats['word_count']}")
     print(f"     Sentences:          {stats['sentence_count']}")
     print(f"     Avg sentence length:{stats['avg_sentence_length']} words")
@@ -268,10 +310,12 @@ def main():
 
     filler_ok = fillers["per_100_words"] <= 3
     fw_icon = PASS if filler_ok else FAIL
-    print(f"  {fw_icon} Filler Words: {fillers['total_count']} total ({fillers['per_100_words']} per 100 words)")
+    print(
+        f"  {fw_icon} Filler Words: {fillers['total_count']} total ({fillers['per_100_words']} per 100 words)"
+    )
     if fillers["breakdown"]:
         top = sorted(fillers["breakdown"].items(), key=lambda x: -x[1])[:5]
-        print(f"     Top: {', '.join(f'{w}({c})' for w,c in top)}")
+        print(f"     Top: {', '.join(f'{w}({c})' for w, c in top)}")
 
     print()
     print("=" * 62)

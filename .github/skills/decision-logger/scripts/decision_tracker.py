@@ -17,22 +17,27 @@ Usage:
 """
 
 import argparse
-import os
 import re
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Optional
-
 
 # ─────────────────────────────────────────────
 # Data structures
 # ─────────────────────────────────────────────
 
+
 class ActionItem:
-    def __init__(self, text: str, owner: str, due: Optional[date],
-                 review: Optional[date], completed: bool, completed_date: Optional[date],
-                 result: str):
+    def __init__(
+        self,
+        text: str,
+        owner: str,
+        due: date | None,
+        review: date | None,
+        completed: bool,
+        completed_date: date | None,
+        result: str,
+    ):
         self.text = text
         self.owner = owner
         self.due = due
@@ -58,12 +63,12 @@ class ActionItem:
 
 class Decision:
     def __init__(self):
-        self.date: Optional[date] = None
+        self.date: date | None = None
         self.title: str = ""
         self.decision: str = ""
         self.owner: str = ""
-        self.deadline: Optional[date] = None
-        self.review: Optional[date] = None
+        self.deadline: date | None = None
+        self.review: date | None = None
         self.rationale: str = ""
         self.user_override: str = ""
         self.rejected: list[str] = []
@@ -83,7 +88,8 @@ class Decision:
 # Parser
 # ─────────────────────────────────────────────
 
-def parse_date(s: str) -> Optional[date]:
+
+def parse_date(s: str) -> date | None:
     """Parse YYYY-MM-DD or return None."""
     if not s:
         return None
@@ -96,7 +102,7 @@ def parse_date(s: str) -> Optional[date]:
     return None
 
 
-def parse_action_item(line: str) -> Optional[ActionItem]:
+def parse_action_item(line: str) -> ActionItem | None:
     """
     Parse a line like:
       - [ ] Action text — Owner: CMO — Due: 2026-03-15 — Review: 2026-03-29
@@ -117,7 +123,7 @@ def parse_action_item(line: str) -> Optional[ActionItem]:
     def extract(label: str, parts: list[str]) -> str:
         for p in parts:
             if p.lower().startswith(label.lower() + ":"):
-                return p[len(label) + 1:].strip()
+                return p[len(label) + 1 :].strip()
         return ""
 
     owner = extract("Owner", parts_raw[1:])
@@ -140,7 +146,7 @@ def parse_action_item(line: str) -> Optional[ActionItem]:
 def parse_decisions(content: str) -> list[Decision]:
     """Parse the full decisions.md content into Decision objects."""
     decisions = []
-    current: Optional[Decision] = None
+    current: Decision | None = None
     in_rejected = False
     in_actions = False
 
@@ -161,7 +167,7 @@ def parse_decisions(content: str) -> list[Decision]:
             continue
 
         # Field parsing
-        def extract_field(label: str) -> Optional[str]:
+        def extract_field(label: str) -> str | None:
             pattern = rf"^\*\*{re.escape(label)}:\*\*\s*(.*)$"
             m = re.match(pattern, line)
             return m.group(1).strip() if m else None
@@ -253,11 +259,12 @@ def parse_decisions(content: str) -> list[Decision]:
 # Reports
 # ─────────────────────────────────────────────
 
-def fmt_date(d: Optional[date]) -> str:
+
+def fmt_date(d: date | None) -> str:
     return d.strftime("%Y-%m-%d") if d else "—"
 
 
-def fmt_delta(d: Optional[date]) -> str:
+def fmt_delta(d: date | None) -> str:
     if not d:
         return ""
     delta = (d - date.today()).days
@@ -303,7 +310,7 @@ def report_summary(decisions: list[Decision]):
             print(f"    Due: {fmt_date(a.due)}{fmt_delta(a.due)}")
 
     print(f"\n  {'─' * 40}")
-    print(f"  RECENT DECISIONS")
+    print("  RECENT DECISIONS")
     print(f"  {'─' * 40}")
     for d in sorted(active, key=lambda x: x.date or date.min, reverse=True)[:5]:
         print(f"  [{fmt_date(d.date)}] {d.title}")
@@ -349,8 +356,7 @@ def report_by_owner(decisions: list[Decision], owner: str):
     print_section(f"ACTION ITEMS — OWNER: {owner.upper()}")
     found = False
     for d in sorted(decisions, key=lambda x: x.date or date.min, reverse=True):
-        items = [a for a in d.action_items
-                 if a.owner.lower() == owner.lower() and not a.completed]
+        items = [a for a in d.action_items if a.owner.lower() == owner.lower() and not a.completed]
         if not items:
             continue
         found = True
@@ -364,7 +370,7 @@ def report_by_owner(decisions: list[Decision], owner: str):
 
 
 def report_search(decisions: list[Decision], query: str):
-    print_section(f"SEARCH: \"{query}\"")
+    print_section(f'SEARCH: "{query}"')
     q = query.lower()
     found = False
     for d in decisions:
@@ -412,16 +418,18 @@ def report_conflicts(decisions: list[Decision]):
         for rejected_text, rejected_date, rejected_title in all_rejected_texts:
             if rejected_text and rejected_text in decision_lower:
                 conflicts_found = True
-                print(f"\n  🚫 POTENTIAL DO_NOT_RESURFACE VIOLATION")
+                print("\n  🚫 POTENTIAL DO_NOT_RESURFACE VIOLATION")
                 print(f"    Decision [{fmt_date(d.date)}]: {d.decision}")
-                print(f"    Matches rejected item from [{fmt_date(rejected_date)}] ({rejected_title}):")
-                print(f"    \"{rejected_text}\"")
+                print(
+                    f"    Matches rejected item from [{fmt_date(rejected_date)}] ({rejected_title}):"
+                )
+                print(f'    "{rejected_text}"')
 
     # Check for same-topic contradictions (shared keywords in title)
     stop_words = {"the", "a", "an", "and", "or", "to", "for", "of", "in", "on", "with", "vs"}
     for i, d1 in enumerate(active):
         words1 = set(w.lower() for w in d1.title.split() if w.lower() not in stop_words)
-        for d2 in active[i+1:]:
+        for d2 in active[i + 1 :]:
             words2 = set(w.lower() for w in d2.title.split() if w.lower() not in stop_words)
             overlap = words1 & words2
             if len(overlap) >= 2 and d1.decision and d2.decision:
@@ -434,7 +442,7 @@ def report_conflicts(decisions: list[Decision]):
                     print(f"    [{fmt_date(d2.date)}] {d2.title}")
                     print(f"    Decision: {d2.decision}")
                     if d1.superseded_by or d2.superseded_by:
-                        print(f"    ℹ️  One may supersede the other — check Superseded by fields.")
+                        print("    ℹ️  One may supersede the other — check Superseded by fields.")
 
     if not conflicts_found:
         print("\n  ✅ No conflicts detected.")
@@ -466,8 +474,8 @@ This file contains ONLY founder-approved decisions.
 
 **Action Items:**
 - [x] Hire Spanish-speaking CSM — Owner: CHRO — Completed: 2026-02-28 — Result: Hired Maria G., starts March 10
-- [ ] Finalize Madrid pilot customer contracts — Owner: CRO — Due: {(date.today() - timedelta(days=3)).strftime('%Y-%m-%d')} — Review: 2026-04-01
-- [ ] Translate app to Spanish (ES-ES) — Owner: CTO — Due: {(date.today() + timedelta(days=5)).strftime('%Y-%m-%d')} — Review: 2026-04-15
+- [ ] Finalize Madrid pilot customer contracts — Owner: CRO — Due: {(date.today() - timedelta(days=3)).strftime("%Y-%m-%d")} — Review: 2026-04-01
+- [ ] Translate app to Spanish (ES-ES) — Owner: CTO — Due: {(date.today() + timedelta(days=5)).strftime("%Y-%m-%d")} — Review: 2026-04-15
 
 **Supersedes:** 
 **Superseded by:** 
@@ -490,8 +498,8 @@ This file contains ONLY founder-approved decisions.
 - Raise prices 30% across the board — too aggressive without usage data [DO_NOT_RESURFACE]
 
 **Action Items:**
-- [ ] Model 3 pricing scenarios (conservative/base/aggressive) — Owner: CFO — Due: {(date.today() - timedelta(days=1)).strftime('%Y-%m-%d')} — Review: 2026-03-25
-- [ ] Customer interviews on usage patterns (n=10) — Owner: CMO — Due: {(date.today() + timedelta(days=10)).strftime('%Y-%m-%d')} — Review: 2026-04-01
+- [ ] Model 3 pricing scenarios (conservative/base/aggressive) — Owner: CFO — Due: {(date.today() - timedelta(days=1)).strftime("%Y-%m-%d")} — Review: 2026-03-25
+- [ ] Customer interviews on usage patterns (n=10) — Owner: CMO — Due: {(date.today() + timedelta(days=10)).strftime("%Y-%m-%d")} — Review: 2026-04-01
 - [ ] Update billing infrastructure for usage tracking — Owner: CTO — Due: 2026-04-01 — Review: 2026-04-15
 
 **Supersedes:** 
@@ -515,9 +523,9 @@ This file contains ONLY founder-approved decisions.
 - Hire junior engineers to save budget — wrong tradeoff at this stage [DO_NOT_RESURFACE]
 
 **Action Items:**
-- [ ] Post ML engineer JD — Owner: CHRO — Due: {(date.today() + timedelta(days=2)).strftime('%Y-%m-%d')} — Review: 2026-03-20
-- [ ] Post backend engineer JD — Owner: CHRO — Due: {(date.today() + timedelta(days=2)).strftime('%Y-%m-%d')} — Review: 2026-03-20
-- [ ] Define ML role requirements with healthcare AI spec — Owner: CTO — Due: {(date.today() + timedelta(days=1)).strftime('%Y-%m-%d')} — Review: 2026-03-15
+- [ ] Post ML engineer JD — Owner: CHRO — Due: {(date.today() + timedelta(days=2)).strftime("%Y-%m-%d")} — Review: 2026-03-20
+- [ ] Post backend engineer JD — Owner: CHRO — Due: {(date.today() + timedelta(days=2)).strftime("%Y-%m-%d")} — Review: 2026-03-20
+- [ ] Define ML role requirements with healthcare AI spec — Owner: CTO — Due: {(date.today() + timedelta(days=1)).strftime("%Y-%m-%d")} — Review: 2026-03-15
 
 **Supersedes:** 
 **Superseded by:** 
@@ -529,6 +537,7 @@ This file contains ONLY founder-approved decisions.
 # Main
 # ─────────────────────────────────────────────
 
+
 def load_decisions(decisions_path: Path, demo: bool) -> list[Decision]:
     if demo:
         content = SAMPLE_DECISIONS_MD
@@ -536,8 +545,10 @@ def load_decisions(decisions_path: Path, demo: bool) -> list[Decision]:
         content = decisions_path.read_text(encoding="utf-8")
     else:
         print(f"  ⚠️  decisions.md not found at: {decisions_path}")
-        print(f"  Run with --demo to see sample output.")
-        print(f"  To initialize: mkdir -p memory/board-meetings && touch memory/board-meetings/decisions.md")
+        print("  Run with --demo to see sample output.")
+        print(
+            "  To initialize: mkdir -p memory/board-meetings && touch memory/board-meetings/decisions.md"
+        )
         sys.exit(1)
     return parse_decisions(content)
 
@@ -548,29 +559,43 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--file", default="memory/board-meetings/decisions.md",
-                        help="Path to decisions.md (default: memory/board-meetings/decisions.md)")
-    parser.add_argument("--demo", action="store_true",
-                        help="Run with built-in sample data (no file needed)")
-    parser.add_argument("--summary", action="store_true",
-                        help="Show overview: counts, overdue, recent decisions")
-    parser.add_argument("--overdue", action="store_true",
-                        help="List all overdue action items")
-    parser.add_argument("--due-within", type=int, metavar="DAYS",
-                        help="List items due within N days")
-    parser.add_argument("--owner", metavar="ROLE",
-                        help="Filter action items by owner")
-    parser.add_argument("--search", metavar="QUERY",
-                        help="Search decisions and rejected proposals")
-    parser.add_argument("--conflicts", action="store_true",
-                        help="Check for contradictory decisions or DO_NOT_RESURFACE violations")
-    parser.add_argument("--all", action="store_true",
-                        help="Show all decisions (summary format)")
+    parser.add_argument(
+        "--file",
+        default="memory/board-meetings/decisions.md",
+        help="Path to decisions.md (default: memory/board-meetings/decisions.md)",
+    )
+    parser.add_argument(
+        "--demo", action="store_true", help="Run with built-in sample data (no file needed)"
+    )
+    parser.add_argument(
+        "--summary", action="store_true", help="Show overview: counts, overdue, recent decisions"
+    )
+    parser.add_argument("--overdue", action="store_true", help="List all overdue action items")
+    parser.add_argument(
+        "--due-within", type=int, metavar="DAYS", help="List items due within N days"
+    )
+    parser.add_argument("--owner", metavar="ROLE", help="Filter action items by owner")
+    parser.add_argument("--search", metavar="QUERY", help="Search decisions and rejected proposals")
+    parser.add_argument(
+        "--conflicts",
+        action="store_true",
+        help="Check for contradictory decisions or DO_NOT_RESURFACE violations",
+    )
+    parser.add_argument("--all", action="store_true", help="Show all decisions (summary format)")
 
     args = parser.parse_args()
 
-    if not any([args.summary, args.overdue, args.due_within, args.owner,
-                args.search, args.conflicts, getattr(args, "all")]):
+    if not any(
+        [
+            args.summary,
+            args.overdue,
+            args.due_within,
+            args.owner,
+            args.search,
+            args.conflicts,
+            args.all,
+        ]
+    ):
         args.summary = True  # Default action
 
     decisions_path = Path(args.file)
@@ -601,7 +626,7 @@ def main():
     if args.conflicts:
         report_conflicts(decisions)
 
-    if getattr(args, "all"):
+    if args.all:
         print_section(f"ALL DECISIONS ({len(decisions)} total)")
         for d in sorted(decisions, key=lambda x: x.date or date.min, reverse=True):
             status = "📦 SUPERSEDED" if not d.is_active() else ""

@@ -22,8 +22,8 @@ Input format (JSON):
 """
 
 import json
-import sys
 import os
+import sys
 from itertools import product as cartesian_product
 
 
@@ -50,11 +50,7 @@ def generate_urls(config):
             slug = slug.replace("{" + key + "}", str(val).lower().replace(" ", "-"))
 
         url = f"{base_url}/{slug}"
-        urls.append({
-            "url": url,
-            "slug": slug,
-            "variables": mapping
-        })
+        urls.append({"url": url, "slug": slug, "variables": mapping})
 
     return urls
 
@@ -67,9 +63,13 @@ def analyze_patterns(urls, config):
     # Check total page count
     total = len(urls)
     if total > 10000:
-        issues.append(f"Generating {total:,} pages — risk of thin content penalty. Consider narrowing variables.")
+        issues.append(
+            f"Generating {total:,} pages — risk of thin content penalty. Consider narrowing variables."
+        )
     elif total > 1000:
-        warnings.append(f"Generating {total:,} pages — ensure each has unique, substantial content.")
+        warnings.append(
+            f"Generating {total:,} pages — ensure each has unique, substantial content."
+        )
 
     # Check URL length
     long_urls = [u for u in urls if len(u["url"]) > 75]
@@ -90,7 +90,9 @@ def analyze_patterns(urls, config):
                 dupes += 1
             seen_pairs.add(vals)
         if dupes > 0:
-            warnings.append(f"{dupes} URL pairs may have duplicate search intent (e.g., 'A vs B' and 'B vs A'). Consider canonicalizing.")
+            warnings.append(
+                f"{dupes} URL pairs may have duplicate search intent (e.g., 'A vs B' and 'B vs A'). Consider canonicalizing."
+            )
 
     # Score
     score = 100
@@ -104,7 +106,7 @@ def analyze_patterns(urls, config):
         "long_urls": len(long_urls),
         "issues": issues,
         "warnings": warnings,
-        "score": score
+        "score": score,
     }
 
 
@@ -118,7 +120,9 @@ def format_report(urls, analysis, config):
     lines.append("")
     lines.append(f"  Template:    {config['template']}")
     lines.append(f"  Base URL:    {config.get('base_url', 'https://example.com')}")
-    lines.append(f"  Variables:   {len(config['variables'])} ({', '.join(config['variables'].keys())})")
+    lines.append(
+        f"  Variables:   {len(config['variables'])} ({', '.join(config['variables'].keys())})"
+    )
     lines.append(f"  Total Pages: {analysis['total_pages']:,}")
     lines.append(f"  Avg URL Len: {analysis['avg_url_length']} chars")
     lines.append("")
@@ -159,9 +163,9 @@ SAMPLE_CONFIG = {
     "template": "{tool}-vs-{competitor}-comparison",
     "variables": {
         "tool": ["slack", "microsoft-teams", "discord", "zoom"],
-        "competitor": ["slack", "microsoft-teams", "discord", "zoom", "webex", "google-meet"]
+        "competitor": ["slack", "microsoft-teams", "discord", "zoom", "webex", "google-meet"],
     },
-    "base_url": "https://example.com/compare"
+    "base_url": "https://example.com/compare",
 }
 
 
@@ -181,11 +185,7 @@ def main():
     analysis = analyze_patterns(urls, config)
 
     if use_json:
-        print(json.dumps({
-            "config": config,
-            "urls": urls,
-            "analysis": analysis
-        }, indent=2))
+        print(json.dumps({"config": config, "urls": urls, "analysis": analysis}, indent=2))
     else:
         print(format_report(urls, analysis, config))
 

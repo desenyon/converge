@@ -8,16 +8,14 @@ Usage:
 
 import argparse
 import json
-import math
 import re
-import sys
 import urllib.request
 from html.parser import HTMLParser
-
 
 # ---------------------------------------------------------------------------
 # HTML Parser
 # ---------------------------------------------------------------------------
+
 
 class SEOParser(HTMLParser):
     def __init__(self):
@@ -25,12 +23,12 @@ class SEOParser(HTMLParser):
         self.title = ""
         self._in_title = False
         self.meta_description = ""
-        self.h_tags = []          # list of (level, text)
+        self.h_tags = []  # list of (level, text)
         self._current_h = None
         self._current_h_text = []
-        self.images = []          # list of {"src": ..., "alt": ...}
+        self.images = []  # list of {"src": ..., "alt": ...}
         self._in_body = False
-        self.links = []           # list of {"href": ..., "text": ...}
+        self.links = []  # list of {"href": ..., "text": ...}
         self._current_link_text = []
         self._current_link_href = ""
         self._in_link = False
@@ -58,10 +56,12 @@ class SEOParser(HTMLParser):
             self._current_h = int(tag[1])
             self._current_h_text = []
         elif tag == "img":
-            self.images.append({
-                "src": attrs_dict.get("src", ""),
-                "alt": attrs_dict.get("alt", None),
-            })
+            self.images.append(
+                {
+                    "src": attrs_dict.get("src", ""),
+                    "alt": attrs_dict.get("alt", None),
+                }
+            )
         elif tag == "a":
             self._in_link = True
             self._current_link_href = attrs_dict.get("href", "")
@@ -84,10 +84,12 @@ class SEOParser(HTMLParser):
             self._current_h_text = []
         elif tag == "a":
             if self._in_link:
-                self.links.append({
-                    "href": self._current_link_href,
-                    "text": " ".join(self._current_link_text).strip(),
-                })
+                self.links.append(
+                    {
+                        "href": self._current_link_href,
+                        "text": " ".join(self._current_link_text).strip(),
+                    }
+                )
             self._in_link = False
             self._current_link_text = []
             self._current_link_href = ""
@@ -111,6 +113,7 @@ class SEOParser(HTMLParser):
 # Analysis helpers
 # ---------------------------------------------------------------------------
 
+
 def _is_external(href, base_domain=""):
     if not href:
         return False
@@ -133,8 +136,12 @@ def analyze_html(html: str, base_domain: str = "") -> dict:
         "optimal_range": "50-60 chars",
         "pass": title_ok,
         "score": 100 if title_ok else (50 if title else 0),
-        "note": "Good length" if title_ok else (
-            f"Too {'short' if title_len < 50 else 'long'} ({title_len} chars)" if title else "Missing title tag"
+        "note": "Good length"
+        if title_ok
+        else (
+            f"Too {'short' if title_len < 50 else 'long'} ({title_len} chars)"
+            if title
+            else "Missing title tag"
         ),
     }
 
@@ -147,9 +154,15 @@ def analyze_html(html: str, base_domain: str = "") -> dict:
         "length": desc_len,
         "optimal_range": "150-160 chars",
         "pass": desc_ok,
-        "score": 100 if desc_ok else (50 if 100 <= desc_len < 150 or 160 < desc_len <= 200 else (30 if desc else 0)),
-        "note": "Good length" if desc_ok else (
-            f"Too {'short' if desc_len < 150 else 'long'} ({desc_len} chars)" if desc else "Missing meta description"
+        "score": 100
+        if desc_ok
+        else (50 if 100 <= desc_len < 150 or 160 < desc_len <= 200 else (30 if desc else 0)),
+        "note": "Good length"
+        if desc_ok
+        else (
+            f"Too {'short' if desc_len < 150 else 'long'} ({desc_len} chars)"
+            if desc
+            else "Missing meta description"
         ),
     }
 
@@ -162,9 +175,9 @@ def analyze_html(html: str, base_domain: str = "") -> dict:
         "values": h1s,
         "pass": h1_ok,
         "score": 100 if h1_ok else (50 if h1_count > 1 else 0),
-        "note": "Exactly one H1 ✓" if h1_ok else (
-            f"Multiple H1s ({h1_count})" if h1_count > 1 else "No H1 found"
-        ),
+        "note": "Exactly one H1 ✓"
+        if h1_ok
+        else (f"Multiple H1s ({h1_count})" if h1_count > 1 else "No H1 found"),
     }
 
     # --- Heading hierarchy ---
@@ -194,7 +207,9 @@ def analyze_html(html: str, base_domain: str = "") -> dict:
         "coverage_pct": round(alt_pct, 1),
         "pass": alt_ok,
         "score": round(alt_pct),
-        "note": "All images have alt text" if alt_ok else f"{total_imgs - imgs_with_alt} image(s) missing alt",
+        "note": "All images have alt text"
+        if alt_ok
+        else f"{total_imgs - imgs_with_alt} image(s) missing alt",
     }
 
     # --- Link ratio ---
@@ -210,7 +225,9 @@ def analyze_html(html: str, base_domain: str = "") -> dict:
         "internal_pct": round(ratio * 100, 1),
         "pass": ratio_ok,
         "score": 100 if ratio_ok else round(ratio * 100),
-        "note": "Good internal/external balance" if ratio_ok else "More external than internal links",
+        "note": "Good internal/external balance"
+        if ratio_ok
+        else "More external than internal links",
     }
 
     # --- Word count ---
@@ -231,7 +248,9 @@ def analyze_html(html: str, base_domain: str = "") -> dict:
         "present": parser.viewport_meta,
         "pass": parser.viewport_meta,
         "score": 100 if parser.viewport_meta else 0,
-        "note": "Mobile viewport tag present" if parser.viewport_meta else "Missing viewport meta tag",
+        "note": "Mobile viewport tag present"
+        if parser.viewport_meta
+        else "Missing viewport meta tag",
     }
 
     return results
@@ -296,10 +315,9 @@ DEMO_HTML = """<!DOCTYPE html>
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="On-page SEO checker — scores an HTML page 0-100."
-    )
+    parser = argparse.ArgumentParser(description="On-page SEO checker — scores an HTML page 0-100.")
     parser.add_argument("--file", help="Path to HTML file")
     parser.add_argument("--url", help="URL to fetch and analyze")
     parser.add_argument("--domain", default="", help="Base domain for internal link detection")
@@ -307,7 +325,7 @@ def main():
     args = parser.parse_args()
 
     if args.file:
-        with open(args.file, "r", encoding="utf-8", errors="replace") as f:
+        with open(args.file, encoding="utf-8", errors="replace") as f:
             html = f.read()
     elif args.url:
         with urllib.request.urlopen(args.url, timeout=10) as resp:
@@ -332,14 +350,14 @@ def main():
     print("=" * 60)
 
     checks = [
-        ("Title Tag",           "title"),
-        ("Meta Description",    "meta_description"),
-        ("H1 Tag",              "h1"),
-        ("Heading Hierarchy",   "heading_hierarchy"),
-        ("Image Alt Text",      "image_alt_text"),
-        ("Link Ratio",          "link_ratio"),
-        ("Word Count",          "word_count"),
-        ("Viewport Meta",       "viewport_meta"),
+        ("Title Tag", "title"),
+        ("Meta Description", "meta_description"),
+        ("H1 Tag", "h1"),
+        ("Heading Hierarchy", "heading_hierarchy"),
+        ("Image Alt Text", "image_alt_text"),
+        ("Link Ratio", "link_ratio"),
+        ("Word Count", "word_count"),
+        ("Viewport Meta", "viewport_meta"),
     ]
 
     for label, key in checks:
@@ -352,7 +370,17 @@ def main():
     print("=" * 60)
 
     # Grade
-    grade = "A" if overall >= 90 else "B" if overall >= 75 else "C" if overall >= 60 else "D" if overall >= 40 else "F"
+    grade = (
+        "A"
+        if overall >= 90
+        else "B"
+        if overall >= 75
+        else "C"
+        if overall >= 60
+        else "D"
+        if overall >= 40
+        else "F"
+    )
     print(f"  Grade: {grade}   Score: {overall}/100")
     print("=" * 60)
 

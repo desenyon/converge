@@ -12,16 +12,35 @@ Usage:
 
 import argparse
 import json
-import sys
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field, asdict
 
 CONTENT_FORMATS = {
-    "atomic_tweet": {"growth_weight": 0.3, "effort": "low", "description": "Single tweet — observation, tip, or hot take"},
-    "thread": {"growth_weight": 0.35, "effort": "high", "description": "5-12 tweet deep dive — highest reach potential"},
-    "question": {"growth_weight": 0.15, "effort": "low", "description": "Engagement bait — drives replies"},
-    "quote_tweet": {"growth_weight": 0.10, "effort": "low", "description": "Add value to someone else's content"},
-    "reply_session": {"growth_weight": 0.10, "effort": "medium", "description": "30 min focused engagement on target accounts"},
+    "atomic_tweet": {
+        "growth_weight": 0.3,
+        "effort": "low",
+        "description": "Single tweet — observation, tip, or hot take",
+    },
+    "thread": {
+        "growth_weight": 0.35,
+        "effort": "high",
+        "description": "5-12 tweet deep dive — highest reach potential",
+    },
+    "question": {
+        "growth_weight": 0.15,
+        "effort": "low",
+        "description": "Engagement bait — drives replies",
+    },
+    "quote_tweet": {
+        "growth_weight": 0.10,
+        "effort": "low",
+        "description": "Add value to someone else's content",
+    },
+    "reply_session": {
+        "growth_weight": 0.10,
+        "effort": "medium",
+        "description": "30 min focused engagement on target accounts",
+    },
 }
 
 OPTIMAL_TIMES = {
@@ -140,46 +159,49 @@ def generate_plan(niche: str, posts_per_day: int, weeks: int, start_date: dateti
 
 
 def print_plan(plans: list, niche: str):
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  X/TWITTER CONTENT PLAN — {niche.upper()}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     for week in plans:
         print(f"\n  WEEK {week['week_number']} ({week['start_date']} to {week['end_date']})")
         print(f"  Theme: {week['focus_theme']}")
         print(f"  Posts: {week['total_posts']} | Threads: {week['thread_count']}")
-        print(f"  {'─'*66}")
+        print(f"  {'─' * 66}")
 
-        for day in week['days']:
+        for day in week["days"]:
             print(f"\n  {day['day_of_week']:9} {day['date']}")
-            for post in day['posts']:
+            for post in day["posts"]:
                 fmt_icon = {
                     "thread": "🧵",
                     "atomic_tweet": "💬",
                     "question": "❓",
                     "quote_tweet": "🔄",
                     "reply_session": "💬",
-                }.get(post['format'], "📝")
+                }.get(post["format"], "📝")
 
-                print(f"    {fmt_icon} {post['time']:12} [{post['format']:<14}] {post['topic_angle']}")
-                if post['notes']:
+                print(
+                    f"    {fmt_icon} {post['time']:12} [{post['format']:<14}] {post['topic_angle']}"
+                )
+                if post["notes"]:
                     print(f"       ℹ️  {post['notes']}")
 
             print(f"    📊 Engagement: {day['engagement_target']}")
 
-    print(f"\n{'='*70}")
-    print(f"  WEEKLY TARGETS")
-    print(f"  • Reply to 10+ accounts in your niche daily")
-    print(f"  • Quote tweet 2-3 relevant posts per week")
-    print(f"  • Update pinned tweet if a thread outperforms current pin")
-    print(f"  • Review analytics every Sunday — double down on what works")
-    print(f"{'='*70}\n")
+    print(f"\n{'=' * 70}")
+    print("  WEEKLY TARGETS")
+    print("  • Reply to 10+ accounts in your niche daily")
+    print("  • Quote tweet 2-3 relevant posts per week")
+    print("  • Update pinned tweet if a thread outperforms current pin")
+    print("  • Review analytics every Sunday — double down on what works")
+    print(f"{'=' * 70}\n")
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Generate X/Twitter content calendars",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     parser.add_argument("--niche", required=True, help="Your content niche")
     parser.add_argument("--frequency", type=int, default=3, help="Posts per day (default: 3)")

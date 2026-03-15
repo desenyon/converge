@@ -17,24 +17,53 @@ Input JSON format:
 import argparse
 import json
 import re
-import sys
-
 
 # ---------------------------------------------------------------------------
 # Word/pattern lists
 # ---------------------------------------------------------------------------
 
 SPAM_TRIGGER_WORDS = [
-    "free", "guarantee", "guaranteed", "winner", "won", "prize",
-    "congratulations", "cash", "earn money", "make money", "extra income",
-    "100% free", "no cost", "risk free", "act now", "limited time",
-    "click here", "buy now", "order now", "get it now",
-    "as seen on", "dear friend", "you have been selected",
-    "this isn't spam", "not spam", "no credit card required",
-    "special promotion", "special offer", "amazing offer",
-    "!!!", "!!!", "$$$", "£££",
-    "increase your", "increase sales", "double your",
-    "lose weight", "weight loss", "diet", "viagra", "casino",
+    "free",
+    "guarantee",
+    "guaranteed",
+    "winner",
+    "won",
+    "prize",
+    "congratulations",
+    "cash",
+    "earn money",
+    "make money",
+    "extra income",
+    "100% free",
+    "no cost",
+    "risk free",
+    "act now",
+    "limited time",
+    "click here",
+    "buy now",
+    "order now",
+    "get it now",
+    "as seen on",
+    "dear friend",
+    "you have been selected",
+    "this isn't spam",
+    "not spam",
+    "no credit card required",
+    "special promotion",
+    "special offer",
+    "amazing offer",
+    "!!!",
+    "!!!",
+    "$$$",
+    "£££",
+    "increase your",
+    "increase sales",
+    "double your",
+    "lose weight",
+    "weight loss",
+    "diet",
+    "viagra",
+    "casino",
 ]
 
 CTA_PATTERNS = re.compile(
@@ -53,6 +82,7 @@ PERSONALIZATION_TOKENS = re.compile(
 # ---------------------------------------------------------------------------
 # Per-email analysis
 # ---------------------------------------------------------------------------
+
 
 def analyze_email(email: dict, index: int) -> dict:
     subject = email.get("subject", "")
@@ -132,6 +162,7 @@ def _body_length_verdict(word_count: int) -> str:
 # Sequence-level analysis
 # ---------------------------------------------------------------------------
 
+
 def analyze_pacing(emails: list) -> dict:
     if len(emails) <= 1:
         return {"note": "Single email — no pacing to analyze"}
@@ -142,11 +173,11 @@ def analyze_pacing(emails: list) -> dict:
     issues = []
     for i, gap in enumerate(gaps):
         if gap <= 0:
-            issues.append(f"Email {i+2}: same-day or before previous — check delay_days")
+            issues.append(f"Email {i + 2}: same-day or before previous — check delay_days")
         elif gap == 1:
-            issues.append(f"Email {i+2}: only 1-day gap — may feel aggressive")
+            issues.append(f"Email {i + 2}: only 1-day gap — may feel aggressive")
         elif gap > 14:
-            issues.append(f"Email {i+2}: {gap}-day gap — momentum may drop")
+            issues.append(f"Email {i + 2}: {gap}-day gap — momentum may drop")
 
     # Assess overall cadence
     avg_gap = sum(gaps) / len(gaps) if gaps else 0
@@ -172,6 +203,7 @@ def analyze_pacing(emails: list) -> dict:
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
+
 
 def compute_sequence_score(email_analyses: list, pacing: dict) -> dict:
     if not email_analyses:
@@ -199,34 +231,47 @@ def compute_sequence_score(email_analyses: list, pacing: dict) -> dict:
 
     # Body length score
     length_ok_count = sum(
-        1 for e in email_analyses
+        1
+        for e in email_analyses
         if "Optimal" in e["body"]["length_verdict"] or "punchy" in e["body"]["length_verdict"]
     )
     length_score = round(length_ok_count / len(email_analyses) * 100)
 
     weights = {
         "subject_quality": 0.20,
-        "cta_presence":    0.20,
-        "spam_safety":     0.25,
+        "cta_presence": 0.20,
+        "spam_safety": 0.25,
         "personalization": 0.15,
-        "pacing":          0.10,
-        "body_length":     0.10,
+        "pacing": 0.10,
+        "body_length": 0.10,
     }
     scores = {
         "subject_quality": subject_score,
-        "cta_presence":    cta_score,
-        "spam_safety":     spam_score,
+        "cta_presence": cta_score,
+        "spam_safety": spam_score,
         "personalization": personalization_score,
-        "pacing":          pacing_score,
-        "body_length":     length_score,
+        "pacing": pacing_score,
+        "body_length": length_score,
     }
     overall = round(sum(scores[k] * weights[k] for k in weights))
-    grade = "A" if overall >= 85 else "B" if overall >= 70 else "C" if overall >= 55 else "D" if overall >= 40 else "F"
+    grade = (
+        "A"
+        if overall >= 85
+        else "B"
+        if overall >= 70
+        else "C"
+        if overall >= 55
+        else "D"
+        if overall >= 40
+        else "F"
+    )
 
     return {
         "overall": overall,
         "grade": grade,
-        "breakdown": {k: {"score": v, "weight": f"{int(weights[k]*100)}%"} for k, v in scores.items()},
+        "breakdown": {
+            k: {"score": v, "weight": f"{int(weights[k] * 100)}%"} for k, v in scores.items()
+        },
     }
 
 
@@ -267,6 +312,7 @@ DEMO_SEQUENCE = [
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Email sequence analyzer — scores sequence quality 0-100."
@@ -276,7 +322,7 @@ def main():
     args = parser.parse_args()
 
     if args.file:
-        with open(args.file, "r", encoding="utf-8") as f:
+        with open(args.file, encoding="utf-8") as f:
             emails = json.load(f)
     else:
         emails = DEMO_SEQUENCE
@@ -305,7 +351,7 @@ def main():
     print("=" * 64)
 
     # Pacing summary
-    print(f"\n  📅 SEQUENCE PACING")
+    print("\n  📅 SEQUENCE PACING")
     print(f"     Emails:         {pacing['email_count']}")
     print(f"     Duration:       {pacing.get('total_duration_days', 0)} days")
     print(f"     Avg gap:        {pacing.get('avg_gap_days', 0)} days")
@@ -314,7 +360,7 @@ def main():
         for issue in pacing["issues"]:
             print(f"     ⚠️  {issue}")
 
-    print(f"\n  📧 PER-EMAIL BREAKDOWN")
+    print("\n  📧 PER-EMAIL BREAKDOWN")
     print(f"  {'#':<3} {'Subject':<40} {'Words':<6} {'CTA':<4} {'Tokens':<7} {'Spam'}")
     print("  " + "─" * 60)
 
@@ -331,13 +377,13 @@ def main():
         print(f"  {e['email_index']:<3} {subj:<40} {words:<6} {cta:<4} {tokens:<7} {spam_str}")
 
     if any(e["spam"]["trigger_words_found"] for e in email_analyses):
-        print(f"\n  ⚠️  SPAM TRIGGER WORDS DETECTED")
+        print("\n  ⚠️  SPAM TRIGGER WORDS DETECTED")
         for e in email_analyses:
             if e["spam"]["trigger_words_found"]:
                 triggers = ", ".join(e["spam"]["trigger_words_found"])
                 print(f"     Email {e['email_index']}: {triggers}")
 
-    print(f"\n  SCORE BREAKDOWN")
+    print("\n  SCORE BREAKDOWN")
     for k, v in scoring["breakdown"].items():
         label = k.replace("_", " ").title()
         bar_len = round(v["score"] / 10)

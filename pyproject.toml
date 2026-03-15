@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "converge-cli"
-version = "0.1.2"
+version = "0.1.3"
 description = "A Python-first repository intelligence and environment convergence platform."
 readme = "README.md"
 authors = [
@@ -37,6 +37,10 @@ packages = ["src/converge"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+exclude = [
+    ".github",
+    ".venv",
+]
 
 [tool.ruff.lint]
 select = [

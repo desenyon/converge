@@ -24,8 +24,8 @@ Input format (JSON):
 """
 
 import json
-import sys
 import os
+import sys
 
 
 def analyze_funnel(data):
@@ -52,7 +52,7 @@ def analyze_funnel(data):
                 "rate_from_start": round(rate_from_start, 1),
                 "drop_rate": 0,
                 "dropped_users": 0,
-                "is_worst": False
+                "is_worst": False,
             }
         else:
             prev_users = steps[i - 1]["users"]
@@ -65,7 +65,7 @@ def analyze_funnel(data):
                 "rate_from_start": round(rate_from_start, 1),
                 "drop_rate": round(drop_rate, 1),
                 "dropped_users": dropped,
-                "is_worst": False
+                "is_worst": False,
             }
 
             if drop_rate > worst_drop:
@@ -98,14 +98,16 @@ def analyze_funnel(data):
 
         additional_activated = int(gained_users * cascade_rate)
 
-        improvements.append({
-            "action": f"Halve drop-off at '{worst['step']}'",
-            "current_drop": f"{worst['drop_rate']}%",
-            "target_drop": f"{worst['drop_rate'] / 2:.1f}%",
-            "users_saved": gained_users,
-            "additional_activated": additional_activated,
-            "impact_on_overall": f"+{(additional_activated / total_start * 100):.1f}pp"
-        })
+        improvements.append(
+            {
+                "action": f"Halve drop-off at '{worst['step']}'",
+                "current_drop": f"{worst['drop_rate']}%",
+                "target_drop": f"{worst['drop_rate'] / 2:.1f}%",
+                "users_saved": gained_users,
+                "additional_activated": additional_activated,
+                "impact_on_overall": f"+{(additional_activated / total_start * 100):.1f}pp",
+            }
+        )
 
     # Score
     score = min(100, max(0, int(overall_conversion * 5)))  # 20% activation = 100
@@ -120,9 +122,9 @@ def analyze_funnel(data):
             "overall_conversion": round(overall_conversion, 1),
             "worst_step": analysis[worst_step]["step"] if worst_step else None,
             "worst_drop_rate": round(worst_drop, 1),
-            "score": score
+            "score": score,
         },
-        "improvements": improvements
+        "improvements": improvements,
     }
 
 
@@ -141,7 +143,9 @@ def format_report(result):
 
     lines.append(f"  ACTIVATION SCORE: {score}/100")
     lines.append(f"  [{bar}]")
-    lines.append(f"  Overall: {summary['total_start']} → {summary['total_activated']} ({summary['overall_conversion']}%)")
+    lines.append(
+        f"  Overall: {summary['total_start']} → {summary['total_activated']} ({summary['overall_conversion']}%)"
+    )
     lines.append("")
 
     # Funnel visualization
@@ -163,7 +167,9 @@ def format_report(result):
     for step in result["steps"]:
         drop = f"-{step['drop_rate']}%" if step["drop_rate"] > 0 else "—"
         lost = f"-{step['dropped_users']}" if step["dropped_users"] > 0 else "—"
-        lines.append(f"  {step['step']:<25} {step['users']:>7} {step['rate_from_start']:>10.1f}% {drop:>8} {lost:>7}")
+        lines.append(
+            f"  {step['step']:<25} {step['users']:>7} {step['rate_from_start']:>10.1f}% {drop:>8} {lost:>7}"
+        )
     lines.append("")
 
     # Improvement potential
@@ -188,7 +194,7 @@ SAMPLE_DATA = {
         {"name": "First project created", "users": 290},
         {"name": "Invited teammate", "users": 145},
         {"name": "Aha moment (Day 3)", "users": 95},
-        {"name": "Activated (Day 7)", "users": 72}
+        {"name": "Activated (Day 7)", "users": 72},
     ]
 }
 

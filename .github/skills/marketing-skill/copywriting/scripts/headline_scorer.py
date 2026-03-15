@@ -11,8 +11,6 @@ Usage:
 import argparse
 import json
 import re
-import sys
-
 
 # ---------------------------------------------------------------------------
 # Word lists
@@ -20,45 +18,137 @@ import sys
 
 POWER_WORDS = {
     # urgency / scarcity
-    "now", "today", "instantly", "immediately", "urgent", "limited",
-    "exclusive", "last", "hurry", "deadline", "expires", "fast",
+    "now",
+    "today",
+    "instantly",
+    "immediately",
+    "urgent",
+    "limited",
+    "exclusive",
+    "last",
+    "hurry",
+    "deadline",
+    "expires",
+    "fast",
     # value / benefit
-    "free", "save", "proven", "guaranteed", "results", "boost",
-    "increase", "grow", "maximize", "unlock", "secret", "revealed",
-    "transform", "master", "ultimate", "best", "top", "powerful",
+    "free",
+    "save",
+    "proven",
+    "guaranteed",
+    "results",
+    "boost",
+    "increase",
+    "grow",
+    "maximize",
+    "unlock",
+    "secret",
+    "revealed",
+    "transform",
+    "master",
+    "ultimate",
+    "best",
+    "top",
+    "powerful",
     # curiosity / intrigue
-    "discover", "uncover", "surprising", "shocking", "hidden",
-    "unknown", "insider", "hack", "trick", "truth",
+    "discover",
+    "uncover",
+    "surprising",
+    "shocking",
+    "hidden",
+    "unknown",
+    "insider",
+    "hack",
+    "trick",
+    "truth",
     # social proof / authority
-    "experts", "researchers", "scientists", "officially", "certified",
-    "award-winning", "world-class",
+    "experts",
+    "researchers",
+    "scientists",
+    "officially",
+    "certified",
+    "award-winning",
+    "world-class",
     # ease / simplicity
-    "easy", "simple", "effortless", "quick", "step-by-step",
-    "foolproof", "beginner", "without",
+    "easy",
+    "simple",
+    "effortless",
+    "quick",
+    "step-by-step",
+    "foolproof",
+    "beginner",
+    "without",
     # negative triggers (fear/loss)
-    "avoid", "stop", "never", "mistake", "fail", "warning", "danger",
-    "worst", "deadly", "risky",
+    "avoid",
+    "stop",
+    "never",
+    "mistake",
+    "fail",
+    "warning",
+    "danger",
+    "worst",
+    "deadly",
+    "risky",
 }
 
 EMOTIONAL_TRIGGERS = {
-    "love", "hate", "fear", "hope", "joy", "pain", "anger", "envy",
-    "trust", "doubt", "regret", "pride", "shame", "relief", "success",
-    "failure", "happiness", "frustration", "excitement", "anxiety",
-    "lonely", "powerful", "confident", "inspired",
+    "love",
+    "hate",
+    "fear",
+    "hope",
+    "joy",
+    "pain",
+    "anger",
+    "envy",
+    "trust",
+    "doubt",
+    "regret",
+    "pride",
+    "shame",
+    "relief",
+    "success",
+    "failure",
+    "happiness",
+    "frustration",
+    "excitement",
+    "anxiety",
+    "lonely",
+    "powerful",
+    "confident",
+    "inspired",
 }
 
 JARGON_WORDS = {
-    "synergy", "leverage", "disruptive", "paradigm", "scalable",
-    "bandwidth", "circle back", "ping", "holistic", "ecosystem",
-    "utilize", "facilitate", "ideate", "incentivize", "stakeholders",
-    "deliverables", "actionable", "bespoke", "granular", "boil the ocean",
-    "low-hanging fruit", "move the needle", "thought leader", "deep dive",
+    "synergy",
+    "leverage",
+    "disruptive",
+    "paradigm",
+    "scalable",
+    "bandwidth",
+    "circle back",
+    "ping",
+    "holistic",
+    "ecosystem",
+    "utilize",
+    "facilitate",
+    "ideate",
+    "incentivize",
+    "stakeholders",
+    "deliverables",
+    "actionable",
+    "bespoke",
+    "granular",
+    "boil the ocean",
+    "low-hanging fruit",
+    "move the needle",
+    "thought leader",
+    "deep dive",
 }
 
 
 # ---------------------------------------------------------------------------
 # Scoring functions
 # ---------------------------------------------------------------------------
+
 
 def tokenize(headline: str) -> list:
     return re.findall(r"\b\w+(?:[-']\w+)*\b", headline.lower())
@@ -101,9 +191,15 @@ def score_specificity(headline: str, tokens: list) -> tuple:
     signals = []
     if re.search(r"\b\d+\b", headline):
         signals.append("contains number")
-    if re.search(r"\b(in \d+|within \d+|\d+ days?|\d+ weeks?|\d+ months?|\d+ hours?|\d+ minutes?)\b", headline, re.I):
+    if re.search(
+        r"\b(in \d+|within \d+|\d+ days?|\d+ weeks?|\d+ months?|\d+ hours?|\d+ minutes?)\b",
+        headline,
+        re.I,
+    ):
         signals.append("timeframe")
-    if re.search(r"\b(how to|step|guide|checklist|strategy|system|framework|formula)\b", headline, re.I):
+    if re.search(
+        r"\b(how to|step|guide|checklist|strategy|system|framework|formula)\b", headline, re.I
+    ):
         signals.append("concrete format")
     if re.search(r"\b\d+%\b", headline):
         signals.append("percentage")
@@ -123,12 +219,12 @@ def score_clarity(tokens: list) -> tuple:
 # ---------------------------------------------------------------------------
 
 WEIGHTS = {
-    "power_words":        0.25,
+    "power_words": 0.25,
     "emotional_triggers": 0.15,
-    "numbers":            0.15,
-    "length":             0.20,
-    "specificity":        0.15,
-    "clarity":            0.10,
+    "numbers": 0.15,
+    "length": 0.20,
+    "specificity": 0.15,
+    "clarity": 0.10,
 }
 
 
@@ -143,20 +239,27 @@ def score_headline(headline: str) -> dict:
     clar_score, clar_note = score_clarity(tokens)
 
     breakdown = {
-        "power_words":        {"score": pw_score,   "found": pw_found,      "weight": "25%"},
-        "emotional_triggers": {"score": et_score,   "found": et_found,      "weight": "15%"},
-        "numbers":            {"score": num_score,  "found": nums,           "weight": "15%"},
-        "length":             {"score": len_score,  "note": len_note,        "weight": "20%"},
-        "specificity":        {"score": spec_score, "signals": spec_signals, "weight": "15%"},
-        "clarity":            {"score": clar_score, "note": clar_note,       "weight": "10%"},
+        "power_words": {"score": pw_score, "found": pw_found, "weight": "25%"},
+        "emotional_triggers": {"score": et_score, "found": et_found, "weight": "15%"},
+        "numbers": {"score": num_score, "found": nums, "weight": "15%"},
+        "length": {"score": len_score, "note": len_note, "weight": "20%"},
+        "specificity": {"score": spec_score, "signals": spec_signals, "weight": "15%"},
+        "clarity": {"score": clar_score, "note": clar_note, "weight": "10%"},
     }
 
-    overall = round(sum(
-        breakdown[k]["score"] * WEIGHTS[k]
-        for k in WEIGHTS
-    ))
+    overall = round(sum(breakdown[k]["score"] * WEIGHTS[k] for k in WEIGHTS))
 
-    grade = "A" if overall >= 85 else "B" if overall >= 70 else "C" if overall >= 55 else "D" if overall >= 40 else "F"
+    grade = (
+        "A"
+        if overall >= 85
+        else "B"
+        if overall >= 70
+        else "C"
+        if overall >= 55
+        else "D"
+        if overall >= 40
+        else "F"
+    )
 
     return {
         "headline": headline,
@@ -183,6 +286,7 @@ DEMO_HEADLINES = [
 # Output helpers
 # ---------------------------------------------------------------------------
 
+
 def print_result(result: dict):
     h = result["headline"]
     score = result["overall_score"]
@@ -193,12 +297,12 @@ def print_result(result: dict):
     print(f"{'─' * 60}")
     bd = result["breakdown"]
     rows = [
-        ("Power Words",       "power_words",        lambda r: f"found: {r['found'] or 'none'}"),
+        ("Power Words", "power_words", lambda r: f"found: {r['found'] or 'none'}"),
         ("Emotional Trigger", "emotional_triggers", lambda r: f"found: {r['found'] or 'none'}"),
-        ("Numbers/Stats",     "numbers",            lambda r: f"found: {r['found'] or 'none'}"),
-        ("Length",            "length",             lambda r: r["note"]),
-        ("Specificity",       "specificity",        lambda r: f"signals: {r['signals'] or 'none'}"),
-        ("Clarity",           "clarity",            lambda r: r["note"]),
+        ("Numbers/Stats", "numbers", lambda r: f"found: {r['found'] or 'none'}"),
+        ("Length", "length", lambda r: r["note"]),
+        ("Specificity", "specificity", lambda r: f"signals: {r['signals'] or 'none'}"),
+        ("Clarity", "clarity", lambda r: r["note"]),
     ]
     for label, key, detail_fn in rows:
         r = bd[key]
@@ -212,6 +316,7 @@ def print_result(result: dict):
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Headline scorer — rates headlines 0-100 across 6 dimensions."
@@ -224,7 +329,7 @@ def main():
     if args.headline:
         headlines = [args.headline]
     elif args.file:
-        with open(args.file, "r", encoding="utf-8") as f:
+        with open(args.file, encoding="utf-8") as f:
             headlines = [line.strip() for line in f if line.strip()]
     else:
         headlines = DEMO_HEADLINES
@@ -248,7 +353,7 @@ def main():
         best = max(results, key=lambda r: r["overall_score"])
         print(f"\n{'=' * 60}")
         print(f"  {len(results)} headlines analyzed  |  Avg score: {avg}/100")
-        print(f"  Best: \"{best['headline'][:50]}\" ({best['overall_score']}/100)")
+        print(f'  Best: "{best["headline"][:50]}" ({best["overall_score"]}/100)')
         print("=" * 60)
 
 

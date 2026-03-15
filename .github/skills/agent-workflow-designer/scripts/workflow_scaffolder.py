@@ -6,10 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List
 
 
-def sequential_template(name: str) -> Dict:
+def sequential_template(name: str) -> dict:
     return {
         "name": name,
         "pattern": "sequential",
@@ -22,7 +21,7 @@ def sequential_template(name: str) -> Dict:
     }
 
 
-def parallel_template(name: str) -> Dict:
+def parallel_template(name: str) -> dict:
     return {
         "name": name,
         "pattern": "parallel",
@@ -35,7 +34,7 @@ def parallel_template(name: str) -> Dict:
     }
 
 
-def router_template(name: str) -> Dict:
+def router_template(name: str) -> dict:
     return {
         "name": name,
         "pattern": "router",
@@ -49,7 +48,7 @@ def router_template(name: str) -> Dict:
     }
 
 
-def orchestrator_template(name: str) -> Dict:
+def orchestrator_template(name: str) -> dict:
     return {
         "name": name,
         "pattern": "orchestrator",
@@ -63,7 +62,7 @@ def orchestrator_template(name: str) -> Dict:
     }
 
 
-def evaluator_template(name: str) -> Dict:
+def evaluator_template(name: str) -> dict:
     return {
         "name": name,
         "pattern": "evaluator",
@@ -87,7 +86,9 @@ PATTERNS = {
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate a workflow skeleton config from a pattern.")
+    parser = argparse.ArgumentParser(
+        description="Generate a workflow skeleton config from a pattern."
+    )
     parser.add_argument("pattern", choices=sorted(PATTERNS.keys()), help="Workflow pattern")
     parser.add_argument("--name", default="new-workflow", help="Workflow name")
     parser.add_argument("--output", help="Optional output path for JSON config")

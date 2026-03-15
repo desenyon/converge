@@ -41,7 +41,7 @@ def suggest_test(category: str) -> str:
 
 def load_from_csv(path: str) -> list[Assumption]:
     assumptions: list[Assumption] = []
-    with open(path, "r", encoding="utf-8", newline="") as handle:
+    with open(path, encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
         required = {"assumption", "category", "risk", "certainty"}
         missing = required - set(reader.fieldnames or [])

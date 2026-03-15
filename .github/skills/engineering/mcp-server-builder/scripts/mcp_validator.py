@@ -16,10 +16,9 @@ import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 TOOL_NAME_RE = re.compile(r"^[a-z0-9_]{3,64}$")
 
@@ -30,20 +29,22 @@ class CLIError(Exception):
 
 @dataclass
 class ValidationResult:
-    errors: List[str]
-    warnings: List[str]
+    errors: list[str]
+    warnings: list[str]
     tool_count: int
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate MCP tool definitions.")
     parser.add_argument("--input", help="Path to manifest JSON file. If omitted, reads from stdin.")
-    parser.add_argument("--strict", action="store_true", help="Exit non-zero when errors are found.")
+    parser.add_argument(
+        "--strict", action="store_true", help="Exit non-zero when errors are found."
+    )
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format.")
     return parser.parse_args()
 
 
-def load_manifest(input_path: Optional[str]) -> Dict[str, Any]:
+def load_manifest(input_path: str | None) -> dict[str, Any]:
     if input_path:
         try:
             data = Path(input_path).read_text(encoding="utf-8")
@@ -66,9 +67,9 @@ def load_manifest(input_path: Optional[str]) -> Dict[str, Any]:
     return payload
 
 
-def validate_schema(tool_name: str, schema: Dict[str, Any]) -> Tuple[List[str], List[str]]:
-    errors: List[str] = []
-    warnings: List[str] = []
+def validate_schema(tool_name: str, schema: dict[str, Any]) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
 
     if schema.get("type") != "object":
         errors.append(f"{tool_name}: inputSchema.type must be 'object'.")
@@ -102,9 +103,9 @@ def validate_schema(tool_name: str, schema: Dict[str, Any]) -> Tuple[List[str], 
     return errors, warnings
 
 
-def validate_manifest(payload: Dict[str, Any]) -> ValidationResult:
-    errors: List[str] = []
-    warnings: List[str] = []
+def validate_manifest(payload: dict[str, Any]) -> ValidationResult:
+    errors: list[str] = []
+    warnings: list[str] = []
 
     tools = payload.get("tools")
     if not isinstance(tools, list):

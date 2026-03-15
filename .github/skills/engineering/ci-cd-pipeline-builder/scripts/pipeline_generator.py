@@ -14,9 +14,9 @@ Output:
 import argparse
 import json
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class CLIError(Exception):
@@ -27,22 +27,28 @@ class CLIError(Exception):
 class PipelineSummary:
     platform: str
     output: str
-    stages: List[str]
+    stages: list[str]
     uses_cache: bool
-    languages: List[str]
+    languages: list[str]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate CI/CD pipeline YAML from detected stack.")
+    parser = argparse.ArgumentParser(
+        description="Generate CI/CD pipeline YAML from detected stack."
+    )
     parser.add_argument("--input", help="Stack report JSON file. If omitted, can read stdin JSON.")
     parser.add_argument("--repo", help="Repository path for auto-detection fallback.")
-    parser.add_argument("--platform", choices=["github", "gitlab"], required=True, help="Target CI platform.")
+    parser.add_argument(
+        "--platform", choices=["github", "gitlab"], required=True, help="Target CI platform."
+    )
     parser.add_argument("--output", help="Write YAML to this file; otherwise print to stdout.")
-    parser.add_argument("--format", choices=["text", "json"], default="text", help="Summary output format.")
+    parser.add_argument(
+        "--format", choices=["text", "json"], default="text", help="Summary output format."
+    )
     return parser.parse_args()
 
 
-def load_json_input(input_path: Optional[str]) -> Optional[Dict[str, Any]]:
+def load_json_input(input_path: str | None) -> dict[str, Any] | None:
     if input_path:
         try:
             return json.loads(Path(input_path).read_text(encoding="utf-8"))
@@ -60,7 +66,7 @@ def load_json_input(input_path: Optional[str]) -> Optional[Dict[str, Any]]:
     return None
 
 
-def detect_stack(repo: Path) -> Dict[str, Any]:
+def detect_stack(repo: Path) -> dict[str, Any]:
     scripts = {}
     pkg_file = repo / "package.json"
     if pkg_file.exists():
@@ -72,7 +78,7 @@ def detect_stack(repo: Path) -> Dict[str, Any]:
         except Exception:
             scripts = {}
 
-    languages: List[str] = []
+    languages: list[str] = []
     if pkg_file.exists():
         languages.append("node")
     if (repo / "pyproject.toml").exists() or (repo / "requirements.txt").exists():
@@ -94,7 +100,7 @@ def detect_stack(repo: Path) -> Dict[str, Any]:
     }
 
 
-def select_node_install(signals: Dict[str, Any]) -> str:
+def select_node_install(signals: dict[str, Any]) -> str:
     if signals.get("pnpm_lock"):
         return "pnpm install --frozen-lockfile"
     if signals.get("yarn_lock"):
@@ -102,14 +108,14 @@ def select_node_install(signals: Dict[str, Any]) -> str:
     return "npm ci"
 
 
-def github_yaml(stack: Dict[str, Any]) -> str:
+def github_yaml(stack: dict[str, Any]) -> str:
     langs = stack.get("languages", [])
     signals = stack.get("signals", {})
     lint_cmds = stack.get("lint_commands", []) or ["echo 'No lint command configured'"]
     test_cmds = stack.get("test_commands", []) or ["echo 'No test command configured'"]
     build_cmds = stack.get("build_commands", []) or ["echo 'No build command configured'"]
 
-    lines: List[str] = [
+    lines: list[str] = [
         "name: CI",
         "on:",
         "  push:",
@@ -171,14 +177,14 @@ def github_yaml(stack: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def gitlab_yaml(stack: Dict[str, Any]) -> str:
+def gitlab_yaml(stack: dict[str, Any]) -> str:
     langs = stack.get("languages", [])
     signals = stack.get("signals", {})
     lint_cmds = stack.get("lint_commands", []) or ["echo 'No lint command configured'"]
     test_cmds = stack.get("test_commands", []) or ["echo 'No test command configured'"]
     build_cmds = stack.get("build_commands", []) or ["echo 'No build command configured'"]
 
-    lines: List[str] = [
+    lines: list[str] = [
         "stages:",
         "  - lint",
         "  - test",
@@ -260,7 +266,9 @@ def main() -> int:
 
     if stack is None:
         if not args.repo:
-            raise CLIError("Provide stack input via --input/stdin or set --repo for auto-detection.")
+            raise CLIError(
+                "Provide stack input via --input/stdin or set --repo for auto-detection."
+            )
         repo = Path(args.repo).resolve()
         if not repo.exists() or not repo.is_dir():
             raise CLIError(f"Invalid repo path: {repo}")
@@ -288,7 +296,10 @@ def main() -> int:
     )
 
     if args.format == "json":
-        print(json.dumps(asdict(summary), indent=2), file=sys.stderr if not args.output else sys.stdout)
+        print(
+            json.dumps(asdict(summary), indent=2),
+            file=sys.stderr if not args.output else sys.stdout,
+        )
     else:
         text = (
             "Pipeline generated\n"

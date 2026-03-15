@@ -27,7 +27,7 @@ def required_sample_size_per_group(
     pooled = (baseline_rate + target_rate) / 2
 
     numerator = 2 * pooled * (1 - pooled) * (z_alpha + z_beta) ** 2
-    n = numerator / (delta ** 2)
+    n = numerator / (delta**2)
     return math.ceil(n)
 
 

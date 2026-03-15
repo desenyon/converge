@@ -14,12 +14,10 @@ Usage:
     python okr_tracker.py --format json      # Machine-readable output
 """
 
+import argparse
 import json
 import sys
-import argparse
-from datetime import datetime, date
-from typing import Any
-
+from datetime import date, datetime
 
 # ---------------------------------------------------------------------------
 # Scoring Engine
@@ -27,8 +25,8 @@ from typing import Any
 
 # OKR health thresholds (Google-style 0.0–1.0 scale)
 SCORE_THRESHOLDS = {
-    "on_track": 0.70,       # Above this: healthy
-    "at_risk": 0.40,        # Between at_risk and on_track: needs attention
+    "on_track": 0.70,  # Above this: healthy
+    "at_risk": 0.40,  # Between at_risk and on_track: needs attention
     # Below at_risk: off track
 }
 
@@ -51,7 +49,7 @@ RISK_LABELS = {
 def calculate_kr_score(kr: dict) -> float:
     """
     Calculate a Key Result's progress score (0.0–1.0).
-    
+
     Supports multiple KR types:
     - numeric: current_value / target_value
     - percentage: current_pct / target_pct
@@ -102,7 +100,7 @@ def calculate_kr_score(kr: dict) -> float:
 def get_kr_status(score: float, quarter_progress: float, kr: dict) -> str:
     """
     Determine KR status based on score, time elapsed in quarter, and trend.
-    
+
     A KR is at-risk if its score is significantly behind the time elapsed.
     E.g., if we're 70% through the quarter but KR is at 30%, it's at risk.
     """
@@ -146,24 +144,25 @@ def calculate_objective_score(objective: dict, quarter_progress: float) -> dict:
 
         risk_level = _assess_kr_risk(score, status, gap, quarter_progress, kr)
 
-        scored_krs.append({
-            **kr,
-            "score": round(score, 3),
-            "score_pct": f"{score * 100:.0f}%",
-            "status": status,
-            "status_label": STATUS_LABELS.get(status, status),
-            "expected_score": round(expected_score, 3),
-            "gap_vs_expected": round(gap, 3),
-            "risk_level": risk_level,
-            "risk_label": RISK_LABELS.get(risk_level, risk_level),
-        })
+        scored_krs.append(
+            {
+                **kr,
+                "score": round(score, 3),
+                "score_pct": f"{score * 100:.0f}%",
+                "status": status,
+                "status_label": STATUS_LABELS.get(status, status),
+                "expected_score": round(expected_score, 3),
+                "gap_vs_expected": round(gap, 3),
+                "risk_level": risk_level,
+                "risk_label": RISK_LABELS.get(risk_level, risk_level),
+            }
+        )
 
     # Objective score = weighted average of KR scores
     # Weight is explicit in KR data or defaults to equal weight
     total_weight = sum(kr.get("weight", 1.0) for kr in key_results)
     weighted_score = sum(
-        kr_scored["score"] * kr.get("weight", 1.0)
-        for kr_scored, kr in zip(scored_krs, key_results)
+        kr_scored["score"] * kr.get("weight", 1.0) for kr_scored, kr in zip(scored_krs, key_results)
     )
     obj_score = weighted_score / total_weight if total_weight > 0 else 0.0
 
@@ -217,6 +216,7 @@ def _assess_kr_risk(
 # OKR Cascade and Alignment Analysis
 # ---------------------------------------------------------------------------
 
+
 def build_okr_tree(data: dict, quarter_progress: float) -> dict:
     """
     Build scored OKR tree: company → departments → teams.
@@ -240,37 +240,41 @@ def build_okr_tree(data: dict, quarter_progress: float) -> dict:
     depts_scored = []
     for dept in departments:
         dept_objectives = [
-            calculate_objective_score(obj, quarter_progress)
-            for obj in dept.get("objectives", [])
+            calculate_objective_score(obj, quarter_progress) for obj in dept.get("objectives", [])
         ]
         dept_score = (
             sum(o["score"] for o in dept_objectives) / len(dept_objectives)
-            if dept_objectives else 0.0
+            if dept_objectives
+            else 0.0
         )
-        depts_scored.append({
-            **dept,
-            "objectives": dept_objectives,
-            "overall_score": round(dept_score, 3),
-            "overall_score_pct": f"{dept_score * 100:.0f}%",
-        })
+        depts_scored.append(
+            {
+                **dept,
+                "objectives": dept_objectives,
+                "overall_score": round(dept_score, 3),
+                "overall_score_pct": f"{dept_score * 100:.0f}%",
+            }
+        )
 
     # Score team-level OKRs
     teams_scored = []
     for team in teams:
         team_objectives = [
-            calculate_objective_score(obj, quarter_progress)
-            for obj in team.get("objectives", [])
+            calculate_objective_score(obj, quarter_progress) for obj in team.get("objectives", [])
         ]
         team_score = (
             sum(o["score"] for o in team_objectives) / len(team_objectives)
-            if team_objectives else 0.0
+            if team_objectives
+            else 0.0
         )
-        teams_scored.append({
-            **team,
-            "objectives": team_objectives,
-            "overall_score": round(team_score, 3),
-            "overall_score_pct": f"{team_score * 100:.0f}%",
-        })
+        teams_scored.append(
+            {
+                **team,
+                "objectives": team_objectives,
+                "overall_score": round(team_score, 3),
+                "overall_score_pct": f"{team_score * 100:.0f}%",
+            }
+        )
 
     return {
         "company": company_scored,
@@ -285,8 +289,7 @@ def analyze_alignment(okr_tree: dict) -> dict:
     Flags: orphaned OKRs (no company parent), missing coverage (company OKR with no team support).
     """
     company_objective_ids = {
-        obj.get("id") for obj in okr_tree["company"].get("objectives", [])
-        if obj.get("id")
+        obj.get("id") for obj in okr_tree["company"].get("objectives", []) if obj.get("id")
     }
 
     # Collect all alignment references from dept and team OKRs
@@ -303,24 +306,28 @@ def analyze_alignment(okr_tree: dict) -> dict:
                     supports = [obj["supports_company_objective_id"]]
 
             if not supports:
-                orphaned.append({
-                    "level": level,
-                    "owner": owner_name,
-                    "objective": obj.get("title", obj.get("name", "Unknown")),
-                    "issue": "No link to company objective — may be misaligned or low priority",
-                })
+                orphaned.append(
+                    {
+                        "level": level,
+                        "owner": owner_name,
+                        "objective": obj.get("title", obj.get("name", "Unknown")),
+                        "issue": "No link to company objective — may be misaligned or low priority",
+                    }
+                )
             else:
                 for cid in supports:
                     if cid in alignment_map:
                         alignment_map[cid].append(f"{level}:{owner_name}")
                         all_supporting.append(cid)
                     else:
-                        orphaned.append({
-                            "level": level,
-                            "owner": owner_name,
-                            "objective": obj.get("title", obj.get("name", "Unknown")),
-                            "issue": f"References company objective '{cid}' which doesn't exist",
-                        })
+                        orphaned.append(
+                            {
+                                "level": level,
+                                "owner": owner_name,
+                                "objective": obj.get("title", obj.get("name", "Unknown")),
+                                "issue": f"References company objective '{cid}' which doesn't exist",
+                            }
+                        )
 
     for dept in okr_tree["departments"]:
         check_objectives(dept["objectives"], dept.get("name", "Unknown Dept"), "Department")
@@ -333,15 +340,18 @@ def analyze_alignment(okr_tree: dict) -> dict:
     for obj in okr_tree["company"].get("objectives", []):
         obj_id = obj.get("id")
         if obj_id and obj_id not in all_supporting:
-            unsupported.append({
-                "objective_id": obj_id,
-                "objective": obj.get("title", obj.get("name", "Unknown")),
-                "issue": "No department or team OKR explicitly supports this company objective",
-            })
+            unsupported.append(
+                {
+                    "objective_id": obj_id,
+                    "objective": obj.get("title", obj.get("name", "Unknown")),
+                    "issue": "No department or team OKR explicitly supports this company objective",
+                }
+            )
 
     coverage_score = (
         len(set(all_supporting)) / len(company_objective_ids) * 100
-        if company_objective_ids else 100
+        if company_objective_ids
+        else 100
     )
 
     return {
@@ -360,20 +370,22 @@ def collect_at_risk_krs(okr_tree: dict) -> list[dict]:
         for obj in objectives:
             for kr in obj.get("key_results_scored", []):
                 if kr["status"] in ("at_risk", "off_track"):
-                    at_risk.append({
-                        "level": level,
-                        "owner": owner,
-                        "objective": obj.get("title", obj.get("name", "Unknown")),
-                        "key_result": kr.get("title", kr.get("name", "Unknown")),
-                        "score": kr["score"],
-                        "score_pct": kr["score_pct"],
-                        "status": kr["status"],
-                        "status_label": kr["status_label"],
-                        "risk_level": kr["risk_level"],
-                        "risk_label": kr["risk_label"],
-                        "gap_vs_expected": kr["gap_vs_expected"],
-                        "notes": kr.get("notes", ""),
-                    })
+                    at_risk.append(
+                        {
+                            "level": level,
+                            "owner": owner,
+                            "objective": obj.get("title", obj.get("name", "Unknown")),
+                            "key_result": kr.get("title", kr.get("name", "Unknown")),
+                            "score": kr["score"],
+                            "score_pct": kr["score_pct"],
+                            "status": kr["status"],
+                            "status_label": kr["status_label"],
+                            "risk_level": kr["risk_level"],
+                            "risk_label": kr["risk_label"],
+                            "gap_vs_expected": kr["gap_vs_expected"],
+                            "notes": kr.get("notes", ""),
+                        }
+                    )
 
     scan_objectives(
         okr_tree["company"].get("objectives", []),
@@ -395,6 +407,7 @@ def collect_at_risk_krs(okr_tree: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Report Formatter
 # ---------------------------------------------------------------------------
+
 
 def _score_bar(score: float, width: int = 20) -> str:
     """Render a text progress bar for a 0.0–1.0 score."""
@@ -433,10 +446,14 @@ def format_report(
         off_track = sum(1 for o in company_objectives if o["status"] == "off_track")
 
         lines.append(f"Company OKR Score:    {_score_bar(company_avg)}")
-        lines.append(f"Objectives:           {len(company_objectives)} total — "
-                     f"🟢 {on_track} on track, 🟡 {at_risk} at risk, 🔴 {off_track} off track")
+        lines.append(
+            f"Objectives:           {len(company_objectives)} total — "
+            f"🟢 {on_track} on track, 🟡 {at_risk} at risk, 🔴 {off_track} off track"
+        )
         lines.append(f"At-risk KRs (all):    {len(at_risk_krs)}")
-        lines.append(f"Alignment coverage:   {alignment['coverage_score_pct']}% of company objectives have team support")
+        lines.append(
+            f"Alignment coverage:   {alignment['coverage_score_pct']}% of company objectives have team support"
+        )
 
         # Overall health assessment
         if company_avg >= 0.7:
@@ -455,12 +472,18 @@ def format_report(
 
     for obj in company_objectives:
         lines.append(f"\n  Objective: {obj.get('title', obj.get('name', 'Unknown'))}")
-        lines.append(f"  Owner: {obj.get('owner', 'Unassigned')}  |  Score: {_score_bar(obj['score'], 15)}  {obj['status_label']}")
+        lines.append(
+            f"  Owner: {obj.get('owner', 'Unassigned')}  |  Score: {_score_bar(obj['score'], 15)}  {obj['status_label']}"
+        )
 
         for kr in obj.get("key_results_scored", []):
-            risk_marker = f"  {kr['risk_label']}" if kr["risk_level"] in ("critical", "high") else ""
+            risk_marker = (
+                f"  {kr['risk_label']}" if kr["risk_level"] in ("critical", "high") else ""
+            )
             lines.append(f"\n    KR: {kr.get('title', kr.get('name', 'Unknown'))}")
-            lines.append(f"        Score: {_score_bar(kr['score'], 12)}  {kr['status_label']}{risk_marker}")
+            lines.append(
+                f"        Score: {_score_bar(kr['score'], 12)}  {kr['status_label']}{risk_marker}"
+            )
 
             # Show actual progress
             if kr.get("type") == "numeric":
@@ -468,9 +491,13 @@ def format_report(
                 target = kr.get("target_value", "?")
                 baseline = kr.get("baseline_value", 0)
                 unit = kr.get("unit", "")
-                lines.append(f"        Progress: {current}{unit} / {target}{unit}  (baseline: {baseline}{unit})")
+                lines.append(
+                    f"        Progress: {current}{unit} / {target}{unit}  (baseline: {baseline}{unit})"
+                )
             elif kr.get("type") == "percentage":
-                lines.append(f"        Progress: {kr.get('current_pct', '?')}% / {kr.get('target_pct', '?')}%")
+                lines.append(
+                    f"        Progress: {kr.get('current_pct', '?')}% / {kr.get('target_pct', '?')}%"
+                )
             elif kr.get("type") == "milestone":
                 hit = kr.get("milestones_hit", "?")
                 total = kr.get("milestones_total", "?")
@@ -484,7 +511,9 @@ def format_report(
     lines.append("-" * 40)
 
     for dept in okr_tree["departments"]:
-        lines.append(f"\n  📁 {dept.get('name', 'Unknown')}  |  Score: {_score_bar(dept['overall_score'], 15)}")
+        lines.append(
+            f"\n  📁 {dept.get('name', 'Unknown')}  |  Score: {_score_bar(dept['overall_score'], 15)}"
+        )
 
         for obj in dept.get("objectives", []):
             lines.append(f"\n     Objective: {obj.get('title', obj.get('name', 'Unknown'))}")
@@ -494,9 +523,13 @@ def format_report(
                 lines.append(f"     Supports: Company Objective(s) {', '.join(supports)}")
 
             for kr in obj.get("key_results_scored", []):
-                risk_marker = f"  {kr['risk_label']}" if kr["risk_level"] in ("critical", "high") else ""
+                risk_marker = (
+                    f"  {kr['risk_label']}" if kr["risk_level"] in ("critical", "high") else ""
+                )
                 lines.append(f"\n       KR: {kr.get('title', kr.get('name', 'Unknown'))}")
-                lines.append(f"           {_score_bar(kr['score'], 10)}  {kr['status_label']}{risk_marker}")
+                lines.append(
+                    f"           {_score_bar(kr['score'], 10)}  {kr['status_label']}{risk_marker}"
+                )
 
     # --- Team OKRs ---
     if okr_tree["teams"]:
@@ -504,7 +537,9 @@ def format_report(
         lines.append("-" * 40)
 
         for team in okr_tree["teams"]:
-            lines.append(f"\n  📋 {team.get('name', 'Unknown')}  |  Score: {_score_bar(team['overall_score'], 15)}")
+            lines.append(
+                f"\n  📋 {team.get('name', 'Unknown')}  |  Score: {_score_bar(team['overall_score'], 15)}"
+            )
 
             for obj in team.get("objectives", []):
                 lines.append(f"\n     Objective: {obj.get('title', obj.get('name', 'Unknown'))}")
@@ -513,7 +548,9 @@ def format_report(
                     lines.append(f"     Supports: {', '.join(supports)}")
 
                 for kr in obj.get("key_results_scored", []):
-                    risk_marker = f"  {kr['risk_label']}" if kr["risk_level"] in ("critical", "high") else ""
+                    risk_marker = (
+                        f"  {kr['risk_label']}" if kr["risk_level"] in ("critical", "high") else ""
+                    )
                     lines.append(
                         f"       • {kr.get('title', kr.get('name', 'Unknown'))}: "
                         f"{kr['score_pct']} {kr['status_label']}{risk_marker}"
@@ -530,7 +567,11 @@ def format_report(
         high = [kr for kr in at_risk_krs if kr["risk_level"] == "high"]
         medium = [kr for kr in at_risk_krs if kr["risk_level"] == "medium"]
 
-        for group_label, group in [("🔴 CRITICAL", critical), ("🟠 HIGH", high), ("🟡 MEDIUM", medium)]:
+        for group_label, group in [
+            ("🔴 CRITICAL", critical),
+            ("🟠 HIGH", high),
+            ("🟡 MEDIUM", medium),
+        ]:
             if not group:
                 continue
             lines.append(f"\n{group_label} ({len(group)} items):")
@@ -538,14 +579,18 @@ def format_report(
                 lines.append(f"\n  [{kr['level']}] {kr['owner']}")
                 lines.append(f"  Obj: {kr['objective']}")
                 lines.append(f"  KR:  {kr['key_result']}")
-                lines.append(f"  Score: {kr['score_pct']}  {kr['status_label']}  (gap vs expected: {kr['gap_vs_expected'] * 100:.0f}pp)")
+                lines.append(
+                    f"  Score: {kr['score_pct']}  {kr['status_label']}  (gap vs expected: {kr['gap_vs_expected'] * 100:.0f}pp)"
+                )
                 if kr["notes"]:
                     lines.append(f"  Note: {kr['notes']}")
 
     # --- Alignment Report ---
     lines.append("\n\n🔗 ALIGNMENT REPORT")
     lines.append("-" * 40)
-    lines.append(f"Alignment coverage: {alignment['coverage_score_pct']}% of company objectives have explicit support\n")
+    lines.append(
+        f"Alignment coverage: {alignment['coverage_score_pct']}% of company objectives have explicit support\n"
+    )
 
     # Show alignment map
     lines.append("Company Objective Coverage:")
@@ -560,16 +605,18 @@ def format_report(
             for s in supporters:
                 lines.append(f"       ↑ {s}")
         else:
-            lines.append(f"       ↑ (no department or team OKR supports this)")
+            lines.append("       ↑ (no department or team OKR supports this)")
 
     if alignment["unsupported_company_objectives"]:
-        lines.append(f"\n⚠️  Unsupported Company Objectives ({len(alignment['unsupported_company_objectives'])}):")
+        lines.append(
+            f"\n⚠️  Unsupported Company Objectives ({len(alignment['unsupported_company_objectives'])}):"
+        )
         for u in alignment["unsupported_company_objectives"]:
             lines.append(f"  • [{u['objective_id']}] {u['objective']}")
             lines.append(f"    → {u['issue']}")
 
     if alignment["orphaned_okrs"]:
-        lines.append(f"\n⚠️  Orphaned OKRs (not linked to company objectives):")
+        lines.append("\n⚠️  Orphaned OKRs (not linked to company objectives):")
         for o in alignment["orphaned_okrs"]:
             lines.append(f"  • [{o['level']}] {o['owner']}: {o['objective']}")
             lines.append(f"    → {o['issue']}")
@@ -603,63 +650,73 @@ def _generate_recommendations(
     # Critical KRs
     critical = [kr for kr in at_risk_krs if kr["risk_level"] == "critical"]
     if critical:
-        recs.append({
-            "title": f"Emergency review: {len(critical)} critical key result(s) need immediate intervention",
-            "detail": f"Critical KRs: {', '.join(kr['key_result'] for kr in critical[:3])}. "
-                      f"With limited time remaining, these need escalation today.",
-            "owner": "COO + KR owners",
-            "when": "This week",
-        })
+        recs.append(
+            {
+                "title": f"Emergency review: {len(critical)} critical key result(s) need immediate intervention",
+                "detail": f"Critical KRs: {', '.join(kr['key_result'] for kr in critical[:3])}. "
+                f"With limited time remaining, these need escalation today.",
+                "owner": "COO + KR owners",
+                "when": "This week",
+            }
+        )
 
     # Off-track objectives
     off_track_objs = [
-        o for o in okr_tree["company"].get("objectives", [])
-        if o["status"] == "off_track"
+        o for o in okr_tree["company"].get("objectives", []) if o["status"] == "off_track"
     ]
     if off_track_objs:
-        recs.append({
-            "title": f"Scope reset for {len(off_track_objs)} off-track company objective(s)",
-            "detail": "When a company objective is off track by mid-quarter, "
-                      "the options are: (1) resource surge, (2) scope reduction, or (3) accept the miss. "
-                      "Choose explicitly — don't let it drift.",
-            "owner": "CEO + COO",
-            "when": "Within 1 week",
-        })
+        recs.append(
+            {
+                "title": f"Scope reset for {len(off_track_objs)} off-track company objective(s)",
+                "detail": "When a company objective is off track by mid-quarter, "
+                "the options are: (1) resource surge, (2) scope reduction, or (3) accept the miss. "
+                "Choose explicitly — don't let it drift.",
+                "owner": "CEO + COO",
+                "when": "Within 1 week",
+            }
+        )
 
     # Alignment gaps
     if alignment["coverage_score_pct"] < 80:
-        recs.append({
-            "title": "OKR alignment gap — not all company objectives have team support",
-            "detail": f"Only {alignment['coverage_score_pct']}% of company objectives have explicit team/dept OKRs supporting them. "
-                      "Either add supporting OKRs or acknowledge these objectives are founder-owned.",
-            "owner": "COO + VPs",
-            "when": "Next OKR planning cycle",
-        })
+        recs.append(
+            {
+                "title": "OKR alignment gap — not all company objectives have team support",
+                "detail": f"Only {alignment['coverage_score_pct']}% of company objectives have explicit team/dept OKRs supporting them. "
+                "Either add supporting OKRs or acknowledge these objectives are founder-owned.",
+                "owner": "COO + VPs",
+                "when": "Next OKR planning cycle",
+            }
+        )
 
     if alignment["orphaned_okrs"]:
-        recs.append({
-            "title": f"{len(alignment['orphaned_okrs'])} orphaned OKR(s) with no company objective linkage",
-            "detail": "Team OKRs that don't connect to company objectives waste capacity. "
-                      "Either link them explicitly or discontinue them.",
-            "owner": "Team leads + COO",
-            "when": "OKR review session",
-        })
+        recs.append(
+            {
+                "title": f"{len(alignment['orphaned_okrs'])} orphaned OKR(s) with no company objective linkage",
+                "detail": "Team OKRs that don't connect to company objectives waste capacity. "
+                "Either link them explicitly or discontinue them.",
+                "owner": "Team leads + COO",
+                "when": "OKR review session",
+            }
+        )
 
     # Late quarter: force ranking
     if quarter_progress >= 0.67:
         at_risk_count = sum(
-            1 for o in okr_tree["company"].get("objectives", [])
+            1
+            for o in okr_tree["company"].get("objectives", [])
             if o["status"] in ("at_risk", "off_track")
         )
         if at_risk_count > 0:
-            recs.append({
-                "title": f"Late quarter: force-rank which at-risk OKRs to save vs. accept as miss",
-                "detail": f"{at_risk_count} objectives at risk with <{int((1 - quarter_progress) * 13)} weeks left. "
-                           "You cannot save everything. Pick the 1–2 most important and resource them fully. "
-                           "Explicitly accept the others as misses and learn from them.",
-                "owner": "CEO + COO",
-                "when": "Immediately",
-            })
+            recs.append(
+                {
+                    "title": "Late quarter: force-rank which at-risk OKRs to save vs. accept as miss",
+                    "detail": f"{at_risk_count} objectives at risk with <{int((1 - quarter_progress) * 13)} weeks left. "
+                    "You cannot save everything. Pick the 1–2 most important and resource them fully. "
+                    "Explicitly accept the others as misses and learn from them.",
+                    "owner": "CEO + COO",
+                    "when": "Immediately",
+                }
+            )
 
     # Measurement gaps
     unscored_krs = []
@@ -669,13 +726,15 @@ def _generate_recommendations(
                 unscored_krs.append(kr.get("title", kr.get("name", "Unknown")))
 
     if unscored_krs:
-        recs.append({
-            "title": f"{len(unscored_krs)} key result(s) show no progress past Q1",
-            "detail": "KRs with zero progress after 25% of quarter has elapsed are either not started, "
-                      "unmeasured, or forgotten. Require owners to update scores this week.",
-            "owner": "KR owners",
-            "when": "This week — before next leadership sync",
-        })
+        recs.append(
+            {
+                "title": f"{len(unscored_krs)} key result(s) show no progress past Q1",
+                "detail": "KRs with zero progress after 25% of quarter has elapsed are either not started, "
+                "unmeasured, or forgotten. Require owners to update scores this week.",
+                "owner": "KR owners",
+                "when": "This week — before next leadership sync",
+            }
+        )
 
     return recs
 
@@ -705,6 +764,7 @@ def format_json_output(okr_tree: dict, alignment: dict, at_risk_krs: list[dict])
 # Main Entrypoint
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="OKR Cascade and Alignment Tracker — COO Advisor Tool",
@@ -712,9 +772,12 @@ def main():
         epilog=__doc__,
     )
     parser.add_argument("--input", "-i", help="Path to JSON OKR data file", default=None)
-    parser.add_argument("--output", "-o", help="Path to write report (default: stdout)", default=None)
     parser.add_argument(
-        "--format", "-f",
+        "--output", "-o", help="Path to write report (default: stdout)", default=None
+    )
+    parser.add_argument(
+        "--format",
+        "-f",
         choices=["text", "json"],
         default="text",
         help="Output format: text (default) or json",
@@ -729,7 +792,7 @@ def main():
 
     if args.input:
         try:
-            with open(args.input, "r") as f:
+            with open(args.input) as f:
                 data = json.load(f)
         except FileNotFoundError:
             print(f"Error: Input file not found: {args.input}", file=sys.stderr)

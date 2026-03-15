@@ -7,7 +7,6 @@ import subprocess
 import sys
 from collections import defaultdict
 
-
 SECTIONS = {
     "feat": "Features",
     "fix": "Fixes",
@@ -38,21 +37,32 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate changelog from git commits or piped input.",
         epilog="Examples:\n"
-               "  %(prog)s --from v1.0.0 --to HEAD\n"
-               "  git log --pretty=format:%%s v1.0..HEAD | %(prog)s --stdin\n"
-               "  %(prog)s --demo\n",
+        "  %(prog)s --from v1.0.0 --to HEAD\n"
+        "  git log --pretty=format:%%s v1.0..HEAD | %(prog)s --stdin\n"
+        "  %(prog)s --demo\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--from", dest="from_ref", default="HEAD~50",
-                        help="Start ref for git log (default: HEAD~50)")
-    parser.add_argument("--to", dest="to_ref", default="HEAD",
-                        help="End ref for git log (default: HEAD)")
-    parser.add_argument("--format", choices=["markdown", "text"], default="markdown",
-                        help="Output format (default: markdown)")
-    parser.add_argument("--stdin", action="store_true",
-                        help="Read commit subjects from stdin instead of git log")
-    parser.add_argument("--demo", action="store_true",
-                        help="Run with sample data (no git required)")
+    parser.add_argument(
+        "--from",
+        dest="from_ref",
+        default="HEAD~50",
+        help="Start ref for git log (default: HEAD~50)",
+    )
+    parser.add_argument(
+        "--to", dest="to_ref", default="HEAD", help="End ref for git log (default: HEAD)"
+    )
+    parser.add_argument(
+        "--format",
+        choices=["markdown", "text"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    parser.add_argument(
+        "--stdin", action="store_true", help="Read commit subjects from stdin instead of git log"
+    )
+    parser.add_argument(
+        "--demo", action="store_true", help="Run with sample data (no git required)"
+    )
     return parser.parse_args()
 
 

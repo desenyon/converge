@@ -22,34 +22,33 @@ Outputs:
 """
 
 from __future__ import annotations
-import math
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
+from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ChannelSource:
     name: str
-    pct_of_new_mrr: float      # Current share of new MRR (0.0–1.0)
+    pct_of_new_mrr: float  # Current share of new MRR (0.0–1.0)
     monthly_growth_rate: float  # How fast this channel grows month-over-month
-    cac: float                  # CAC in dollars
-    payback_months: float       # Months to recover CAC
+    cac: float  # CAC in dollars
+    payback_months: float  # Months to recover CAC
 
 
 @dataclass
 class GrowthModel:
     name: str
     description: str
-    channel_mix: Dict[str, float]  # channel name → % of new MRR
-    new_mrr_monthly_base: float    # Starting new MRR/month from this model
-    monthly_acceleration: float    # Acceleration factor (compounding)
-    avg_ltv_cac: float             # Expected LTV:CAC at scale
-    months_to_steady_state: int    # Months before model hits its natural growth rate
-    notes: List[str] = field(default_factory=list)
+    channel_mix: dict[str, float]  # channel name → % of new MRR
+    new_mrr_monthly_base: float  # Starting new MRR/month from this model
+    monthly_acceleration: float  # Acceleration factor (compounding)
+    avg_ltv_cac: float  # Expected LTV:CAC at scale
+    months_to_steady_state: int  # Months before model hits its natural growth rate
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -66,37 +65,59 @@ class MonthSnapshot:
 @dataclass
 class ModelProjection:
     model: GrowthModel
-    snapshots: List[MonthSnapshot]
-    break_even_month: Optional[int]  # Month when cumulative revenue > cumulative CAC
+    snapshots: list[MonthSnapshot]
+    break_even_month: int | None  # Month when cumulative revenue > cumulative CAC
 
 
 # ---------------------------------------------------------------------------
 # INPUTS — edit these
 # ---------------------------------------------------------------------------
 
-STARTING_MRR = 85_000         # Current MRR ($)
-MONTHLY_CHURN_RATE = 0.012    # Monthly churn rate (1.2% = ~14% annual)
-EXPANSION_RATE = 0.008        # Monthly expansion MRR as % of existing MRR
+STARTING_MRR = 85_000  # Current MRR ($)
+MONTHLY_CHURN_RATE = 0.012  # Monthly churn rate (1.2% = ~14% annual)
+EXPANSION_RATE = 0.008  # Monthly expansion MRR as % of existing MRR
 GROSS_MARGIN = 0.75
 SIMULATION_MONTHS = 18
 
 # Channel sources (used to model mix shift scenarios)
-CHANNELS: List[ChannelSource] = [
-    ChannelSource("Organic/SEO",      pct_of_new_mrr=0.28, monthly_growth_rate=0.04, cac=1_800,  payback_months=9),
-    ChannelSource("PLG Self-Serve",   pct_of_new_mrr=0.15, monthly_growth_rate=0.08, cac=900,   payback_months=5),
-    ChannelSource("Outbound SDR",     pct_of_new_mrr=0.25, monthly_growth_rate=0.02, cac=5_100,  payback_months=21),
-    ChannelSource("Paid Search",      pct_of_new_mrr=0.15, monthly_growth_rate=0.01, cac=6_200,  payback_months=26),
-    ChannelSource("Events/Field",     pct_of_new_mrr=0.08, monthly_growth_rate=0.01, cac=9_800,  payback_months=41),
-    ChannelSource("Partner/Channel",  pct_of_new_mrr=0.09, monthly_growth_rate=0.05, cac=3_400,  payback_months=14),
+CHANNELS: list[ChannelSource] = [
+    ChannelSource(
+        "Organic/SEO", pct_of_new_mrr=0.28, monthly_growth_rate=0.04, cac=1_800, payback_months=9
+    ),
+    ChannelSource(
+        "PLG Self-Serve", pct_of_new_mrr=0.15, monthly_growth_rate=0.08, cac=900, payback_months=5
+    ),
+    ChannelSource(
+        "Outbound SDR", pct_of_new_mrr=0.25, monthly_growth_rate=0.02, cac=5_100, payback_months=21
+    ),
+    ChannelSource(
+        "Paid Search", pct_of_new_mrr=0.15, monthly_growth_rate=0.01, cac=6_200, payback_months=26
+    ),
+    ChannelSource(
+        "Events/Field", pct_of_new_mrr=0.08, monthly_growth_rate=0.01, cac=9_800, payback_months=41
+    ),
+    ChannelSource(
+        "Partner/Channel",
+        pct_of_new_mrr=0.09,
+        monthly_growth_rate=0.05,
+        cac=3_400,
+        payback_months=14,
+    ),
 ]
 
 # Growth models to simulate
-GROWTH_MODELS: List[GrowthModel] = [
+GROWTH_MODELS: list[GrowthModel] = [
     GrowthModel(
         name="Current Mix",
         description="Baseline — maintain current channel allocation",
-        channel_mix={"Organic/SEO": 0.28, "PLG Self-Serve": 0.15, "Outbound SDR": 0.25,
-                     "Paid Search": 0.15, "Events/Field": 0.08, "Partner/Channel": 0.09},
+        channel_mix={
+            "Organic/SEO": 0.28,
+            "PLG Self-Serve": 0.15,
+            "Outbound SDR": 0.25,
+            "Paid Search": 0.15,
+            "Events/Field": 0.08,
+            "Partner/Channel": 0.09,
+        },
         new_mrr_monthly_base=12_000,
         monthly_acceleration=0.025,
         avg_ltv_cac=3.2,
@@ -106,12 +127,18 @@ GROWTH_MODELS: List[GrowthModel] = [
     GrowthModel(
         name="PLG-First",
         description="Shift budget toward PLG self-serve and organic; reduce paid and outbound",
-        channel_mix={"Organic/SEO": 0.35, "PLG Self-Serve": 0.35, "Outbound SDR": 0.10,
-                     "Paid Search": 0.08, "Events/Field": 0.04, "Partner/Channel": 0.08},
-        new_mrr_monthly_base=9_500,   # Slower start — PLG takes time to activate
-        monthly_acceleration=0.048,   # But compounds faster
+        channel_mix={
+            "Organic/SEO": 0.35,
+            "PLG Self-Serve": 0.35,
+            "Outbound SDR": 0.10,
+            "Paid Search": 0.08,
+            "Events/Field": 0.04,
+            "Partner/Channel": 0.08,
+        },
+        new_mrr_monthly_base=9_500,  # Slower start — PLG takes time to activate
+        monthly_acceleration=0.048,  # But compounds faster
         avg_ltv_cac=5.8,
-        months_to_steady_state=6,     # PLG loops take time to build
+        months_to_steady_state=6,  # PLG loops take time to build
         notes=[
             "Lower new MRR in months 1-6 while PLG loops activate.",
             "Acceleration compounds strongly after month 6.",
@@ -122,10 +149,16 @@ GROWTH_MODELS: List[GrowthModel] = [
     GrowthModel(
         name="Sales-Led Scale",
         description="Double down on outbound SDR and field; optimize for enterprise ACV",
-        channel_mix={"Organic/SEO": 0.20, "PLG Self-Serve": 0.05, "Outbound SDR": 0.40,
-                     "Paid Search": 0.15, "Events/Field": 0.15, "Partner/Channel": 0.05},
+        channel_mix={
+            "Organic/SEO": 0.20,
+            "PLG Self-Serve": 0.05,
+            "Outbound SDR": 0.40,
+            "Paid Search": 0.15,
+            "Events/Field": 0.15,
+            "Partner/Channel": 0.05,
+        },
         new_mrr_monthly_base=15_000,  # Higher new MRR from enterprise ACV
-        monthly_acceleration=0.018,   # Linear growth — headcount-constrained
+        monthly_acceleration=0.018,  # Linear growth — headcount-constrained
         avg_ltv_cac=2.8,
         months_to_steady_state=2,
         notes=[
@@ -138,12 +171,18 @@ GROWTH_MODELS: List[GrowthModel] = [
     GrowthModel(
         name="Community-Led",
         description="Invest in community and content; reduce paid; long-term brand play",
-        channel_mix={"Organic/SEO": 0.45, "PLG Self-Serve": 0.15, "Outbound SDR": 0.15,
-                     "Paid Search": 0.05, "Events/Field": 0.10, "Partner/Channel": 0.10},
-        new_mrr_monthly_base=7_000,   # Slowest start
+        channel_mix={
+            "Organic/SEO": 0.45,
+            "PLG Self-Serve": 0.15,
+            "Outbound SDR": 0.15,
+            "Paid Search": 0.05,
+            "Events/Field": 0.10,
+            "Partner/Channel": 0.10,
+        },
+        new_mrr_monthly_base=7_000,  # Slowest start
         monthly_acceleration=0.038,
         avg_ltv_cac=4.5,
-        months_to_steady_state=9,     # Community takes longest to activate
+        months_to_steady_state=9,  # Community takes longest to activate
         notes=[
             "Lowest new MRR in months 1-9.",
             "Community trust drives lower CAC and higher retention at scale.",
@@ -154,8 +193,14 @@ GROWTH_MODELS: List[GrowthModel] = [
     GrowthModel(
         name="Hybrid PLS",
         description="PLG self-serve for SMB + sales-assisted for enterprise (Product-Led Sales)",
-        channel_mix={"Organic/SEO": 0.30, "PLG Self-Serve": 0.28, "Outbound SDR": 0.22,
-                     "Paid Search": 0.08, "Events/Field": 0.06, "Partner/Channel": 0.06},
+        channel_mix={
+            "Organic/SEO": 0.30,
+            "PLG Self-Serve": 0.28,
+            "Outbound SDR": 0.22,
+            "Paid Search": 0.08,
+            "Events/Field": 0.06,
+            "Partner/Channel": 0.06,
+        },
         new_mrr_monthly_base=11_000,
         monthly_acceleration=0.035,
         avg_ltv_cac=4.1,
@@ -173,8 +218,9 @@ GROWTH_MODELS: List[GrowthModel] = [
 # Simulation engine
 # ---------------------------------------------------------------------------
 
+
 def simulate_model(model: GrowthModel, months: int) -> ModelProjection:
-    snapshots: List[MonthSnapshot] = []
+    snapshots: list[MonthSnapshot] = []
     mrr = STARTING_MRR
     cumulative_cac = 0.0
     cumulative_revenue = 0.0
@@ -208,15 +254,17 @@ def simulate_model(model: GrowthModel, months: int) -> ModelProjection:
         if break_even_month is None and cumulative_revenue >= cumulative_cac:
             break_even_month = m
 
-        snapshots.append(MonthSnapshot(
-            month=m,
-            mrr=mrr,
-            new_mrr=new_mrr,
-            churned_mrr=churned_mrr,
-            expansion_mrr=expansion_mrr,
-            net_new_mrr=net_new_mrr,
-            cumulative_cac_spend=cumulative_cac,
-        ))
+        snapshots.append(
+            MonthSnapshot(
+                month=m,
+                mrr=mrr,
+                new_mrr=new_mrr,
+                churned_mrr=churned_mrr,
+                expansion_mrr=expansion_mrr,
+                net_new_mrr=net_new_mrr,
+                cumulative_cac_spend=cumulative_cac,
+            )
+        )
 
     return ModelProjection(
         model=model,
@@ -225,12 +273,9 @@ def simulate_model(model: GrowthModel, months: int) -> ModelProjection:
     )
 
 
-def _weighted_cac(channel_mix: Dict[str, float]) -> float:
+def _weighted_cac(channel_mix: dict[str, float]) -> float:
     channel_cac = {ch.name: ch.cac for ch in CHANNELS}
-    total = sum(
-        channel_mix.get(name, 0) * cac
-        for name, cac in channel_cac.items()
-    )
+    total = sum(channel_mix.get(name, 0) * cac for name, cac in channel_cac.items())
     weight_sum = sum(channel_mix.values())
     return total / weight_sum if weight_sum > 0 else 5_000
 
@@ -239,17 +284,18 @@ def _weighted_cac(channel_mix: Dict[str, float]) -> float:
 # Reporting
 # ---------------------------------------------------------------------------
 
+
 def fmt_mrr(n: float) -> str:
     if n >= 1_000_000:
-        return f"${n/1_000_000:.3f}M"
-    return f"${n/1_000:.1f}K"
+        return f"${n / 1_000_000:.3f}M"
+    return f"${n / 1_000:.1f}K"
 
 
 def fmt_currency(n: float) -> str:
     if n >= 1_000_000:
-        return f"${n/1_000_000:.2f}M"
+        return f"${n / 1_000_000:.2f}M"
     if n >= 1_000:
-        return f"${n/1_000:.1f}K"
+        return f"${n / 1_000:.1f}K"
     return f"${n:.0f}"
 
 
@@ -262,7 +308,9 @@ def print_header(title: str) -> None:
 
 def print_channel_overview() -> None:
     print_header("Current Channel Mix")
-    print(f"  Starting MRR: {fmt_mrr(STARTING_MRR)}  |  Monthly churn: {MONTHLY_CHURN_RATE:.1%}  |  Expansion: {EXPANSION_RATE:.1%}/mo")
+    print(
+        f"  Starting MRR: {fmt_mrr(STARTING_MRR)}  |  Monthly churn: {MONTHLY_CHURN_RATE:.1%}  |  Expansion: {EXPANSION_RATE:.1%}/mo"
+    )
     print()
     print(f"  {'Channel':<22} {'% MRR':>7} {'CAC':>8} {'Payback':>9} {'Growth/mo':>10}")
     print("  " + "-" * 60)
@@ -312,7 +360,7 @@ def print_model_detail(proj: ModelProjection) -> None:
     print(f"  CAC break-even:        {be}")
 
 
-def print_comparison_table(projections: List[ModelProjection]) -> None:
+def print_comparison_table(projections: list[ModelProjection]) -> None:
     print_header(f"Growth Model Comparison — Month {SIMULATION_MONTHS} Outcomes")
     header = (
         f"  {'Model':<20} {'MRR (final)':>12} {'ARR (final)':>12} "
@@ -332,7 +380,7 @@ def print_comparison_table(projections: List[ModelProjection]) -> None:
         )
 
 
-def print_channel_mix_impact(projections: List[ModelProjection]) -> None:
+def print_channel_mix_impact(projections: list[ModelProjection]) -> None:
     print_header("Channel Mix Impact Analysis")
     print("  How shifting channel mix changes growth trajectory:\n")
     baseline = next((p for p in projections if p.model.name == "Current Mix"), None)
@@ -354,22 +402,28 @@ def print_channel_mix_impact(projections: List[ModelProjection]) -> None:
         m6_arrow = "↑" if m6_delta > 0 else "↓"
 
         print(f"  {proj.model.name}:")
-        print(f"    Month 6:  {m6_arrow} {abs(m6_pct):.1f}%  vs. current  ({fmt_mrr(m6_delta)} {'more' if m6_delta > 0 else 'less'} MRR)")
-        print(f"    Month {SIMULATION_MONTHS}: {arrow} {abs(delta_pct):.1f}%  vs. current  ({fmt_mrr(delta)} {'more' if delta > 0 else 'less'} MRR)")
+        print(
+            f"    Month 6:  {m6_arrow} {abs(m6_pct):.1f}%  vs. current  ({fmt_mrr(m6_delta)} {'more' if m6_delta > 0 else 'less'} MRR)"
+        )
+        print(
+            f"    Month {SIMULATION_MONTHS}: {arrow} {abs(delta_pct):.1f}%  vs. current  ({fmt_mrr(delta)} {'more' if delta > 0 else 'less'} MRR)"
+        )
         if proj.model.months_to_steady_state > 4:
-            print(f"    ⚠ Model takes {proj.model.months_to_steady_state} months to reach steady state — short-term dip expected.")
+            print(
+                f"    ⚠ Model takes {proj.model.months_to_steady_state} months to reach steady state — short-term dip expected."
+            )
         print()
 
 
-def print_decision_guide(projections: List[ModelProjection]) -> None:
+def print_decision_guide(projections: list[ModelProjection]) -> None:
     print_header("Decision Guide")
     print("  Choose your growth model based on your constraints:\n")
     guides = [
-        ("ACV < $5K and fast time-to-value",         "PLG-First"),
-        ("ACV > $25K and complex buying process",     "Sales-Led Scale"),
-        ("Strong practitioner community exists",      "Community-Led"),
+        ("ACV < $5K and fast time-to-value", "PLG-First"),
+        ("ACV > $25K and complex buying process", "Sales-Led Scale"),
+        ("Strong practitioner community exists", "Community-Led"),
         ("Both SMB self-serve and enterprise buyers", "Hybrid PLS"),
-        ("Uncertain — keep optionality",              "Current Mix"),
+        ("Uncertain — keep optionality", "Current Mix"),
     ]
     for condition, model_name in guides:
         proj = next((p for p in projections if p.model.name == model_name), None)
@@ -389,6 +443,7 @@ def print_decision_guide(projections: List[ModelProjection]) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     print_channel_overview()
 
@@ -405,7 +460,9 @@ def main() -> None:
     print("  Notes:")
     print(f"    Starting MRR:   {fmt_mrr(STARTING_MRR)}")
     print(f"    Simulation:     {SIMULATION_MONTHS} months")
-    print(f"    Churn:          {MONTHLY_CHURN_RATE:.1%}/mo ({MONTHLY_CHURN_RATE*12:.0%} annualized)")
+    print(
+        f"    Churn:          {MONTHLY_CHURN_RATE:.1%}/mo ({MONTHLY_CHURN_RATE * 12:.0%} annualized)"
+    )
     print(f"    Expansion:      {EXPANSION_RATE:.1%}/mo of existing MRR")
     print(f"    Gross margin:   {GROSS_MARGIN:.0%}")
     print("    Acceleration rates are estimates — validate against your actuals.")

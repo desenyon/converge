@@ -17,7 +17,6 @@ import json
 import os
 import sys
 from datetime import datetime, timedelta
-from pathlib import Path
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".growth-data")
 
@@ -28,8 +27,14 @@ def get_data_file(handle: str) -> str:
     return os.path.join(DATA_DIR, f"{clean}.jsonl")
 
 
-def record_snapshot(handle: str, followers: int, following: int = 0,
-                    eng_rate: float = 0, posts_week: float = 0, notes: str = ""):
+def record_snapshot(
+    handle: str,
+    followers: int,
+    following: int = 0,
+    eng_rate: float = 0,
+    posts_week: float = 0,
+    notes: str = "",
+):
     entry = {
         "timestamp": datetime.now().isoformat(),
         "handle": handle,
@@ -89,8 +94,9 @@ def generate_report(handle: str, entries: list) -> dict:
         last = entries[-1]
 
         follower_change = last["followers"] - first["followers"]
-        days_span = (datetime.fromisoformat(last["timestamp"]) -
-                     datetime.fromisoformat(first["timestamp"])).days
+        days_span = (
+            datetime.fromisoformat(last["timestamp"]) - datetime.fromisoformat(first["timestamp"])
+        ).days
         days_span = max(days_span, 1)
 
         report["follower_change"] = follower_change
@@ -109,7 +115,9 @@ def generate_report(handle: str, entries: list) -> dict:
             mid = len(eng_rates) // 2
             first_half_avg = sum(eng_rates[:mid]) / mid
             second_half_avg = sum(eng_rates[mid:]) / (len(eng_rates) - mid)
-            report["engagement_trend"] = "improving" if second_half_avg > first_half_avg else "declining"
+            report["engagement_trend"] = (
+                "improving" if second_half_avg > first_half_avg else "declining"
+            )
             report["avg_engagement_rate"] = round(sum(eng_rates) / len(eng_rates), 2)
 
     return report
@@ -125,15 +133,20 @@ def project_milestone(handle: str, entries: list, target: int) -> dict:
 
     first = entries[0]
     last = entries[-1]
-    days_span = (datetime.fromisoformat(last["timestamp"]) -
-                 datetime.fromisoformat(first["timestamp"])).days
+    days_span = (
+        datetime.fromisoformat(last["timestamp"]) - datetime.fromisoformat(first["timestamp"])
+    ).days
     days_span = max(days_span, 1)
 
     daily_growth = (last["followers"] - first["followers"]) / days_span
 
     if daily_growth <= 0:
-        return {"handle": handle, "target": target, "status": "Not growing — can't project",
-                "daily_growth": round(daily_growth, 1)}
+        return {
+            "handle": handle,
+            "target": target,
+            "status": "Not growing — can't project",
+            "daily_growth": round(daily_growth, 1),
+        }
 
     remaining = target - current
     days_needed = remaining / daily_growth
@@ -151,13 +164,15 @@ def project_milestone(handle: str, entries: list, target: int) -> dict:
 
 
 def print_report(report: dict):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  GROWTH REPORT — {report['handle']}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if "error" in report:
         print(f"\n  ⚠️  {report['error']}")
-        print(f"  Record data first: python3 growth_tracker.py --record --handle {report['handle']} --followers N")
+        print(
+            f"  Record data first: python3 growth_tracker.py --record --handle {report['handle']} --followers N"
+        )
         print()
         return
 
@@ -166,8 +181,16 @@ def print_report(report: dict):
     print(f"  Tracking since:      {report['first_record'][:10]}")
 
     if "follower_change" in report:
-        change_icon = "📈" if report["follower_change"] > 0 else "📉" if report["follower_change"] < 0 else "➡️"
-        print(f"\n  {change_icon} Change:  {report['follower_change']:+,} followers over {report['days_tracked']} days")
+        change_icon = (
+            "📈"
+            if report["follower_change"] > 0
+            else "📉"
+            if report["follower_change"] < 0
+            else "➡️"
+        )
+        print(
+            f"\n  {change_icon} Change:  {report['follower_change']:+,} followers over {report['days_tracked']} days"
+        )
         print(f"  Daily avg:           {report.get('daily_growth', 0):+.1f}/day")
         print(f"  Weekly avg:          {report.get('weekly_growth', 0):+.1f}/week")
         print(f"  30-day projection:   {report.get('monthly_projection', 0):+,}")
@@ -177,19 +200,24 @@ def print_report(report: dict):
 
         if "engagement_trend" in report:
             trend_icon = "📈" if report["engagement_trend"] == "improving" else "📉"
-            print(f"  Engagement:          {trend_icon} {report['engagement_trend']} (avg {report['avg_engagement_rate']}%)")
+            print(
+                f"  Engagement:          {trend_icon} {report['engagement_trend']} (avg {report['avg_engagement_rate']}%)"
+            )
 
-    print(f"\n{'='*60}\n")
+    print(f"\n{'=' * 60}\n")
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Track X/Twitter account growth over time",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     parser.add_argument("--record", action="store_true", help="Record a new snapshot")
     parser.add_argument("--report", action="store_true", help="Generate growth report")
-    parser.add_argument("--milestone", action="store_true", help="Project when target will be reached")
+    parser.add_argument(
+        "--milestone", action="store_true", help="Project when target will be reached"
+    )
 
     parser.add_argument("--handle", required=True, help="X handle")
     parser.add_argument("--followers", type=int, default=0, help="Current follower count")
@@ -210,8 +238,9 @@ def main():
         if args.followers <= 0:
             print("Error: --followers required for recording", file=sys.stderr)
             sys.exit(1)
-        entry = record_snapshot(args.handle, args.followers, args.following,
-                                args.eng_rate, args.posts_week, args.notes)
+        entry = record_snapshot(
+            args.handle, args.followers, args.following, args.eng_rate, args.posts_week, args.notes
+        )
         if args.json:
             print(json.dumps(entry, indent=2))
         else:

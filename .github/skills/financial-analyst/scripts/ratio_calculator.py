@@ -14,7 +14,7 @@ Usage:
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> float:
@@ -28,7 +28,7 @@ class FinancialRatioCalculator:
     """Calculate and interpret financial ratios from statement data."""
 
     # Industry benchmark ranges: (low, typical, high)
-    BENCHMARKS: Dict[str, Tuple[float, float, float]] = {
+    BENCHMARKS: dict[str, tuple[float, float, float]] = {
         "roe": (0.08, 0.15, 0.25),
         "roa": (0.03, 0.06, 0.12),
         "gross_margin": (0.25, 0.40, 0.60),
@@ -51,15 +51,15 @@ class FinancialRatioCalculator:
         "peg_ratio": (0.5, 1.0, 2.0),
     }
 
-    def __init__(self, data: Dict[str, Any]) -> None:
+    def __init__(self, data: dict[str, Any]) -> None:
         """Initialize with financial statement data."""
         self.income = data.get("income_statement", {})
         self.balance = data.get("balance_sheet", {})
         self.cash_flow = data.get("cash_flow", {})
         self.market = data.get("market_data", {})
-        self.results: Dict[str, Dict[str, Any]] = {}
+        self.results: dict[str, dict[str, Any]] = {}
 
-    def calculate_profitability(self) -> Dict[str, Any]:
+    def calculate_profitability(self) -> dict[str, Any]:
         """Calculate profitability ratios."""
         revenue = self.income.get("revenue", 0)
         cogs = self.income.get("cost_of_goods_sold", 0)
@@ -104,7 +104,7 @@ class FinancialRatioCalculator:
         self.results["profitability"] = ratios
         return ratios
 
-    def calculate_liquidity(self) -> Dict[str, Any]:
+    def calculate_liquidity(self) -> dict[str, Any]:
         """Calculate liquidity ratios."""
         current_assets = self.balance.get("current_assets", 0)
         current_liabilities = self.balance.get("current_liabilities", 0)
@@ -118,9 +118,7 @@ class FinancialRatioCalculator:
                 "name": "Current Ratio",
             },
             "quick_ratio": {
-                "value": safe_divide(
-                    current_assets - inventory, current_liabilities
-                ),
+                "value": safe_divide(current_assets - inventory, current_liabilities),
                 "formula": "(Current Assets - Inventory) / Current Liabilities",
                 "name": "Quick Ratio",
             },
@@ -137,16 +135,14 @@ class FinancialRatioCalculator:
         self.results["liquidity"] = ratios
         return ratios
 
-    def calculate_leverage(self) -> Dict[str, Any]:
+    def calculate_leverage(self) -> dict[str, Any]:
         """Calculate leverage ratios."""
         total_debt = self.balance.get("total_debt", 0)
         total_equity = self.balance.get("total_equity", 0)
         operating_income = self.income.get("operating_income", 0)
         interest_expense = self.income.get("interest_expense", 0)
         operating_cash_flow = self.cash_flow.get("operating_cash_flow", 0)
-        total_debt_service = self.cash_flow.get(
-            "total_debt_service", interest_expense
-        )
+        total_debt_service = self.cash_flow.get("total_debt_service", interest_expense)
 
         ratios = {
             "debt_to_equity": {
@@ -172,7 +168,7 @@ class FinancialRatioCalculator:
         self.results["leverage"] = ratios
         return ratios
 
-    def calculate_efficiency(self) -> Dict[str, Any]:
+    def calculate_efficiency(self) -> dict[str, Any]:
         """Calculate efficiency ratios."""
         revenue = self.income.get("revenue", 0)
         cogs = self.income.get("cost_of_goods_sold", 0)
@@ -213,7 +209,7 @@ class FinancialRatioCalculator:
         self.results["efficiency"] = ratios
         return ratios
 
-    def calculate_valuation(self) -> Dict[str, Any]:
+    def calculate_valuation(self) -> dict[str, Any]:
         """Calculate valuation ratios (requires market data)."""
         market_cap = self.market.get("market_cap", 0)
         share_price = self.market.get("share_price", 0)
@@ -247,9 +243,7 @@ class FinancialRatioCalculator:
                 "name": "Price-to-Book Ratio",
             },
             "ps_ratio": {
-                "value": safe_divide(
-                    market_cap, revenue
-                ),
+                "value": safe_divide(market_cap, revenue),
                 "formula": "Market Cap / Revenue",
                 "name": "Price-to-Sales Ratio",
             },
@@ -273,7 +267,7 @@ class FinancialRatioCalculator:
         self.results["valuation"] = ratios
         return ratios
 
-    def calculate_all(self) -> Dict[str, Dict[str, Any]]:
+    def calculate_all(self) -> dict[str, dict[str, Any]]:
         """Calculate all ratio categories."""
         self.calculate_profitability()
         self.calculate_liquidity()
@@ -332,9 +326,9 @@ class FinancialRatioCalculator:
             return f"{value * 100:.1f}%"
         return f"{value:.2f}"
 
-    def format_text(self, category: Optional[str] = None) -> str:
+    def format_text(self, category: str | None = None) -> str:
         """Format results as human-readable text."""
-        lines: List[str] = []
+        lines: list[str] = []
         lines.append("=" * 70)
         lines.append("FINANCIAL RATIO ANALYSIS")
         lines.append("=" * 70)
@@ -345,9 +339,7 @@ class FinancialRatioCalculator:
             else self.results
         )
 
-        percentage_ratios = {
-            "roe", "roa", "gross_margin", "operating_margin", "net_margin"
-        }
+        percentage_ratios = {"roe", "roa", "gross_margin", "operating_margin", "net_margin"}
 
         for cat_name, ratios in categories.items():
             lines.append(f"\n--- {cat_name.upper()} ---")
@@ -361,7 +353,7 @@ class FinancialRatioCalculator:
         lines.append("\n" + "=" * 70)
         return "\n".join(lines)
 
-    def to_json(self, category: Optional[str] = None) -> Dict[str, Any]:
+    def to_json(self, category: str | None = None) -> dict[str, Any]:
         """Return results as JSON-serializable dict."""
         if category and category in self.results:
             return {"category": category, "ratios": self.results[category]}
@@ -370,9 +362,7 @@ class FinancialRatioCalculator:
 
 def main() -> None:
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Calculate and interpret financial ratios"
-    )
+    parser = argparse.ArgumentParser(description="Calculate and interpret financial ratios")
     parser.add_argument(
         "input_file",
         help="Path to JSON file with financial statement data",
@@ -399,7 +389,7 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        with open(args.input_file, "r") as f:
+        with open(args.input_file) as f:
             data = json.load(f)
     except FileNotFoundError:
         print(f"Error: File '{args.input_file}' not found.", file=sys.stderr)

@@ -14,8 +14,7 @@ Usage:
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Space Templates
@@ -245,7 +244,8 @@ PERMISSION_TEMPLATES = {
 # Structure Generator
 # ---------------------------------------------------------------------------
 
-def generate_space_structure(team_info: Dict[str, Any]) -> Dict[str, Any]:
+
+def generate_space_structure(team_info: dict[str, Any]) -> dict[str, Any]:
     """Generate Confluence space structure from team information."""
     team_name = team_info.get("name", "Team")
     team_type = team_info.get("type", "project").lower()
@@ -277,15 +277,17 @@ def generate_space_structure(team_info: Dict[str, Any]) -> Dict[str, Any]:
         }
         for project in projects:
             project_name = project if isinstance(project, str) else project.get("name", "Project")
-            project_section["children"].append({
-                "title": project_name,
-                "labels": ["project", _slugify(project_name)],
-                "children": [
-                    {"title": f"{project_name} - Overview", "labels": ["overview"]},
-                    {"title": f"{project_name} - Requirements", "labels": ["requirements"]},
-                    {"title": f"{project_name} - Status", "labels": ["status"]},
-                ],
-            })
+            project_section["children"].append(
+                {
+                    "title": project_name,
+                    "labels": ["project", _slugify(project_name)],
+                    "children": [
+                        {"title": f"{project_name} - Overview", "labels": ["overview"]},
+                        {"title": f"{project_name} - Requirements", "labels": ["requirements"]},
+                        {"title": f"{project_name} - Status", "labels": ["status"]},
+                    ],
+                }
+            )
         page_tree.append(project_section)
 
     # Get permissions
@@ -311,7 +313,7 @@ def generate_space_structure(team_info: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _deep_copy_section(section: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_copy_section(section: dict[str, Any]) -> dict[str, Any]:
     """Create a deep copy of a section dict."""
     copy = {
         "title": section["title"],
@@ -337,7 +339,7 @@ def _generate_space_key(team_name: str) -> str:
     return "".join(w[0] for w in words[:5])
 
 
-def _collect_labels(pages: List[Dict], labels: set) -> None:
+def _collect_labels(pages: list[dict], labels: set) -> None:
     """Recursively collect all labels from page tree."""
     for page in pages:
         for label in page.get("labels", []):
@@ -347,7 +349,7 @@ def _collect_labels(pages: List[Dict], labels: set) -> None:
             _collect_labels(children, labels)
 
 
-def _count_pages(pages: List[Dict]) -> int:
+def _count_pages(pages: list[dict]) -> int:
     """Count total pages in tree."""
     count = len(pages)
     for page in pages:
@@ -361,21 +363,27 @@ def _generate_recommendations(
     team_name: str,
     team_type: str,
     team_size: int,
-    projects: List,
-) -> List[str]:
+    projects: list,
+) -> list[str]:
     """Generate setup recommendations."""
     recs = []
 
-    recs.append(f"Create the space with key '{_generate_space_key(team_name)}' and enable the blog feature for announcements.")
+    recs.append(
+        f"Create the space with key '{_generate_space_key(team_name)}' and enable the blog feature for announcements."
+    )
 
     if team_size > 10:
-        recs.append("Large team detected. Consider sub-spaces or restricted sections for sub-teams.")
+        recs.append(
+            "Large team detected. Consider sub-spaces or restricted sections for sub-teams."
+        )
 
     if team_size <= 3:
         recs.append("Small team. Simplify the structure by merging low-traffic sections.")
 
     if len(projects) > 5:
-        recs.append("Many projects listed. Consider a separate space per project for better isolation.")
+        recs.append(
+            "Many projects listed. Consider a separate space per project for better isolation."
+        )
 
     if team_type == "engineering":
         recs.append("Set up page templates for ADRs, runbooks, and design docs.")
@@ -397,7 +405,8 @@ def _generate_recommendations(
 # Output Formatting
 # ---------------------------------------------------------------------------
 
-def _format_page_tree(pages: List[Dict], indent: int = 0) -> List[str]:
+
+def _format_page_tree(pages: list[dict], indent: int = 0) -> list[str]:
     """Format page tree as indented text."""
     lines = []
     prefix = "  " * indent
@@ -414,7 +423,7 @@ def _format_page_tree(pages: List[Dict], indent: int = 0) -> List[str]:
     return lines
 
 
-def format_text_output(result: Dict[str, Any]) -> str:
+def format_text_output(result: dict[str, Any]) -> str:
     """Format results as readable text report."""
     lines = []
     lines.append("=" * 60)
@@ -462,7 +471,7 @@ def format_text_output(result: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def format_json_output(result: Dict[str, Any]) -> Dict[str, Any]:
+def format_json_output(result: dict[str, Any]) -> dict[str, Any]:
     """Format results as JSON."""
     return result
 
@@ -470,6 +479,7 @@ def format_json_output(result: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # CLI Interface
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
     """Main CLI entry point."""
@@ -490,7 +500,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        with open(args.team_file, "r") as f:
+        with open(args.team_file) as f:
             data = json.load(f)
 
         result = generate_space_structure(data)

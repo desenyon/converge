@@ -14,9 +14,9 @@ import json
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class CLIError(Exception):
@@ -34,11 +34,13 @@ class WorktreeInfo:
     merged_into_base: bool
 
 
-def run(cmd: List[str], cwd: Optional[Path] = None, check: bool = True) -> subprocess.CompletedProcess[str]:
+def run(
+    cmd: list[str], cwd: Path | None = None, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=check)
 
 
-def load_json_input(input_file: Optional[str]) -> Dict[str, Any]:
+def load_json_input(input_file: str | None) -> dict[str, Any]:
     if input_file:
         try:
             return json.loads(Path(input_file).read_text(encoding="utf-8"))
@@ -54,10 +56,10 @@ def load_json_input(input_file: Optional[str]) -> Dict[str, Any]:
     return {}
 
 
-def parse_worktrees(repo: Path) -> List[Dict[str, str]]:
+def parse_worktrees(repo: Path) -> list[dict[str, str]]:
     proc = run(["git", "worktree", "list", "--porcelain"], cwd=repo)
-    entries: List[Dict[str, str]] = []
-    current: Dict[str, str] = {}
+    entries: list[dict[str, str]] = []
+    current: dict[str, str] = {}
     for line in proc.stdout.splitlines():
         if not line.strip():
             if current:
@@ -98,7 +100,7 @@ def is_merged(repo: Path, branch: str, base_branch: str) -> bool:
         return False
 
 
-def format_text(items: List[WorktreeInfo], removed: List[str]) -> str:
+def format_text(items: list[WorktreeInfo], removed: list[str]) -> str:
     lines = ["Worktree cleanup report"]
     for item in items:
         lines.append(
@@ -113,13 +115,25 @@ def format_text(items: List[WorktreeInfo], removed: List[str]) -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Analyze and optionally cleanup stale git worktrees.")
-    parser.add_argument("--input", help="Path to JSON input file. If omitted, reads JSON from stdin when piped.")
+    parser = argparse.ArgumentParser(
+        description="Analyze and optionally cleanup stale git worktrees."
+    )
+    parser.add_argument(
+        "--input", help="Path to JSON input file. If omitted, reads JSON from stdin when piped."
+    )
     parser.add_argument("--repo", default=".", help="Repository root path.")
-    parser.add_argument("--base-branch", default="main", help="Base branch to evaluate merged branches.")
+    parser.add_argument(
+        "--base-branch", default="main", help="Base branch to evaluate merged branches."
+    )
     parser.add_argument("--stale-days", type=int, default=14, help="Threshold for stale worktrees.")
-    parser.add_argument("--remove-merged", action="store_true", help="Remove worktrees that are stale, clean, and merged.")
-    parser.add_argument("--force", action="store_true", help="Allow removal even if dirty (use carefully).")
+    parser.add_argument(
+        "--remove-merged",
+        action="store_true",
+        help="Remove worktrees that are stale, clean, and merged.",
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Allow removal even if dirty (use carefully)."
+    )
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format.")
     return parser.parse_args()
 
@@ -149,8 +163,8 @@ def main() -> int:
         raise CLIError("No worktrees found.")
 
     main_path = Path(entries[0].get("worktree", "")).resolve()
-    infos: List[WorktreeInfo] = []
-    removed: List[str] = []
+    infos: list[WorktreeInfo] = []
+    removed: list[str] = []
 
     for entry in entries:
         path = Path(entry.get("worktree", "")).resolve()
@@ -170,7 +184,13 @@ def main() -> int:
         )
         infos.append(info)
 
-        if remove_merged and not info.is_main and info.stale and info.merged_into_base and (force or not info.dirty):
+        if (
+            remove_merged
+            and not info.is_main
+            and info.stale
+            and info.merged_into_base
+            and (force or not info.dirty)
+        ):
             try:
                 cmd = ["git", "worktree", "remove", str(path)]
                 if force:

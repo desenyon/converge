@@ -16,11 +16,10 @@ Usage:
     python alignment_checker.py --sample            # Print sample JSON format
 """
 
+import argparse
 import json
 import sys
-import argparse
 from collections import defaultdict
-
 
 # ─────────────────────────────────────────────
 # Sample data
@@ -37,8 +36,8 @@ SAMPLE_DATA = {
                 "key_results": [
                     "Reach 50 paying customers in DACH by EoQ",
                     "Achieve €800K ARR in DACH",
-                    "Net Revenue Retention > 110%"
-                ]
+                    "Net Revenue Retention > 110%",
+                ],
             },
             {
                 "id": "C2",
@@ -46,8 +45,8 @@ SAMPLE_DATA = {
                 "key_results": [
                     "API v1 launched with 3 partner integrations",
                     "API documentation coverage: 100% of endpoints",
-                    "< 200ms P95 response time under load"
-                ]
+                    "< 200ms P95 response time under load",
+                ],
             },
             {
                 "id": "C3",
@@ -55,10 +54,10 @@ SAMPLE_DATA = {
                 "key_results": [
                     "CAC payback period < 12 months",
                     "Burn multiple < 1.5x",
-                    "Revenue per employee up 20% vs Q1"
-                ]
-            }
-        ]
+                    "Revenue per employee up 20% vs Q1",
+                ],
+            },
+        ],
     },
     "teams": [
         {
@@ -71,9 +70,9 @@ SAMPLE_DATA = {
                     "key_results": [
                         "Close 15 new DACH logos",
                         "Pipeline coverage: 3x of target",
-                        "Average deal size > €18K ARR"
+                        "Average deal size > €18K ARR",
                     ],
-                    "potential_conflicts": ["C3", "CS2"]
+                    "potential_conflicts": ["C3", "CS2"],
                 },
                 {
                     "id": "S2",
@@ -81,11 +80,11 @@ SAMPLE_DATA = {
                     "parent_company_okr_id": None,  # ORPHAN — no company OKR parent
                     "key_results": [
                         "5 qualified meetings with Austrian prospects",
-                        "1 pilot signed in Austria"
+                        "1 pilot signed in Austria",
                     ],
-                    "potential_conflicts": []
-                }
-            ]
+                    "potential_conflicts": [],
+                },
+            ],
         },
         {
             "name": "Engineering",
@@ -97,9 +96,9 @@ SAMPLE_DATA = {
                     "key_results": [
                         "API v1 feature complete by Week 8",
                         "Zero critical bugs at launch",
-                        "P95 latency < 200ms under 500 RPS"
+                        "P95 latency < 200ms under 500 RPS",
                     ],
-                    "potential_conflicts": []
+                    "potential_conflicts": [],
                 },
                 {
                     "id": "E2",
@@ -108,9 +107,9 @@ SAMPLE_DATA = {
                     "key_results": [
                         "Migrate 3 services to spot instances",
                         "Decommission legacy DB cluster",
-                        "Monthly infra cost < €12K"
+                        "Monthly infra cost < €12K",
                     ],
-                    "potential_conflicts": []
+                    "potential_conflicts": [],
                 },
                 {
                     "id": "E3",
@@ -118,11 +117,11 @@ SAMPLE_DATA = {
                     "parent_company_okr_id": None,  # ORPHAN
                     "key_results": [
                         "Implement blue-green deployment pipeline",
-                        "Deployment success rate > 99.5%"
+                        "Deployment success rate > 99.5%",
                     ],
-                    "potential_conflicts": []
-                }
-            ]
+                    "potential_conflicts": [],
+                },
+            ],
         },
         {
             "name": "Customer Success",
@@ -134,9 +133,9 @@ SAMPLE_DATA = {
                     "key_results": [
                         "NRR > 110% for DACH cohort",
                         "Churn < 2% gross monthly",
-                        "CSAT score > 4.5/5"
+                        "CSAT score > 4.5/5",
                     ],
-                    "potential_conflicts": []
+                    "potential_conflicts": [],
                 },
                 {
                     "id": "CS2",
@@ -145,11 +144,13 @@ SAMPLE_DATA = {
                     "key_results": [
                         "Launch self-serve knowledge base",
                         "Ticket deflection rate > 35%",
-                        "Time-to-first-response < 2 hours"
+                        "Time-to-first-response < 2 hours",
                     ],
-                    "potential_conflicts": ["S1"]  # Volume close pressure → more bad-fit customers → more tickets
-                }
-            ]
+                    "potential_conflicts": [
+                        "S1"
+                    ],  # Volume close pressure → more bad-fit customers → more tickets
+                },
+            ],
         },
         {
             "name": "Marketing",
@@ -161,12 +162,12 @@ SAMPLE_DATA = {
                     "key_results": [
                         "€2.4M qualified pipeline from DACH",
                         "30 qualified demo requests from target ICP",
-                        "CAC from inbound < €4K"
+                        "CAC from inbound < €4K",
                     ],
-                    "potential_conflicts": []
+                    "potential_conflicts": [],
                 }
-            ]
-        }
+            ],
+        },
     ],
     "known_conflicts": [
         {
@@ -174,15 +175,16 @@ SAMPLE_DATA = {
             "okr_a": "S1",
             "team_b": "Customer Success",
             "okr_b": "CS2",
-            "description": "Sales closing volume deals to hit number may include poor-fit customers, increasing CS ticket load and reducing CSAT — directly conflicting with CS ticket reduction target."
+            "description": "Sales closing volume deals to hit number may include poor-fit customers, increasing CS ticket load and reducing CSAT — directly conflicting with CS ticket reduction target.",
         }
-    ]
+    ],
 }
 
 
 # ─────────────────────────────────────────────
 # Analysis functions
 # ─────────────────────────────────────────────
+
 
 def get_all_company_okr_ids(data):
     return {okr["id"] for okr in data["company"]["okrs"]}
@@ -194,18 +196,18 @@ def detect_orphans(data, company_ids):
     for team in data["teams"]:
         for okr in team["okrs"]:
             if okr.get("parent_company_okr_id") is None:
-                orphans.append({
-                    "team": team["name"],
-                    "okr_id": okr["id"],
-                    "objective": okr["objective"]
-                })
+                orphans.append(
+                    {"team": team["name"], "okr_id": okr["id"], "objective": okr["objective"]}
+                )
             elif okr["parent_company_okr_id"] not in company_ids:
-                orphans.append({
-                    "team": team["name"],
-                    "okr_id": okr["id"],
-                    "objective": okr["objective"],
-                    "note": f"References non-existent company OKR: {okr['parent_company_okr_id']}"
-                })
+                orphans.append(
+                    {
+                        "team": team["name"],
+                        "okr_id": okr["id"],
+                        "objective": okr["objective"],
+                        "note": f"References non-existent company OKR: {okr['parent_company_okr_id']}",
+                    }
+                )
     return orphans
 
 
@@ -216,11 +218,9 @@ def detect_coverage_gaps(data, company_ids):
         for okr in team["okrs"]:
             parent = okr.get("parent_company_okr_id")
             if parent and parent in company_ids:
-                coverage[parent].append({
-                    "team": team["name"],
-                    "okr_id": okr["id"],
-                    "objective": okr["objective"]
-                })
+                coverage[parent].append(
+                    {"team": team["name"], "okr_id": okr["id"], "objective": okr["objective"]}
+                )
 
     gaps = []
     over_indexed = []
@@ -231,7 +231,7 @@ def detect_coverage_gaps(data, company_ids):
             "company_okr_id": cid,
             "objective": company_okr["objective"],
             "supporting_team_count": len(supporting),
-            "supporting_teams": [s["team"] for s in supporting]
+            "supporting_teams": [s["team"] for s in supporting],
         }
         if len(supporting) == 0:
             gaps.append(entry)
@@ -247,14 +247,16 @@ def detect_conflicts(data):
 
     # Use declared known_conflicts
     for conflict in data.get("known_conflicts", []):
-        conflicts.append({
-            "type": "declared",
-            "team_a": conflict["team_a"],
-            "okr_a": conflict["okr_a"],
-            "team_b": conflict["team_b"],
-            "okr_b": conflict["okr_b"],
-            "description": conflict["description"]
-        })
+        conflicts.append(
+            {
+                "type": "declared",
+                "team_a": conflict["team_a"],
+                "okr_a": conflict["okr_a"],
+                "team_b": conflict["team_b"],
+                "okr_b": conflict["okr_b"],
+                "description": conflict["description"],
+            }
+        )
 
     # Use potential_conflicts fields on OKRs for cross-reference
     okr_index = {}
@@ -269,19 +271,21 @@ def detect_conflicts(data):
                     target = okr_index[conflict_id]
                     # Avoid duplicate (A→B and B→A)
                     already_declared = any(
-                        (c["okr_a"] == okr["id"] and c["okr_b"] == conflict_id) or
-                        (c["okr_a"] == conflict_id and c["okr_b"] == okr["id"])
+                        (c["okr_a"] == okr["id"] and c["okr_b"] == conflict_id)
+                        or (c["okr_a"] == conflict_id and c["okr_b"] == okr["id"])
                         for c in conflicts
                     )
                     if not already_declared:
-                        conflicts.append({
-                            "type": "potential",
-                            "team_a": team["name"],
-                            "okr_a": okr["id"],
-                            "team_b": target["team"],
-                            "okr_b": conflict_id,
-                            "description": f"Potential conflict between '{okr['objective']}' and '{target['objective']}' — review recommended"
-                        })
+                        conflicts.append(
+                            {
+                                "type": "potential",
+                                "team_a": team["name"],
+                                "okr_a": okr["id"],
+                                "team_b": target["team"],
+                                "okr_b": conflict_id,
+                                "description": f"Potential conflict between '{okr['objective']}' and '{target['objective']}' — review recommended",
+                            }
+                        )
 
     return conflicts
 
@@ -313,6 +317,7 @@ def score_label(score):
 # ─────────────────────────────────────────────
 # Report generation
 # ─────────────────────────────────────────────
+
 
 def print_report(data, orphans, gaps, over_indexed, conflicts, coverage, score):
     sep = "─" * 60
@@ -354,7 +359,7 @@ def print_report(data, orphans, gaps, over_indexed, conflicts, coverage, score):
     if gaps:
         for g in gaps:
             print(f"  🔴 [{g['company_okr_id']}] {g['objective']}")
-            print(f"       No team is working on this. It will not be achieved.")
+            print("       No team is working on this. It will not be achieved.")
         print()
         print("  → Action: Assign at least one team owner to each unowned company OKR.")
     else:
@@ -367,7 +372,9 @@ def print_report(data, orphans, gaps, over_indexed, conflicts, coverage, score):
             print(f"  [{o['company_okr_id']}] {o['objective']}")
             print(f"       {o['supporting_team_count']} teams: {', '.join(o['supporting_teams'])}")
         print()
-        print("  → Note: High coverage isn't necessarily bad, but check if under-covered OKRs are being neglected.")
+        print(
+            "  → Note: High coverage isn't necessarily bad, but check if under-covered OKRs are being neglected."
+        )
     print(sep)
 
     # Conflicts
@@ -379,7 +386,9 @@ def print_report(data, orphans, gaps, over_indexed, conflicts, coverage, score):
             print(f"    {c['team_a']} [{c['okr_a']}] ↔ {c['team_b']} [{c['okr_b']}]")
             print(f"    {c['description']}")
             print()
-        print("  → Action: For each conflict, design a shared metric or shared constraint that prevents local optimization at company expense.")
+        print(
+            "  → Action: For each conflict, design a shared metric or shared constraint that prevents local optimization at company expense."
+        )
     else:
         print("  ✅ No declared or potential conflicts detected.")
     print()
@@ -392,7 +401,9 @@ def print_report(data, orphans, gaps, over_indexed, conflicts, coverage, score):
     print(f"  Company OKRs:       {total_company_okrs}")
     print(f"  Team OKRs:          {total_team_okrs}")
     print(f"  Orphan OKRs:        {len(orphans)}")
-    print(f"  Coverage gaps:      {len(gaps)} of {total_company_okrs} company OKRs have no team support")
+    print(
+        f"  Coverage gaps:      {len(gaps)} of {total_company_okrs} company OKRs have no team support"
+    )
     print(f"  Conflicts:          {len(conflicts)}")
     print(f"  Alignment score:    {score}/100  {score_label(score)}")
     print()
@@ -414,6 +425,7 @@ def print_report(data, orphans, gaps, over_indexed, conflicts, coverage, score):
 # Main
 # ─────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(description="Strategic OKR Alignment Checker")
     parser.add_argument("--file", help="Path to JSON file with OKR data")
@@ -426,7 +438,7 @@ def main():
 
     if args.file:
         try:
-            with open(args.file, "r") as f:
+            with open(args.file) as f:
                 data = json.load(f)
         except FileNotFoundError:
             print(f"Error: File '{args.file}' not found.")

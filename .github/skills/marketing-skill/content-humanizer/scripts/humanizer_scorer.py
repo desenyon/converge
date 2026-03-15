@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """humanizer_scorer.py — scores content 0-100 on 'humanity' by detecting AI writing patterns."""
 
-import sys
-import re
 import json
 import math
-from collections import Counter
+import re
+import sys
 
 # ── Sample content for zero-config demo ──────────────────────────────────────
 SAMPLE_HUMAN = """
@@ -36,24 +35,48 @@ In conclusion, the implementation of these holistic strategies will empower orga
 # ── AI vocabulary signals ─────────────────────────────────────────────────────
 AI_VOCABULARY = [
     # The notorious list
-    "delve", "delve into", "delves", "delving",
+    "delve",
+    "delve into",
+    "delves",
+    "delving",
     "landscape",
-    "crucial", "vital", "pivotal",
-    "leverage", "leveraging", "leveraged",
+    "crucial",
+    "vital",
+    "pivotal",
+    "leverage",
+    "leveraging",
+    "leveraged",
     "robust",
     "comprehensive",
     "holistic",
-    "foster", "fosters", "fostering",
-    "facilitate", "facilitates", "facilitating",
-    "navigate", "navigating",
-    "ensure", "ensures", "ensuring",
-    "utilize", "utilizing", "utilizes",
-    "furthermore", "moreover",
-    "innovative", "cutting-edge",
-    "seamless", "seamlessly",
-    "empower", "empowers", "empowering",
-    "streamline", "streamlines", "streamlining",
-    "cultivate", "cultivating",
+    "foster",
+    "fosters",
+    "fostering",
+    "facilitate",
+    "facilitates",
+    "facilitating",
+    "navigate",
+    "navigating",
+    "ensure",
+    "ensures",
+    "ensuring",
+    "utilize",
+    "utilizing",
+    "utilizes",
+    "furthermore",
+    "moreover",
+    "innovative",
+    "cutting-edge",
+    "seamless",
+    "seamlessly",
+    "empower",
+    "empowers",
+    "empowering",
+    "streamline",
+    "streamlines",
+    "streamlining",
+    "cultivate",
+    "cultivating",
     "paradigm",
     "ecosystem",
     "synergy",
@@ -88,8 +111,8 @@ HEDGING_PHRASES = [
 ]
 
 PASSIVE_PATTERNS = [
-    r'\b(is|are|was|were|be|been|being)\s+(being\s+)?\w+ed\b',
-    r'\b(can|could|should|would|may|might|must)\s+be\s+\w+ed\b',
+    r"\b(is|are|was|were|be|been|being)\s+(being\s+)?\w+ed\b",
+    r"\b(can|could|should|would|may|might|must)\s+be\s+\w+ed\b",
 ]
 
 VAGUE_AUTHORITY = [
@@ -109,10 +132,11 @@ VAGUE_AUTHORITY = [
 
 # ── Scoring functions ─────────────────────────────────────────────────────────
 
+
 def score_ai_vocabulary(text: str) -> dict:
     """Score 0-25: fewer AI words = higher score."""
     text_lower = text.lower()
-    words_total = max(1, len(re.findall(r'\b\w+\b', text)))
+    words_total = max(1, len(re.findall(r"\b\w+\b", text)))
 
     hits = []
     for phrase in AI_VOCABULARY:
@@ -148,11 +172,17 @@ def score_ai_vocabulary(text: str) -> dict:
 
 def score_sentence_variance(text: str) -> dict:
     """Score 0-20: high variance = more human (robots use uniform length)."""
-    sentences = re.split(r'[.!?]+', text)
+    sentences = re.split(r"[.!?]+", text)
     sentences = [s.strip() for s in sentences if len(s.split()) >= 3]
 
     if len(sentences) < 3:
-        return {"score": 10, "max": 20, "std_dev": 0, "avg_length": 0, "note": "too few sentences to score"}
+        return {
+            "score": 10,
+            "max": 20,
+            "std_dev": 0,
+            "avg_length": 0,
+            "note": "too few sentences to score",
+        }
 
     lengths = [len(s.split()) for s in sentences]
     avg = sum(lengths) / len(lengths)
@@ -183,7 +213,7 @@ def score_sentence_variance(text: str) -> dict:
 
 def score_passive_voice(text: str) -> dict:
     """Score 0-20: less passive = more human."""
-    sentences = re.split(r'[.!?]+', text)
+    sentences = re.split(r"[.!?]+", text)
     sentences = [s.strip() for s in sentences if s.strip()]
     n_sentences = max(1, len(sentences))
 
@@ -249,20 +279,20 @@ def score_hedging(text: str) -> dict:
 def score_em_dashes(text: str) -> dict:
     """Score 0-10: moderate em-dash use is fine; overuse is a tell."""
     # Count em-dashes (—) and double-hyphen (--) used as em-dash
-    em_count = text.count('—') + text.count('--')
-    word_count = max(1, len(re.findall(r'\b\w+\b', text)))
+    em_count = text.count("—") + text.count("--")
+    word_count = max(1, len(re.findall(r"\b\w+\b", text)))
     per_100 = em_count / (word_count / 100)
 
     if per_100 < 0.5:
         score = 10  # none or very rare: fine
     elif per_100 < 1.5:
-        score = 8   # occasional: good
+        score = 8  # occasional: good
     elif per_100 < 3:
-        score = 5   # frequent: suspicious
+        score = 5  # frequent: suspicious
     elif per_100 < 5:
-        score = 2   # overuse: likely AI
+        score = 2  # overuse: likely AI
     else:
-        score = 0   # compulsive: AI fingerprint
+        score = 0  # compulsive: AI fingerprint
 
     return {
         "score": score,
@@ -274,7 +304,7 @@ def score_em_dashes(text: str) -> dict:
 
 def score_paragraph_variety(text: str) -> dict:
     """Score 0-10: varied paragraph lengths = more human."""
-    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip() and not p.startswith('#')]
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip() and not p.startswith("#")]
     if len(paragraphs) < 3:
         return {"score": 5, "max": 10, "note": "too few paragraphs to score"}
 
@@ -313,6 +343,7 @@ def score_paragraph_variety(text: str) -> dict:
 
 # ── Main scoring ──────────────────────────────────────────────────────────────
 
+
 def score_humanity(text: str) -> dict:
     vocab = score_ai_vocabulary(text)
     variance = score_sentence_variance(text)
@@ -321,7 +352,14 @@ def score_humanity(text: str) -> dict:
     em = score_em_dashes(text)
     paragraphs = score_paragraph_variety(text)
 
-    total = vocab["score"] + variance["score"] + passive["score"] + hedging["score"] + em["score"] + paragraphs["score"]
+    total = (
+        vocab["score"]
+        + variance["score"]
+        + passive["score"]
+        + hedging["score"]
+        + em["score"]
+        + paragraphs["score"]
+    )
 
     if total >= 85:
         label = "Sounds human ✅"
@@ -344,7 +382,7 @@ def score_humanity(text: str) -> dict:
             "hedging": hedging,
             "em_dashes": em,
             "paragraph_variety": paragraphs,
-        }
+        },
     }
 
 
@@ -370,12 +408,12 @@ def print_report(result: dict, label: str = "") -> None:
     print("  ── Section Breakdown ──────────────────────")
 
     sections = [
-        ("AI Vocabulary",      s["ai_vocabulary"],       25),
-        ("Sentence Variance",  s["sentence_variance"],   20),
-        ("Passive Voice",      s["passive_voice"],        20),
-        ("Hedging Phrases",    s["hedging"],              15),
-        ("Em-Dash Use",        s["em_dashes"],            10),
-        ("Paragraph Variety",  s["paragraph_variety"],   10),
+        ("AI Vocabulary", s["ai_vocabulary"], 25),
+        ("Sentence Variance", s["sentence_variance"], 20),
+        ("Passive Voice", s["passive_voice"], 20),
+        ("Hedging Phrases", s["hedging"], 15),
+        ("Em-Dash Use", s["em_dashes"], 10),
+        ("Paragraph Variety", s["paragraph_variety"], 10),
     ]
     for name, sec, mx in sections:
         sc = sec["score"]
@@ -418,11 +456,15 @@ def print_report(result: dict, label: str = "") -> None:
         print("  ✅ No hedging detected")
 
     if hg["vague_authority_count"] > 0:
-        print(f"  🟡 Vague authority claims: {hg['vague_authority_count']} (e.g. 'studies show') — add citations")
+        print(
+            f"  🟡 Vague authority claims: {hg['vague_authority_count']} (e.g. 'studies show') — add citations"
+        )
 
     em = s["em_dashes"]
     if em["per_100_words"] > 3:
-        print(f"  🟡 Em-dash overuse — {em['em_dash_count']} in piece ({em['per_100_words']}/100 words)")
+        print(
+            f"  🟡 Em-dash overuse — {em['em_dash_count']} in piece ({em['per_100_words']}/100 words)"
+        )
 
     pg = s["paragraph_variety"]
     if not pg.get("has_short_paragraphs"):
@@ -452,18 +494,17 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Scores content 0-100 on 'humanity' by detecting AI writing patterns. "
-                    "Checks AI vocabulary, sentence variance, passive voice, hedging, "
-                    "em-dash overuse, and paragraph variety."
+        "Checks AI vocabulary, sentence variance, passive voice, hedging, "
+        "em-dash overuse, and paragraph variety."
     )
     parser.add_argument(
-        "file", nargs="?", default=None,
+        "file",
+        nargs="?",
+        default=None,
         help="Path to a text file to analyze. If omitted, runs demo comparing "
-             "human vs AI sample content."
+        "human vs AI sample content.",
     )
-    parser.add_argument(
-        "--json", action="store_true",
-        help="Also output results as JSON."
-    )
+    parser.add_argument("--json", action="store_true", help="Also output results as JSON.")
     args = parser.parse_args()
 
     if args.file is None:
@@ -487,7 +528,7 @@ def main():
         print()
     else:
         try:
-            with open(args.file, 'r', encoding='utf-8') as f:
+            with open(args.file, encoding="utf-8") as f:
                 text = f.read()
         except FileNotFoundError:
             print(f"Error: file not found: {args.file}", file=sys.stderr)

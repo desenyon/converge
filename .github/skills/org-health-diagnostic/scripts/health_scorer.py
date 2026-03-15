@@ -7,8 +7,7 @@ Stdlib only. Run with: python health_scorer.py
 
 import json
 import sys
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -35,24 +34,44 @@ class TrafficLight(Enum):
 # Stage weights: how much each dimension contributes to overall score
 STAGE_WEIGHTS = {
     Stage.SEED: {
-        "financial": 0.30, "revenue": 0.20, "people": 0.20,
-        "product": 0.15, "engineering": 0.10, "operations": 0.05,
-        "market": 0.00, "security": 0.00
+        "financial": 0.30,
+        "revenue": 0.20,
+        "people": 0.20,
+        "product": 0.15,
+        "engineering": 0.10,
+        "operations": 0.05,
+        "market": 0.00,
+        "security": 0.00,
     },
     Stage.SERIES_A: {
-        "financial": 0.25, "revenue": 0.25, "people": 0.15,
-        "product": 0.15, "engineering": 0.10, "operations": 0.05,
-        "market": 0.05, "security": 0.00
+        "financial": 0.25,
+        "revenue": 0.25,
+        "people": 0.15,
+        "product": 0.15,
+        "engineering": 0.10,
+        "operations": 0.05,
+        "market": 0.05,
+        "security": 0.00,
     },
     Stage.SERIES_B: {
-        "financial": 0.20, "revenue": 0.25, "people": 0.15,
-        "product": 0.15, "engineering": 0.10, "operations": 0.08,
-        "market": 0.05, "security": 0.02
+        "financial": 0.20,
+        "revenue": 0.25,
+        "people": 0.15,
+        "product": 0.15,
+        "engineering": 0.10,
+        "operations": 0.08,
+        "market": 0.05,
+        "security": 0.02,
     },
     Stage.SERIES_C: {
-        "financial": 0.20, "revenue": 0.25, "people": 0.15,
-        "product": 0.15, "engineering": 0.10, "operations": 0.08,
-        "market": 0.05, "security": 0.02
+        "financial": 0.20,
+        "revenue": 0.25,
+        "people": 0.15,
+        "product": 0.15,
+        "engineering": 0.10,
+        "operations": 0.08,
+        "market": 0.05,
+        "security": 0.02,
     },
 }
 
@@ -60,13 +79,13 @@ STAGE_WEIGHTS = {
 @dataclass
 class Metric:
     name: str
-    value: Optional[float]
+    value: float | None
     unit: str
-    green_threshold: float    # value at or above this = green
-    red_threshold: float      # value at or below this = red
+    green_threshold: float  # value at or above this = green
+    red_threshold: float  # value at or below this = red
     higher_is_better: bool = True
 
-    def score(self) -> Optional[float]:
+    def score(self) -> float | None:
         """Score 1-10. Returns None if no value."""
         if self.value is None:
             return None
@@ -103,7 +122,7 @@ class Metric:
                 position = (r - v) / (r - g)
                 return 4.0 + (2.0 * position)
 
-    def traffic_light(self) -> Optional[TrafficLight]:
+    def traffic_light(self) -> TrafficLight | None:
         s = self.score()
         if s is None:
             return None
@@ -120,11 +139,11 @@ class Dimension:
     name: str
     owner: str
     emoji: str
-    metrics: List[Metric]
+    metrics: list[Metric]
     trend: Trend = Trend.UNKNOWN
     notes: str = ""
 
-    def score(self) -> Optional[float]:
+    def score(self) -> float | None:
         """Average of available metric scores."""
         scores = [m.score() for m in self.metrics if m.score() is not None]
         if not scores:
@@ -146,7 +165,7 @@ class Dimension:
         filled = sum(1 for m in self.metrics if m.value is not None)
         return filled / len(self.metrics) if self.metrics else 0.0
 
-    def missing_metrics(self) -> List[str]:
+    def missing_metrics(self) -> list[str]:
         return [m.name for m in self.metrics if m.value is None]
 
 
@@ -163,16 +182,31 @@ def build_financial_dimension(stage: Stage, **kwargs) -> Dimension:
         owner="CFO",
         emoji="💰",
         metrics=[
-            Metric("Runway (months)", kwargs.get("runway"),
-                   "months", runway_green[stage], runway_red[stage]),
-            Metric("Burn multiple", kwargs.get("burn_multiple"),
-                   "x", burn_green[stage], burn_red[stage], higher_is_better=False),
-            Metric("Gross margin (%)", kwargs.get("gross_margin"),
-                   "%", 70, 55),
-            Metric("MoM growth (%)", kwargs.get("mom_growth"),
-                   "%", 10, 4),
-            Metric("Revenue concentration (%)", kwargs.get("revenue_concentration"),
-                   "%", 15, 30, higher_is_better=False),
+            Metric(
+                "Runway (months)",
+                kwargs.get("runway"),
+                "months",
+                runway_green[stage],
+                runway_red[stage],
+            ),
+            Metric(
+                "Burn multiple",
+                kwargs.get("burn_multiple"),
+                "x",
+                burn_green[stage],
+                burn_red[stage],
+                higher_is_better=False,
+            ),
+            Metric("Gross margin (%)", kwargs.get("gross_margin"), "%", 70, 55),
+            Metric("MoM growth (%)", kwargs.get("mom_growth"), "%", 10, 4),
+            Metric(
+                "Revenue concentration (%)",
+                kwargs.get("revenue_concentration"),
+                "%",
+                15,
+                30,
+                higher_is_better=False,
+            ),
         ],
         trend=kwargs.get("financial_trend", Trend.UNKNOWN),
     )
@@ -188,16 +222,20 @@ def build_revenue_dimension(stage: Stage, **kwargs) -> Dimension:
         owner="CRO",
         emoji="📈",
         metrics=[
-            Metric("NRR (%)", kwargs.get("nrr"),
-                   "%", nrr_green[stage], nrr_red[stage]),
-            Metric("Logo churn (%/yr)", kwargs.get("logo_churn"),
-                   "%/yr", 5, 15, higher_is_better=False),
-            Metric("Pipeline coverage", kwargs.get("pipeline_coverage"),
-                   "x", 3.0, 1.5),
-            Metric("CAC payback (months)", kwargs.get("cac_payback"),
-                   "months", 12, 24, higher_is_better=False),
-            Metric("Win rate (%)", kwargs.get("win_rate"),
-                   "%", 25, 15),
+            Metric("NRR (%)", kwargs.get("nrr"), "%", nrr_green[stage], nrr_red[stage]),
+            Metric(
+                "Logo churn (%/yr)", kwargs.get("logo_churn"), "%/yr", 5, 15, higher_is_better=False
+            ),
+            Metric("Pipeline coverage", kwargs.get("pipeline_coverage"), "x", 3.0, 1.5),
+            Metric(
+                "CAC payback (months)",
+                kwargs.get("cac_payback"),
+                "months",
+                12,
+                24,
+                higher_is_better=False,
+            ),
+            Metric("Win rate (%)", kwargs.get("win_rate"), "%", 25, 15),
         ],
         trend=kwargs.get("revenue_trend", Trend.UNKNOWN),
     )
@@ -214,7 +252,14 @@ def build_product_dimension(**kwargs) -> Dimension:
             Metric("DAU/MAU (%)", kwargs.get("dau_mau"), "%", 35, 15),
             Metric("Core feature adoption (%)", kwargs.get("feature_adoption"), "%", 60, 30),
             Metric("CSAT", kwargs.get("csat"), "/5", 4.2, 3.5),
-            Metric("Time-to-value (days)", kwargs.get("ttv_days"), "days", 3, 14, higher_is_better=False),
+            Metric(
+                "Time-to-value (days)",
+                kwargs.get("ttv_days"),
+                "days",
+                3,
+                14,
+                higher_is_better=False,
+            ),
         ],
         trend=kwargs.get("product_trend", Trend.UNKNOWN),
     )
@@ -229,10 +274,31 @@ def build_engineering_dimension(**kwargs) -> Dimension:
         emoji="⚙️",
         metrics=[
             Metric("Deploy frequency (1-5)", kwargs.get("deploy_freq"), "scale", 4, 2),
-            Metric("Change failure rate (%)", kwargs.get("change_failure_rate"), "%", 5, 15, higher_is_better=False),
+            Metric(
+                "Change failure rate (%)",
+                kwargs.get("change_failure_rate"),
+                "%",
+                5,
+                15,
+                higher_is_better=False,
+            ),
             Metric("MTTR (hours)", kwargs.get("mttr_hours"), "hours", 1, 4, higher_is_better=False),
-            Metric("Tech debt ratio (%)", kwargs.get("tech_debt_pct"), "%", 15, 35, higher_is_better=False),
-            Metric("P0/P1 incidents/month", kwargs.get("incidents_monthly"), "count", 1, 5, higher_is_better=False),
+            Metric(
+                "Tech debt ratio (%)",
+                kwargs.get("tech_debt_pct"),
+                "%",
+                15,
+                35,
+                higher_is_better=False,
+            ),
+            Metric(
+                "P0/P1 incidents/month",
+                kwargs.get("incidents_monthly"),
+                "count",
+                1,
+                5,
+                higher_is_better=False,
+            ),
         ],
         trend=kwargs.get("engineering_trend", Trend.UNKNOWN),
     )
@@ -248,10 +314,23 @@ def build_people_dimension(stage: Stage, **kwargs) -> Dimension:
         owner="CHRO",
         emoji="👥",
         metrics=[
-            Metric("Regrettable attrition (%/yr)", kwargs.get("attrition"),
-                   "%/yr", attrition_green[stage], attrition_red[stage], higher_is_better=False),
+            Metric(
+                "Regrettable attrition (%/yr)",
+                kwargs.get("attrition"),
+                "%/yr",
+                attrition_green[stage],
+                attrition_red[stage],
+                higher_is_better=False,
+            ),
             Metric("eNPS", kwargs.get("enps"), "score", 30, 0),
-            Metric("Time-to-fill (days)", kwargs.get("ttf_days"), "days", 45, 90, higher_is_better=False),
+            Metric(
+                "Time-to-fill (days)",
+                kwargs.get("ttf_days"),
+                "days",
+                45,
+                90,
+                higher_is_better=False,
+            ),
             Metric("Internal promotion rate (%)", kwargs.get("internal_promo_rate"), "%", 25, 10),
         ],
         trend=kwargs.get("people_trend", Trend.UNKNOWN),
@@ -266,7 +345,14 @@ def build_operations_dimension(**kwargs) -> Dimension:
         emoji="🔄",
         metrics=[
             Metric("OKR completion rate (%)", kwargs.get("okr_completion"), "%", 70, 50),
-            Metric("Decision cycle time (hours)", kwargs.get("decision_hours"), "hours", 48, 168, higher_is_better=False),
+            Metric(
+                "Decision cycle time (hours)",
+                kwargs.get("decision_hours"),
+                "hours",
+                48,
+                168,
+                higher_is_better=False,
+            ),
             Metric("Process maturity (1-5)", kwargs.get("process_maturity"), "level", 3, 1.5),
             Metric("Cross-functional delivery (%)", kwargs.get("xfn_delivery_rate"), "%", 70, 50),
         ],
@@ -281,11 +367,27 @@ def build_security_dimension(**kwargs) -> Dimension:
         owner="CISO",
         emoji="🔒",
         metrics=[
-            Metric("Security incidents (90 days)", kwargs.get("incidents_90d"), "count", 0, 1, higher_is_better=False),
+            Metric(
+                "Security incidents (90 days)",
+                kwargs.get("incidents_90d"),
+                "count",
+                0,
+                1,
+                higher_is_better=False,
+            ),
             Metric("MFA coverage (%)", kwargs.get("mfa_coverage"), "%", 95, 80),
-            Metric("Security training completion (%)", kwargs.get("training_completion"), "%", 95, 80),
+            Metric(
+                "Security training completion (%)", kwargs.get("training_completion"), "%", 95, 80
+            ),
             Metric("Critical CVE patch rate (%)", kwargs.get("cve_patch_rate"), "%", 100, 85),
-            Metric("Pen test recency (months)", kwargs.get("pentest_months"), "months", 12, 24, higher_is_better=False),
+            Metric(
+                "Pen test recency (months)",
+                kwargs.get("pentest_months"),
+                "months",
+                12,
+                24,
+                higher_is_better=False,
+            ),
         ],
         trend=kwargs.get("security_trend", Trend.UNKNOWN),
     )
@@ -300,13 +402,15 @@ def build_market_dimension(**kwargs) -> Dimension:
         metrics=[
             Metric("Organic pipeline % ", kwargs.get("organic_pipeline_pct"), "%", 40, 20),
             Metric("Competitive win rate (%)", kwargs.get("competitive_win_rate"), "%", 45, 30),
-            Metric("CAC trend (1=worsening, 5=improving)", kwargs.get("cac_trend_score"), "scale", 4, 2),
+            Metric(
+                "CAC trend (1=worsening, 5=improving)", kwargs.get("cac_trend_score"), "scale", 4, 2
+            ),
         ],
         trend=kwargs.get("market_trend", Trend.UNKNOWN),
     )
 
 
-def calculate_overall(dimensions: List[Dimension], stage: Stage) -> Optional[float]:
+def calculate_overall(dimensions: list[Dimension], stage: Stage) -> float | None:
     weights = STAGE_WEIGHTS[stage]
     total_weight = 0.0
     weighted_sum = 0.0
@@ -334,14 +438,19 @@ def traffic_light_icon(tl: TrafficLight) -> str:
     return {"green": "🟢", "yellow": "🟡", "red": "🔴"}[tl.value]
 
 
-def print_dashboard(dimensions: List[Dimension], overall: Optional[float],
-                    stage: Stage, company: str = "Company") -> None:
+def print_dashboard(
+    dimensions: list[Dimension], overall: float | None, stage: Stage, company: str = "Company"
+) -> None:
     """Print the full health dashboard."""
     print("\n" + "=" * 65)
     print(f"ORG HEALTH DIAGNOSTIC — {company.upper()}")
     print(f"Stage: {stage.value.replace('_', ' ').title()}")
     if overall is not None:
-        overall_tl = TrafficLight.GREEN if overall >= 7 else (TrafficLight.YELLOW if overall >= 4 else TrafficLight.RED)
+        overall_tl = (
+            TrafficLight.GREEN
+            if overall >= 7
+            else (TrafficLight.YELLOW if overall >= 4 else TrafficLight.RED)
+        )
         print(f"Overall: {traffic_light_icon(overall_tl)} {overall}/10")
     print("=" * 65)
 
@@ -380,7 +489,7 @@ def print_dashboard(dimensions: List[Dimension], overall: Optional[float],
             worst = min(
                 [m for m in dim.metrics if m.score() is not None],
                 key=lambda m: m.score(),
-                default=None
+                default=None,
             )
             if worst:
                 print(f"   Worst metric: {worst.name} = {worst.value}{worst.unit}")
@@ -390,7 +499,9 @@ def print_dashboard(dimensions: List[Dimension], overall: Optional[float],
             idx += 1
 
         for dim in priority_yellows[:2]:
-            print(f"\n🟡 [{idx}] {dim.name} — Score: {dim.score():.1f}/10 — {trend_arrow(dim.trend)}")
+            print(
+                f"\n🟡 [{idx}] {dim.name} — Score: {dim.score():.1f}/10 — {trend_arrow(dim.trend)}"
+            )
             idx += 1
 
     # Data gaps
@@ -421,16 +532,20 @@ def print_dashboard(dimensions: List[Dimension], overall: Optional[float],
     print(f"\n{'=' * 65}\n")
 
 
-def to_json(dimensions: List[Dimension], overall: Optional[float], stage: Stage) -> Dict:
+def to_json(dimensions: list[Dimension], overall: float | None, stage: Stage) -> dict:
     result = {
         "stage": stage.value,
         "overall_score": overall,
         "overall_traffic_light": (
-            TrafficLight.GREEN if overall and overall >= 7
-            else TrafficLight.YELLOW if overall and overall >= 4
+            TrafficLight.GREEN
+            if overall and overall >= 7
+            else TrafficLight.YELLOW
+            if overall and overall >= 4
             else TrafficLight.RED
-        ).value if overall else "unknown",
-        "dimensions": {}
+        ).value
+        if overall
+        else "unknown",
+        "dimensions": {},
     }
     for dim in dimensions:
         result["dimensions"][dim.key] = {
@@ -450,42 +565,70 @@ def to_json(dimensions: List[Dimension], overall: Optional[float], stage: Stage)
                     "traffic_light": m.traffic_light().value if m.traffic_light() else None,
                 }
                 for m in dim.metrics
-            ]
+            ],
         }
     return result
 
 
-def build_sample_data(stage: Stage) -> Dict:
+def build_sample_data(stage: Stage) -> dict:
     """Sample Series A company data."""
     return dict(
         # Financial
-        runway=14, burn_multiple=1.8, gross_margin=68, mom_growth=8.5,
-        revenue_concentration=28, financial_trend=Trend.STABLE,
+        runway=14,
+        burn_multiple=1.8,
+        gross_margin=68,
+        mom_growth=8.5,
+        revenue_concentration=28,
+        financial_trend=Trend.STABLE,
         # Revenue
-        nrr=104, logo_churn=8, pipeline_coverage=1.9, cac_payback=16,
-        win_rate=22, revenue_trend=Trend.DECLINING,
+        nrr=104,
+        logo_churn=8,
+        pipeline_coverage=1.9,
+        cac_payback=16,
+        win_rate=22,
+        revenue_trend=Trend.DECLINING,
         # Product
-        nps=38, dau_mau=32, feature_adoption=52, csat=4.1,
-        ttv_days=6, product_trend=Trend.STABLE,
+        nps=38,
+        dau_mau=32,
+        feature_adoption=52,
+        csat=4.1,
+        ttv_days=6,
+        product_trend=Trend.STABLE,
         # Engineering
-        deploy_freq=3, change_failure_rate=9, mttr_hours=2.8,
-        tech_debt_pct=30, incidents_monthly=2, engineering_trend=Trend.STABLE,
+        deploy_freq=3,
+        change_failure_rate=9,
+        mttr_hours=2.8,
+        tech_debt_pct=30,
+        incidents_monthly=2,
+        engineering_trend=Trend.STABLE,
         # People
-        attrition=21, enps=12, ttf_days=58, internal_promo_rate=18,
+        attrition=21,
+        enps=12,
+        ttf_days=58,
+        internal_promo_rate=18,
         people_trend=Trend.DECLINING,
         # Operations
-        okr_completion=62, decision_hours=72, process_maturity=2.5,
-        xfn_delivery_rate=65, ops_trend=Trend.STABLE,
+        okr_completion=62,
+        decision_hours=72,
+        process_maturity=2.5,
+        xfn_delivery_rate=65,
+        ops_trend=Trend.STABLE,
         # Security
-        incidents_90d=0, mfa_coverage=88, training_completion=82,
-        cve_patch_rate=95, pentest_months=14, security_trend=Trend.IMPROVING,
+        incidents_90d=0,
+        mfa_coverage=88,
+        training_completion=82,
+        cve_patch_rate=95,
+        pentest_months=14,
+        security_trend=Trend.IMPROVING,
         # Market
-        organic_pipeline_pct=35, competitive_win_rate=42,
-        cac_trend_score=3, market_trend=Trend.STABLE,
+        organic_pipeline_pct=35,
+        competitive_win_rate=42,
+        cac_trend_score=3,
+        market_trend=Trend.STABLE,
     )
 
 
-def interactive_mode(stage: Stage) -> Dict:
+def interactive_mode(stage: Stage) -> dict:
     """Guided metric entry."""
     print("\nEnter metrics (press Enter to skip):\n")
     data = {}
@@ -544,9 +687,13 @@ def main():
 
     # Determine stage
     stage_map = {
-        "seed": Stage.SEED, "a": Stage.SERIES_A, "series_a": Stage.SERIES_A,
-        "b": Stage.SERIES_B, "series_b": Stage.SERIES_B,
-        "c": Stage.SERIES_C, "series_c": Stage.SERIES_C,
+        "seed": Stage.SEED,
+        "a": Stage.SERIES_A,
+        "series_a": Stage.SERIES_A,
+        "b": Stage.SERIES_B,
+        "series_b": Stage.SERIES_B,
+        "c": Stage.SERIES_C,
+        "series_c": Stage.SERIES_C,
     }
     stage_arg = next((a for a in sys.argv[1:] if a.lower() in stage_map), None)
     stage = stage_map.get(stage_arg.lower(), Stage.SERIES_A) if stage_arg else Stage.SERIES_A
@@ -557,7 +704,7 @@ def main():
         stage = stage_map.get(stage_input, Stage.SERIES_A)
         data = interactive_mode(stage)
     else:
-        print(f"Running sample Series A company data.")
+        print("Running sample Series A company data.")
         print("(Use --interactive or -i for custom data, --stage seed/a/b/c for stage)\n")
         company = "Sample Co"
         data = build_sample_data(stage)

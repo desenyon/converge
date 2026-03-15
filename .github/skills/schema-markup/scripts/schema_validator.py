@@ -13,16 +13,13 @@ Scoring: 0-100 per schema block based on required/recommended field coverage.
 """
 
 import json
-import sys
 import re
-import select
+import sys
 from html.parser import HTMLParser
-from typing import List, Dict, Any, Optional
-
 
 # ─── Required and recommended fields per schema type ─────────────────────────
 
-SCHEMA_RULES: Dict[str, Dict[str, List[str]]] = {
+SCHEMA_RULES: dict[str, dict[str, list[str]]] = {
     "Article": {
         "required": ["headline", "image", "datePublished", "author"],
         "recommended": ["dateModified", "publisher", "description", "url", "mainEntityOfPage"],
@@ -53,7 +50,14 @@ SCHEMA_RULES: Dict[str, Dict[str, List[str]]] = {
     },
     "LocalBusiness": {
         "required": ["name", "address"],
-        "recommended": ["telephone", "openingHoursSpecification", "geo", "priceRange", "image", "url"],
+        "recommended": [
+            "telephone",
+            "openingHoursSpecification",
+            "geo",
+            "priceRange",
+            "image",
+            "url",
+        ],
     },
     "BreadcrumbList": {
         "required": ["itemListElement"],
@@ -73,8 +77,16 @@ SCHEMA_RULES: Dict[str, Dict[str, List[str]]] = {
     },
     "Recipe": {
         "required": ["name", "image", "author", "datePublished"],
-        "recommended": ["description", "cookTime", "prepTime", "totalTime", "recipeYield",
-                        "recipeIngredient", "recipeInstructions", "aggregateRating"],
+        "recommended": [
+            "description",
+            "cookTime",
+            "prepTime",
+            "totalTime",
+            "recipeYield",
+            "recipeIngredient",
+            "recipeInstructions",
+            "aggregateRating",
+        ],
     },
 }
 
@@ -83,12 +95,13 @@ KNOWN_TYPES = set(SCHEMA_RULES.keys())
 
 # ─── HTML Parser to extract JSON-LD blocks ───────────────────────────────────
 
+
 class JSONLDExtractor(HTMLParser):
     """Extracts all <script type="application/ld+json"> blocks from HTML."""
 
     def __init__(self):
         super().__init__()
-        self.blocks: List[str] = []
+        self.blocks: list[str] = []
         self._in_ld_json = False
         self._current = []
 
@@ -111,7 +124,8 @@ class JSONLDExtractor(HTMLParser):
 
 # ─── Validation logic ────────────────────────────────────────────────────────
 
-def detect_type(obj: Dict) -> Optional[str]:
+
+def detect_type(obj: dict) -> str | None:
     """Determine the @type of a schema object."""
     t = obj.get("@type")
     if isinstance(t, list):
@@ -123,7 +137,7 @@ def detect_type(obj: Dict) -> Optional[str]:
     return t
 
 
-def score_schema(schema_type: str, obj: Dict) -> Dict:
+def score_schema(schema_type: str, obj: dict) -> dict:
     """Score a single schema object against known rules. Returns 0-100."""
     if schema_type not in SCHEMA_RULES:
         return {
@@ -133,7 +147,9 @@ def score_schema(schema_type: str, obj: Dict) -> Dict:
             "required_missing": [],
             "recommended_present": [],
             "recommended_missing": [],
-            "notes": [f"No validation rules defined for '{schema_type}' — manual check recommended."],
+            "notes": [
+                f"No validation rules defined for '{schema_type}' — manual check recommended."
+            ],
         }
 
     rules = SCHEMA_RULES[schema_type]
@@ -156,9 +172,17 @@ def score_schema(schema_type: str, obj: Dict) -> Dict:
     if schema_type in ("Article", "BlogPosting", "NewsArticle"):
         image = obj.get("image")
         if image:
-            img_url = image if isinstance(image, str) else image.get("url", "") if isinstance(image, dict) else ""
+            img_url = (
+                image
+                if isinstance(image, str)
+                else image.get("url", "")
+                if isinstance(image, dict)
+                else ""
+            )
             if img_url and not img_url.startswith("http"):
-                notes.append("⚠️  'image' URL appears to be relative — must be absolute (https://...)")
+                notes.append(
+                    "⚠️  'image' URL appears to be relative — must be absolute (https://...)"
+                )
         if "datePublished" in obj:
             dp = obj["datePublished"]
             if not re.match(r"\d{4}-\d{2}-\d{2}", str(dp)):
@@ -169,24 +193,30 @@ def score_schema(schema_type: str, obj: Dict) -> Dict:
         if isinstance(offers, dict):
             price = offers.get("price")
             if isinstance(price, str) and any(c in price for c in "$€£¥"):
-                notes.append("⚠️  'offers.price' should be numeric (49.99), not a string with currency symbol.")
+                notes.append(
+                    "⚠️  'offers.price' should be numeric (49.99), not a string with currency symbol."
+                )
             avail = offers.get("availability", "")
             if avail and not avail.startswith("https://schema.org/"):
-                notes.append("⚠️  'offers.availability' must use full URL: https://schema.org/InStock")
+                notes.append(
+                    "⚠️  'offers.availability' must use full URL: https://schema.org/InStock"
+                )
 
     if schema_type == "FAQPage":
         entities = obj.get("mainEntity", [])
         if isinstance(entities, list):
             for i, q in enumerate(entities):
                 if not q.get("acceptedAnswer", {}).get("text"):
-                    notes.append(f"⚠️  Question #{i+1} has empty 'acceptedAnswer.text'")
+                    notes.append(f"⚠️  Question #{i + 1} has empty 'acceptedAnswer.text'")
 
     if schema_type == "BreadcrumbList":
         items = obj.get("itemListElement", [])
         if isinstance(items, list):
             positions = [item.get("position") for item in items if isinstance(item, dict)]
             if sorted(positions) != list(range(1, len(positions) + 1)):
-                notes.append("⚠️  'itemListElement' positions must be sequential integers starting at 1.")
+                notes.append(
+                    "⚠️  'itemListElement' positions must be sequential integers starting at 1."
+                )
 
     return {
         "score": total_score,
@@ -199,20 +229,22 @@ def score_schema(schema_type: str, obj: Dict) -> Dict:
     }
 
 
-def validate_block(raw_json: str, block_index: int) -> List[Dict]:
+def validate_block(raw_json: str, block_index: int) -> list[dict]:
     """Parse and validate a single JSON-LD block. Returns list of results (may contain @graph)."""
     results = []
     try:
         data = json.loads(raw_json)
     except json.JSONDecodeError as e:
-        return [{
-            "block": block_index,
-            "type": "PARSE_ERROR",
-            "score": 0,
-            "status": "parse_error",
-            "error": str(e),
-            "notes": ["❌ JSON is malformed — fix syntax before validation."],
-        }]
+        return [
+            {
+                "block": block_index,
+                "type": "PARSE_ERROR",
+                "score": 0,
+                "status": "parse_error",
+                "error": str(e),
+                "notes": ["❌ JSON is malformed — fix syntax before validation."],
+            }
+        ]
 
     # Handle @graph
     objects = data.get("@graph", [data]) if isinstance(data, dict) else [data]
@@ -222,21 +254,25 @@ def validate_block(raw_json: str, block_index: int) -> List[Dict]:
             continue
         schema_type = detect_type(obj)
         if not schema_type:
-            results.append({
-                "block": block_index,
-                "type": "UNKNOWN",
-                "score": 0,
-                "status": "no_type",
-                "notes": ["❌ No '@type' found in schema object."],
-            })
+            results.append(
+                {
+                    "block": block_index,
+                    "type": "UNKNOWN",
+                    "score": 0,
+                    "status": "no_type",
+                    "notes": ["❌ No '@type' found in schema object."],
+                }
+            )
             continue
 
         validation = score_schema(schema_type, obj)
-        results.append({
-            "block": block_index,
-            "type": schema_type,
-            **validation,
-        })
+        results.append(
+            {
+                "block": block_index,
+                "type": schema_type,
+                **validation,
+            }
+        )
 
     return results
 
@@ -253,14 +289,15 @@ def grade(score: int) -> str:
 
 # ─── Report printer ──────────────────────────────────────────────────────────
 
-def print_report(all_results: List[Dict], html_source: str) -> None:
+
+def print_report(all_results: list[dict], html_source: str) -> None:
     print("\n" + "═" * 60)
     print("  SCHEMA MARKUP VALIDATION REPORT")
     print("═" * 60)
 
     if not all_results:
         print("\n❌ No JSON-LD blocks found in this HTML.")
-        print("   Add structured data in <script type=\"application/ld+json\"> tags.\n")
+        print('   Add structured data in <script type="application/ld+json"> tags.\n')
         return
 
     total_score = 0
@@ -277,7 +314,9 @@ def print_report(all_results: List[Dict], html_source: str) -> None:
         if r.get("required_missing"):
             print(f"   Missing required: {', '.join(r['required_missing'])}")
         else:
-            print(f"   Required fields: ✅ All present ({', '.join(r.get('required_present', []))})")
+            print(
+                f"   Required fields: ✅ All present ({', '.join(r.get('required_present', []))})"
+            )
 
         if r.get("recommended_missing"):
             print(f"   Missing recommended: {', '.join(r['recommended_missing'])}")
@@ -389,17 +428,20 @@ SAMPLE_HTML = """<!DOCTYPE html>
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(
         description="Extracts and validates JSON-LD structured data from HTML. "
-                    "Scores 0-100 per schema block based on required/recommended field coverage."
+        "Scores 0-100 per schema block based on required/recommended field coverage."
     )
     parser.add_argument(
-        "file", nargs="?", default=None,
+        "file",
+        nargs="?",
+        default=None,
         help="Path to an HTML file to validate. "
-             "Use '-' to read from stdin. If omitted, runs embedded sample."
+        "Use '-' to read from stdin. If omitted, runs embedded sample.",
     )
     args = parser.parse_args()
 
@@ -408,7 +450,7 @@ def main():
             html = sys.stdin.read()
         else:
             try:
-                with open(args.file, "r", encoding="utf-8") as f:
+                with open(args.file, encoding="utf-8") as f:
                     html = f.read()
             except FileNotFoundError:
                 print(f"Error: File not found: {args.file}", file=sys.stderr)
@@ -431,7 +473,9 @@ def main():
     summary = {
         "blocks_found": len(extractor.blocks),
         "schemas_validated": len(all_results),
-        "average_score": (sum(r.get("score", 0) for r in all_results) // len(all_results)) if all_results else 0,
+        "average_score": (sum(r.get("score", 0) for r in all_results) // len(all_results))
+        if all_results
+        else 0,
         "results": all_results,
     }
     print("\n── JSON Output ──")

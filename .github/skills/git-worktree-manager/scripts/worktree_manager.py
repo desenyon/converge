@@ -11,14 +11,12 @@ Supports:
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 ENV_FILES = [".env", ".env.local", ".env.development", ".envrc"]
 LOCKFILE_COMMANDS = [
@@ -36,8 +34,8 @@ class WorktreeResult:
     worktree_path: str
     branch: str
     created: bool
-    ports: Dict[str, int]
-    copied_env_files: List[str]
+    ports: dict[str, int]
+    copied_env_files: list[str]
     dependency_install: str
 
 
@@ -45,11 +43,13 @@ class CLIError(Exception):
     """Raised for expected CLI errors."""
 
 
-def run(cmd: List[str], cwd: Optional[Path] = None, check: bool = True) -> subprocess.CompletedProcess[str]:
+def run(
+    cmd: list[str], cwd: Path | None = None, check: bool = True
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, check=check)
 
 
-def load_json_input(input_file: Optional[str]) -> Dict[str, Any]:
+def load_json_input(input_file: str | None) -> dict[str, Any]:
     if input_file:
         try:
             return json.loads(Path(input_file).read_text(encoding="utf-8"))
@@ -66,10 +66,10 @@ def load_json_input(input_file: Optional[str]) -> Dict[str, Any]:
     return {}
 
 
-def parse_worktree_list(repo: Path) -> List[Dict[str, str]]:
+def parse_worktree_list(repo: Path) -> list[dict[str, str]]:
     proc = run(["git", "worktree", "list", "--porcelain"], cwd=repo)
-    entries: List[Dict[str, str]] = []
-    current: Dict[str, str] = {}
+    entries: list[dict[str, str]] = []
+    current: dict[str, str] = {}
     for line in proc.stdout.splitlines():
         if not line.strip():
             if current:
@@ -83,7 +83,9 @@ def parse_worktree_list(repo: Path) -> List[Dict[str, str]]:
     return entries
 
 
-def find_next_ports(repo: Path, app_base: int, db_base: int, redis_base: int, stride: int) -> Dict[str, int]:
+def find_next_ports(
+    repo: Path, app_base: int, db_base: int, redis_base: int, stride: int
+) -> dict[str, int]:
     used_ports = set()
     for entry in parse_worktree_list(repo):
         wt_path = Path(entry.get("worktree", ""))
@@ -107,7 +109,7 @@ def find_next_ports(repo: Path, app_base: int, db_base: int, redis_base: int, st
         index += 1
 
 
-def sync_env_files(src_repo: Path, dest_repo: Path) -> List[str]:
+def sync_env_files(src_repo: Path, dest_repo: Path) -> list[str]:
     copied = []
     for name in ENV_FILES:
         src = src_repo / name
@@ -128,7 +130,9 @@ def install_dependencies_if_requested(worktree_path: Path, install: bool) -> str
                 run(command, cwd=worktree_path, check=True)
                 return f"installed via {' '.join(command)}"
             except subprocess.CalledProcessError as exc:
-                raise CLIError(f"Dependency install failed: {' '.join(command)}\n{exc.stderr}") from exc
+                raise CLIError(
+                    f"Dependency install failed: {' '.join(command)}\n{exc.stderr}"
+                ) from exc
 
     return "no known lockfile found"
 
@@ -169,16 +173,24 @@ def format_text(result: WorktreeResult) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create and prepare a git worktree.")
-    parser.add_argument("--input", help="Path to JSON input file. If omitted, reads JSON from stdin when piped.")
-    parser.add_argument("--repo", default=".", help="Path to repository root (default: current directory).")
+    parser.add_argument(
+        "--input", help="Path to JSON input file. If omitted, reads JSON from stdin when piped."
+    )
+    parser.add_argument(
+        "--repo", default=".", help="Path to repository root (default: current directory)."
+    )
     parser.add_argument("--branch", help="Branch name for the worktree.")
     parser.add_argument("--name", help="Worktree directory name (created adjacent to repo).")
-    parser.add_argument("--base-branch", default="main", help="Base branch when creating a new branch.")
+    parser.add_argument(
+        "--base-branch", default="main", help="Base branch when creating a new branch."
+    )
     parser.add_argument("--app-base", type=int, default=3000, help="Base app port.")
     parser.add_argument("--db-base", type=int, default=5432, help="Base DB port.")
     parser.add_argument("--redis-base", type=int, default=6379, help="Base Redis port.")
     parser.add_argument("--stride", type=int, default=10, help="Port stride between worktrees.")
-    parser.add_argument("--install-deps", action="store_true", help="Install dependencies in the new worktree.")
+    parser.add_argument(
+        "--install-deps", action="store_true", help="Install dependencies in the new worktree."
+    )
     parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format.")
     return parser.parse_args()
 

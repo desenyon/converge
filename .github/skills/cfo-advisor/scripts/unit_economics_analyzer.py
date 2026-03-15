@@ -16,13 +16,12 @@ import argparse
 import csv
 import io
 import sys
-from dataclasses import dataclass, field
-from typing import Optional
-
+from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class CohortData:
@@ -30,50 +29,54 @@ class CohortData:
     Revenue data for a group of customers acquired in the same period.
     Revenue is tracked monthly: revenue[0] = month 1, revenue[1] = month 2, etc.
     """
-    label: str                      # e.g. "Q1 2024"
-    acquisition_period: str         # human-readable label
+
+    label: str  # e.g. "Q1 2024"
+    acquisition_period: str  # human-readable label
     customers_acquired: int
-    total_cac_spend: float          # total S&M spend to acquire this cohort
-    monthly_revenue: list[float]    # revenue per month from this cohort
+    total_cac_spend: float  # total S&M spend to acquire this cohort
+    monthly_revenue: list[float]  # revenue per month from this cohort
     gross_margin_pct: float = 0.70  # blended gross margin for this cohort
 
 
 @dataclass
 class ChannelData:
     """Acquisition cost and customer data for a single channel."""
+
     channel: str
     spend: float
     customers_acquired: int
-    avg_arpa: float                 # average revenue per account (monthly)
+    avg_arpa: float  # average revenue per account (monthly)
     gross_margin_pct: float = 0.70
-    avg_monthly_churn: float = 0.02 # monthly churn rate for customers from this channel
+    avg_monthly_churn: float = 0.02  # monthly churn rate for customers from this channel
 
 
 @dataclass
 class UnitEconomicsResult:
     """Computed unit economics for a cohort or channel."""
+
     label: str
     customers: int
     cac: float
-    arpa: float                 # average revenue per account per month
+    arpa: float  # average revenue per account per month
     gross_margin_pct: float
     monthly_churn: float
     ltv: float
     ltv_cac_ratio: float
     payback_months: float
     # Cohort-specific
-    m1_revenue: Optional[float] = None
-    m6_revenue: Optional[float] = None
-    m12_revenue: Optional[float] = None
-    m24_revenue: Optional[float] = None
-    m12_ltv: Optional[float] = None   # realized LTV through month 12
-    retention_m6: Optional[float] = None    # % of M1 revenue retained at M6
-    retention_m12: Optional[float] = None
+    m1_revenue: float | None = None
+    m6_revenue: float | None = None
+    m12_revenue: float | None = None
+    m24_revenue: float | None = None
+    m12_ltv: float | None = None  # realized LTV through month 12
+    retention_m6: float | None = None  # % of M1 revenue retained at M6
+    retention_m12: float | None = None
 
 
 # ---------------------------------------------------------------------------
 # Calculators
 # ---------------------------------------------------------------------------
+
 
 def calc_ltv(arpa: float, gross_margin_pct: float, monthly_churn: float) -> float:
     """
@@ -137,7 +140,7 @@ def analyze_cohort(cohort: CohortData) -> UnitEconomicsResult:
     ltv_cac = ltv / cac if cac > 0 else float("inf")
 
     # Snapshot revenues
-    def rev_at(month_idx: int) -> Optional[float]:
+    def rev_at(month_idx: int) -> float | None:
         if months_available > month_idx:
             return cohort.monthly_revenue[month_idx]
         return None
@@ -147,7 +150,11 @@ def analyze_cohort(cohort: CohortData) -> UnitEconomicsResult:
     m24 = rev_at(23)
 
     # Realized LTV through observed months (actual gross profit)
-    m12_ltv = sum(cohort.monthly_revenue[:12]) * cohort.gross_margin_pct if months_available >= 12 else None
+    m12_ltv = (
+        sum(cohort.monthly_revenue[:12]) * cohort.gross_margin_pct
+        if months_available >= 12
+        else None
+    )
 
     # Retention rates
     ret_m6 = (m6 / m1_rev) if (m6 is not None and m1_rev > 0) else None
@@ -200,6 +207,7 @@ def analyze_channel(ch: ChannelData) -> UnitEconomicsResult:
 # Blended metrics (for comparison)
 # ---------------------------------------------------------------------------
 
+
 def blended_cac(channels: list[ChannelData]) -> float:
     total_spend = sum(c.spend for c in channels)
     total_customers = sum(c.customers_acquired for c in channels)
@@ -222,20 +230,21 @@ def blended_ltv(channels: list[ChannelData]) -> float:
 # Reporting
 # ---------------------------------------------------------------------------
 
+
 def fmt(value: float, prefix: str = "$", decimals: int = 0) -> str:
     if value == float("inf"):
         return "∞"
     if abs(value) >= 1_000_000:
-        return f"{prefix}{value/1_000_000:.2f}M"
+        return f"{prefix}{value / 1_000_000:.2f}M"
     if abs(value) >= 1_000:
-        return f"{prefix}{value/1_000:.1f}K"
+        return f"{prefix}{value / 1_000:.1f}K"
     return f"{prefix}{value:.{decimals}f}"
 
 
-def pct(value: Optional[float]) -> str:
+def pct(value: float | None) -> str:
     if value is None:
         return "n/a"
-    return f"{value*100:.1f}%"
+    return f"{value * 100:.1f}%"
 
 
 def rating(ltv_cac: float, payback: float) -> str:
@@ -251,12 +260,14 @@ def rating(ltv_cac: float, payback: float) -> str:
 
 
 def print_cohort_analysis(results: list[UnitEconomicsResult]) -> None:
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("  COHORT ANALYSIS")
-    print("="*80)
-    print(f"  {'Cohort':<12} {'Cust':>5} {'CAC':>8} {'ARPA/mo':>9} {'Churn/mo':>10} "
-          f"{'LTV':>10} {'LTV:CAC':>8} {'Payback':>9} {'Ret@M12':>8}")
-    print("  " + "-"*88)
+    print("=" * 80)
+    print(
+        f"  {'Cohort':<12} {'Cust':>5} {'CAC':>8} {'ARPA/mo':>9} {'Churn/mo':>10} "
+        f"{'LTV':>10} {'LTV:CAC':>8} {'Payback':>9} {'Ret@M12':>8}"
+    )
+    print("  " + "-" * 88)
     for r in results:
         payback_str = f"{r.payback_months:.1f}mo" if r.payback_months != float("inf") else "∞"
         ltv_str = fmt(r.ltv) if r.ltv != float("inf") else "∞"
@@ -275,7 +286,9 @@ def print_cohort_analysis(results: list[UnitEconomicsResult]) -> None:
         churn_values = [r.monthly_churn for r in results]
 
         if len(ltv_cac_values) >= 2:
-            ltv_cac_trend = "↑ Improving" if ltv_cac_values[-1] > ltv_cac_values[0] else "↓ Deteriorating"
+            ltv_cac_trend = (
+                "↑ Improving" if ltv_cac_values[-1] > ltv_cac_values[0] else "↓ Deteriorating"
+            )
         else:
             ltv_cac_trend = "n/a"
 
@@ -288,11 +301,13 @@ def print_cohort_analysis(results: list[UnitEconomicsResult]) -> None:
 
 
 def print_channel_analysis(results: list[UnitEconomicsResult], channels: list[ChannelData]) -> None:
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("  CHANNEL ANALYSIS (Per-Channel vs Blended)")
-    print("="*80)
-    print(f"  {'Channel':<22} {'Spend':>9} {'Cust':>5} {'CAC':>8} {'LTV':>10} {'LTV:CAC':>8} {'Payback':>9} {'Rating'}")
-    print("  " + "-"*90)
+    print("=" * 80)
+    print(
+        f"  {'Channel':<22} {'Spend':>9} {'Cust':>5} {'CAC':>8} {'LTV':>10} {'LTV:CAC':>8} {'Payback':>9} {'Rating'}"
+    )
+    print("  " + "-" * 90)
     for r, ch in zip(results, channels):
         payback_str = f"{r.payback_months:.1f}mo" if r.payback_months != float("inf") else "∞"
         ltv_str = fmt(r.ltv) if r.ltv != float("inf") else "∞"
@@ -308,12 +323,15 @@ def print_channel_analysis(results: list[UnitEconomicsResult], channels: list[Ch
     b_ltv_cac = b_ltv / b_cac if b_cac > 0 else 0
     total_spend = sum(c.spend for c in channels)
     total_customers = sum(c.customers_acquired for c in channels)
-    avg_payback = sum(
-        calc_payback(b_cac, c.avg_arpa, c.gross_margin_pct) * c.customers_acquired
-        for c in channels
-    ) / total_customers
+    avg_payback = (
+        sum(
+            calc_payback(b_cac, c.avg_arpa, c.gross_margin_pct) * c.customers_acquired
+            for c in channels
+        )
+        / total_customers
+    )
 
-    print("  " + "-"*90)
+    print("  " + "-" * 90)
     print(
         f"  {'BLENDED (dangerous)':<22} {fmt(total_spend):>9} {total_customers:>5} "
         f"{fmt(b_cac):>8} {fmt(b_ltv):>10} {b_ltv_cac:.1f}x{'':<7} "
@@ -334,33 +352,68 @@ def print_channel_analysis(results: list[UnitEconomicsResult], channels: list[Ch
         print(f"    {ch.channel:<22} LTV:CAC = {r.ltv_cac_ratio:.1f}x  → {action}")
 
 
-def export_csv_results(cohort_results: list[UnitEconomicsResult], channel_results: list[UnitEconomicsResult]) -> str:
+def export_csv_results(
+    cohort_results: list[UnitEconomicsResult], channel_results: list[UnitEconomicsResult]
+) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Type", "Label", "Customers", "CAC", "ARPA_Monthly", "Gross_Margin_Pct",
-                     "Monthly_Churn", "LTV", "LTV_CAC_Ratio", "Payback_Months",
-                     "Retention_M6", "Retention_M12"])
+    writer.writerow(
+        [
+            "Type",
+            "Label",
+            "Customers",
+            "CAC",
+            "ARPA_Monthly",
+            "Gross_Margin_Pct",
+            "Monthly_Churn",
+            "LTV",
+            "LTV_CAC_Ratio",
+            "Payback_Months",
+            "Retention_M6",
+            "Retention_M12",
+        ]
+    )
     for r in cohort_results:
-        writer.writerow(["cohort", r.label, r.customers, round(r.cac, 2), round(r.arpa, 2),
-                         r.gross_margin_pct, round(r.monthly_churn, 4),
-                         round(r.ltv, 2) if r.ltv != float("inf") else "inf",
-                         round(r.ltv_cac_ratio, 2) if r.ltv_cac_ratio != float("inf") else "inf",
-                         round(r.payback_months, 2) if r.payback_months != float("inf") else "inf",
-                         round(r.retention_m6, 3) if r.retention_m6 else "",
-                         round(r.retention_m12, 3) if r.retention_m12 else ""])
+        writer.writerow(
+            [
+                "cohort",
+                r.label,
+                r.customers,
+                round(r.cac, 2),
+                round(r.arpa, 2),
+                r.gross_margin_pct,
+                round(r.monthly_churn, 4),
+                round(r.ltv, 2) if r.ltv != float("inf") else "inf",
+                round(r.ltv_cac_ratio, 2) if r.ltv_cac_ratio != float("inf") else "inf",
+                round(r.payback_months, 2) if r.payback_months != float("inf") else "inf",
+                round(r.retention_m6, 3) if r.retention_m6 else "",
+                round(r.retention_m12, 3) if r.retention_m12 else "",
+            ]
+        )
     for r in channel_results:
-        writer.writerow(["channel", r.label, r.customers, round(r.cac, 2), round(r.arpa, 2),
-                         r.gross_margin_pct, round(r.monthly_churn, 4),
-                         round(r.ltv, 2) if r.ltv != float("inf") else "inf",
-                         round(r.ltv_cac_ratio, 2) if r.ltv_cac_ratio != float("inf") else "inf",
-                         round(r.payback_months, 2) if r.payback_months != float("inf") else "inf",
-                         "", ""])
+        writer.writerow(
+            [
+                "channel",
+                r.label,
+                r.customers,
+                round(r.cac, 2),
+                round(r.arpa, 2),
+                r.gross_margin_pct,
+                round(r.monthly_churn, 4),
+                round(r.ltv, 2) if r.ltv != float("inf") else "inf",
+                round(r.ltv_cac_ratio, 2) if r.ltv_cac_ratio != float("inf") else "inf",
+                round(r.payback_months, 2) if r.payback_months != float("inf") else "inf",
+                "",
+                "",
+            ]
+        )
     return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
 # Sample data
 # ---------------------------------------------------------------------------
+
 
 def make_sample_cohorts() -> list[CohortData]:
     """
@@ -369,73 +422,162 @@ def make_sample_cohorts() -> list[CohortData]:
     """
     return [
         CohortData(
-            label="Q1 2023", acquisition_period="Jan-Mar 2023",
-            customers_acquired=12, total_cac_spend=54_000,
+            label="Q1 2023",
+            acquisition_period="Jan-Mar 2023",
+            customers_acquired=12,
+            total_cac_spend=54_000,
             gross_margin_pct=0.68,
             monthly_revenue=[
-                10_200, 9_600, 9_100, 8_700, 8_300, 8_000,  # M1-M6
-                7_800, 7_600, 7_400, 7_200, 7_000, 6_800,   # M7-M12
-                6_700, 6_600, 6_500, 6_400, 6_300, 6_200,   # M13-M18
-                6_100, 6_000, 5_900, 5_800, 5_700, 5_600,   # M19-M24
+                10_200,
+                9_600,
+                9_100,
+                8_700,
+                8_300,
+                8_000,  # M1-M6
+                7_800,
+                7_600,
+                7_400,
+                7_200,
+                7_000,
+                6_800,  # M7-M12
+                6_700,
+                6_600,
+                6_500,
+                6_400,
+                6_300,
+                6_200,  # M13-M18
+                6_100,
+                6_000,
+                5_900,
+                5_800,
+                5_700,
+                5_600,  # M19-M24
             ],
         ),
         CohortData(
-            label="Q2 2023", acquisition_period="Apr-Jun 2023",
-            customers_acquired=15, total_cac_spend=60_000,
+            label="Q2 2023",
+            acquisition_period="Apr-Jun 2023",
+            customers_acquired=15,
+            total_cac_spend=60_000,
             gross_margin_pct=0.69,
             monthly_revenue=[
-                13_500, 12_900, 12_500, 12_100, 11_800, 11_500,
-                11_300, 11_100, 10_900, 10_700, 10_500, 10_300,
-                10_200, 10_100, 10_000, 9_900, 9_800, 9_700,
+                13_500,
+                12_900,
+                12_500,
+                12_100,
+                11_800,
+                11_500,
+                11_300,
+                11_100,
+                10_900,
+                10_700,
+                10_500,
+                10_300,
+                10_200,
+                10_100,
+                10_000,
+                9_900,
+                9_800,
+                9_700,
             ],
         ),
         CohortData(
-            label="Q3 2023", acquisition_period="Jul-Sep 2023",
-            customers_acquired=18, total_cac_spend=63_000,
+            label="Q3 2023",
+            acquisition_period="Jul-Sep 2023",
+            customers_acquired=18,
+            total_cac_spend=63_000,
             gross_margin_pct=0.70,
             monthly_revenue=[
-                16_200, 15_800, 15_400, 15_100, 14_800, 14_600,
-                14_400, 14_200, 14_000, 13_900, 13_800, 13_700,
-                13_600, 13_500, 13_400, 13_300,
+                16_200,
+                15_800,
+                15_400,
+                15_100,
+                14_800,
+                14_600,
+                14_400,
+                14_200,
+                14_000,
+                13_900,
+                13_800,
+                13_700,
+                13_600,
+                13_500,
+                13_400,
+                13_300,
             ],
         ),
         CohortData(
-            label="Q4 2023", acquisition_period="Oct-Dec 2023",
-            customers_acquired=22, total_cac_spend=70_400,
+            label="Q4 2023",
+            acquisition_period="Oct-Dec 2023",
+            customers_acquired=22,
+            total_cac_spend=70_400,
             gross_margin_pct=0.71,
             monthly_revenue=[
-                20_900, 20_500, 20_200, 19_900, 19_700, 19_500,
-                19_300, 19_100, 19_000, 18_900, 18_800, 18_700,
+                20_900,
+                20_500,
+                20_200,
+                19_900,
+                19_700,
+                19_500,
+                19_300,
+                19_100,
+                19_000,
+                18_900,
+                18_800,
+                18_700,
             ],
         ),
         CohortData(
-            label="Q1 2024", acquisition_period="Jan-Mar 2024",
-            customers_acquired=28, total_cac_spend=81_200,
+            label="Q1 2024",
+            acquisition_period="Jan-Mar 2024",
+            customers_acquired=28,
+            total_cac_spend=81_200,
             gross_margin_pct=0.72,
             monthly_revenue=[
-                27_200, 26_900, 26_600, 26_400, 26_200, 26_000,
-                25_800, 25_700, 25_600, 25_500,
+                27_200,
+                26_900,
+                26_600,
+                26_400,
+                26_200,
+                26_000,
+                25_800,
+                25_700,
+                25_600,
+                25_500,
             ],
         ),
         CohortData(
-            label="Q2 2024", acquisition_period="Apr-Jun 2024",
-            customers_acquired=34, total_cac_spend=91_800,
+            label="Q2 2024",
+            acquisition_period="Apr-Jun 2024",
+            customers_acquired=34,
+            total_cac_spend=91_800,
             gross_margin_pct=0.72,
             monthly_revenue=[
-                33_300, 33_000, 32_800, 32_600, 32_400, 32_200,
+                33_300,
+                33_000,
+                32_800,
+                32_600,
+                32_400,
+                32_200,
             ],
         ),
         CohortData(
-            label="Q3 2024", acquisition_period="Jul-Sep 2024",
-            customers_acquired=40, total_cac_spend=100_000,
+            label="Q3 2024",
+            acquisition_period="Jul-Sep 2024",
+            customers_acquired=40,
+            total_cac_spend=100_000,
             gross_margin_pct=0.73,
             monthly_revenue=[
-                39_600, 39_400, 39_200,
+                39_600,
+                39_400,
+                39_200,
             ],
         ),
         CohortData(
-            label="Q4 2024", acquisition_period="Oct-Dec 2024",
-            customers_acquired=47, total_cac_spend=112_800,
+            label="Q4 2024",
+            acquisition_period="Oct-Dec 2024",
+            customers_acquired=47,
+            total_cac_spend=112_800,
             gross_margin_pct=0.73,
             monthly_revenue=[
                 47_000,
@@ -449,19 +591,69 @@ def make_sample_channels() -> list[ChannelData]:
     Q4 2024 channel breakdown. Blended looks fine; per-channel reveals problems.
     """
     return [
-        ChannelData("Organic / SEO",     spend=9_500,  customers_acquired=14, avg_arpa=950,  gross_margin_pct=0.73, avg_monthly_churn=0.015),
-        ChannelData("Paid Search (SEM)",  spend=48_000, customers_acquired=18, avg_arpa=980,  gross_margin_pct=0.73, avg_monthly_churn=0.020),
-        ChannelData("Paid Social",        spend=32_000, customers_acquired=8,  avg_arpa=900,  gross_margin_pct=0.72, avg_monthly_churn=0.025),
-        ChannelData("Content / Inbound",  spend=11_000, customers_acquired=6,  avg_arpa=1100, gross_margin_pct=0.74, avg_monthly_churn=0.012),
-        ChannelData("Outbound SDR",       spend=22_000, customers_acquired=4,  avg_arpa=1200, gross_margin_pct=0.73, avg_monthly_churn=0.022),
-        ChannelData("Events / Webinars",  spend=18_500, customers_acquired=3,  avg_arpa=1050, gross_margin_pct=0.72, avg_monthly_churn=0.028),
-        ChannelData("Partner / Referral", spend=7_800,  customers_acquired=7,  avg_arpa=1000, gross_margin_pct=0.73, avg_monthly_churn=0.013),
+        ChannelData(
+            "Organic / SEO",
+            spend=9_500,
+            customers_acquired=14,
+            avg_arpa=950,
+            gross_margin_pct=0.73,
+            avg_monthly_churn=0.015,
+        ),
+        ChannelData(
+            "Paid Search (SEM)",
+            spend=48_000,
+            customers_acquired=18,
+            avg_arpa=980,
+            gross_margin_pct=0.73,
+            avg_monthly_churn=0.020,
+        ),
+        ChannelData(
+            "Paid Social",
+            spend=32_000,
+            customers_acquired=8,
+            avg_arpa=900,
+            gross_margin_pct=0.72,
+            avg_monthly_churn=0.025,
+        ),
+        ChannelData(
+            "Content / Inbound",
+            spend=11_000,
+            customers_acquired=6,
+            avg_arpa=1100,
+            gross_margin_pct=0.74,
+            avg_monthly_churn=0.012,
+        ),
+        ChannelData(
+            "Outbound SDR",
+            spend=22_000,
+            customers_acquired=4,
+            avg_arpa=1200,
+            gross_margin_pct=0.73,
+            avg_monthly_churn=0.022,
+        ),
+        ChannelData(
+            "Events / Webinars",
+            spend=18_500,
+            customers_acquired=3,
+            avg_arpa=1050,
+            gross_margin_pct=0.72,
+            avg_monthly_churn=0.028,
+        ),
+        ChannelData(
+            "Partner / Referral",
+            spend=7_800,
+            customers_acquired=7,
+            avg_arpa=1000,
+            gross_margin_pct=0.73,
+            avg_monthly_churn=0.013,
+        ),
     ]
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Unit Economics Analyzer")
@@ -471,11 +663,11 @@ def main() -> None:
     cohorts = make_sample_cohorts()
     channels = make_sample_channels()
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("  UNIT ECONOMICS ANALYZER")
     print("  Sample Company: Series A SaaS | Q4 2024 Snapshot")
     print("  Gross Margin: ~72% | Monthly Churn: derived from cohort data")
-    print("="*80)
+    print("=" * 80)
 
     cohort_results = [analyze_cohort(c) for c in cohorts]
     channel_results = [analyze_channel(c) for c in channels]
@@ -484,9 +676,9 @@ def main() -> None:
     print_channel_analysis(channel_results, channels)
 
     # Health summary
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("  HEALTH SUMMARY")
-    print("="*80)
+    print("=" * 80)
     latest = cohort_results[-1]
     prev = cohort_results[-4] if len(cohort_results) >= 4 else cohort_results[0]
 
@@ -494,7 +686,9 @@ def main() -> None:
     print(f"    CAC:          {fmt(latest.cac)}")
     ltv_str = fmt(latest.ltv) if latest.ltv != float("inf") else "∞"
     ltv_cac_str = f"{latest.ltv_cac_ratio:.1f}x" if latest.ltv_cac_ratio != float("inf") else "∞"
-    payback_str = f"{latest.payback_months:.1f} months" if latest.payback_months != float("inf") else "∞"
+    payback_str = (
+        f"{latest.payback_months:.1f} months" if latest.payback_months != float("inf") else "∞"
+    )
     print(f"    LTV:          {ltv_str}")
     print(f"    LTV:CAC:      {ltv_cac_str}  (target: > 3x)")
     print(f"    CAC Payback:  {payback_str}  (target: < 18mo)")

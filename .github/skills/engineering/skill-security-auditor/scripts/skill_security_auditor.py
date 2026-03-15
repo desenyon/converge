@@ -15,17 +15,15 @@ Exit codes:
 
 import argparse
 import json
-import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
 import tempfile
-import shutil
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import IntEnum
 from pathlib import Path
-from typing import Optional
 
 
 class Severity(IntEnum):
@@ -764,8 +762,13 @@ def scan_filesystem(skill_path: Path, report: AuditReport):
 
         # Hidden files (except common ones)
         if item.name.startswith(".") and item.name not in (
-            ".gitignore", ".gitkeep", ".editorconfig", ".prettierrc",
-            ".eslintrc", ".pylintrc", ".flake8",
+            ".gitignore",
+            ".gitkeep",
+            ".editorconfig",
+            ".prettierrc",
+            ".eslintrc",
+            ".pylintrc",
+            ".flake8",
         ):
             severity = Severity.CRITICAL if item.name == ".env" else Severity.HIGH
             report.findings.append(
@@ -782,8 +785,17 @@ def scan_filesystem(skill_path: Path, report: AuditReport):
 
         # Binary files
         if item.is_file() and item.suffix.lower() in (
-            ".exe", ".dll", ".so", ".dylib", ".bin", ".elf",
-            ".com", ".msi", ".deb", ".rpm", ".apk",
+            ".exe",
+            ".dll",
+            ".so",
+            ".dylib",
+            ".bin",
+            ".elf",
+            ".com",
+            ".msi",
+            ".deb",
+            ".rpm",
+            ".apk",
         ):
             report.findings.append(
                 Finding(
@@ -902,7 +914,7 @@ def scan_skill(skill_path: Path) -> AuditReport:
     return report
 
 
-def clone_repo(url: str, skill_name: Optional[str] = None, cleanup: bool = False):
+def clone_repo(url: str, skill_name: str | None = None, cleanup: bool = False):
     """Clone a git repo to a temp directory and return the skill path."""
     tmp_dir = tempfile.mkdtemp(prefix="skill-audit-")
     try:

@@ -18,41 +18,88 @@ import csv
 import io
 import json
 import sys
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
-
+from typing import Any
 
 DEMO_DATA = [
-    {"id": "1", "name": "Q1 Report.pdf", "mimeType": "application/pdf", "size": "245760",
-     "modifiedTime": "2026-03-10T14:30:00Z", "shared": True, "owners": [{"displayName": "Alice"}]},
-    {"id": "2", "name": "Budget 2026.xlsx", "mimeType": "application/vnd.google-apps.spreadsheet",
-     "size": "0", "modifiedTime": "2026-03-09T09:15:00Z", "shared": True,
-     "owners": [{"displayName": "Bob"}]},
-    {"id": "3", "name": "Meeting Notes.docx", "mimeType": "application/vnd.google-apps.document",
-     "size": "0", "modifiedTime": "2026-03-08T16:00:00Z", "shared": False,
-     "owners": [{"displayName": "Alice"}]},
-    {"id": "4", "name": "Logo.png", "mimeType": "image/png", "size": "102400",
-     "modifiedTime": "2026-03-07T11:00:00Z", "shared": False,
-     "owners": [{"displayName": "Charlie"}]},
-    {"id": "5", "name": "Presentation.pptx", "mimeType": "application/vnd.google-apps.presentation",
-     "size": "0", "modifiedTime": "2026-03-06T10:00:00Z", "shared": True,
-     "owners": [{"displayName": "Alice"}]},
-    {"id": "6", "name": "Invoice-001.pdf", "mimeType": "application/pdf", "size": "89000",
-     "modifiedTime": "2026-03-05T08:30:00Z", "shared": False,
-     "owners": [{"displayName": "Bob"}]},
-    {"id": "7", "name": "Project Plan.xlsx", "mimeType": "application/vnd.google-apps.spreadsheet",
-     "size": "0", "modifiedTime": "2026-03-04T13:45:00Z", "shared": True,
-     "owners": [{"displayName": "Charlie"}]},
-    {"id": "8", "name": "Contract Draft.docx", "mimeType": "application/vnd.google-apps.document",
-     "size": "0", "modifiedTime": "2026-03-03T09:00:00Z", "shared": False,
-     "owners": [{"displayName": "Alice"}]},
+    {
+        "id": "1",
+        "name": "Q1 Report.pdf",
+        "mimeType": "application/pdf",
+        "size": "245760",
+        "modifiedTime": "2026-03-10T14:30:00Z",
+        "shared": True,
+        "owners": [{"displayName": "Alice"}],
+    },
+    {
+        "id": "2",
+        "name": "Budget 2026.xlsx",
+        "mimeType": "application/vnd.google-apps.spreadsheet",
+        "size": "0",
+        "modifiedTime": "2026-03-09T09:15:00Z",
+        "shared": True,
+        "owners": [{"displayName": "Bob"}],
+    },
+    {
+        "id": "3",
+        "name": "Meeting Notes.docx",
+        "mimeType": "application/vnd.google-apps.document",
+        "size": "0",
+        "modifiedTime": "2026-03-08T16:00:00Z",
+        "shared": False,
+        "owners": [{"displayName": "Alice"}],
+    },
+    {
+        "id": "4",
+        "name": "Logo.png",
+        "mimeType": "image/png",
+        "size": "102400",
+        "modifiedTime": "2026-03-07T11:00:00Z",
+        "shared": False,
+        "owners": [{"displayName": "Charlie"}],
+    },
+    {
+        "id": "5",
+        "name": "Presentation.pptx",
+        "mimeType": "application/vnd.google-apps.presentation",
+        "size": "0",
+        "modifiedTime": "2026-03-06T10:00:00Z",
+        "shared": True,
+        "owners": [{"displayName": "Alice"}],
+    },
+    {
+        "id": "6",
+        "name": "Invoice-001.pdf",
+        "mimeType": "application/pdf",
+        "size": "89000",
+        "modifiedTime": "2026-03-05T08:30:00Z",
+        "shared": False,
+        "owners": [{"displayName": "Bob"}],
+    },
+    {
+        "id": "7",
+        "name": "Project Plan.xlsx",
+        "mimeType": "application/vnd.google-apps.spreadsheet",
+        "size": "0",
+        "modifiedTime": "2026-03-04T13:45:00Z",
+        "shared": True,
+        "owners": [{"displayName": "Charlie"}],
+    },
+    {
+        "id": "8",
+        "name": "Contract Draft.docx",
+        "mimeType": "application/vnd.google-apps.document",
+        "size": "0",
+        "modifiedTime": "2026-03-03T09:00:00Z",
+        "shared": False,
+        "owners": [{"displayName": "Alice"}],
+    },
 ]
 
 
-def read_input(input_file: Optional[str]) -> List[Dict[str, Any]]:
+def read_input(input_file: str | None) -> list[dict[str, Any]]:
     """Read JSON array or NDJSON from file or stdin."""
     if input_file:
-        with open(input_file, "r") as f:
+        with open(input_file) as f:
             text = f.read().strip()
     else:
         if sys.stdin.isatty():
@@ -69,8 +116,18 @@ def read_input(input_file: Optional[str]) -> List[Dict[str, Any]]:
             return data
         if isinstance(data, dict):
             # Some gws commands wrap results in a key
-            for key in ("files", "messages", "events", "items", "results",
-                        "spreadsheets", "spaces", "tasks", "users", "groups"):
+            for key in (
+                "files",
+                "messages",
+                "events",
+                "items",
+                "results",
+                "spreadsheets",
+                "spaces",
+                "tasks",
+                "users",
+                "groups",
+            ):
                 if key in data and isinstance(data[key], list):
                     return data[key]
             return [data]
@@ -89,7 +146,7 @@ def read_input(input_file: Optional[str]) -> List[Dict[str, Any]]:
     return records
 
 
-def get_nested(obj: Dict, path: str) -> Any:
+def get_nested(obj: dict, path: str) -> Any:
     """Get a nested value by dot-separated path."""
     parts = path.split(".")
     current = obj
@@ -106,7 +163,7 @@ def get_nested(obj: Dict, path: str) -> Any:
     return current
 
 
-def apply_filter(records: List[Dict], filter_expr: str) -> List[Dict]:
+def apply_filter(records: list[dict], filter_expr: str) -> list[dict]:
     """Filter records by field=value expression."""
     if "=" not in filter_expr:
         return records
@@ -122,7 +179,7 @@ def apply_filter(records: List[Dict], filter_expr: str) -> List[Dict]:
     return result
 
 
-def apply_select(records: List[Dict], fields: str) -> List[Dict]:
+def apply_select(records: list[dict], fields: str) -> list[dict]:
     """Project specific fields from records."""
     field_list = [f.strip() for f in fields.split(",")]
     result = []
@@ -134,8 +191,9 @@ def apply_select(records: List[Dict], fields: str) -> List[Dict]:
     return result
 
 
-def apply_sort(records: List[Dict], sort_field: str, reverse: bool = False) -> List[Dict]:
+def apply_sort(records: list[dict], sort_field: str, reverse: bool = False) -> list[dict]:
     """Sort records by a field."""
+
     def sort_key(rec):
         val = get_nested(rec, sort_field)
         if val is None:
@@ -146,12 +204,13 @@ def apply_sort(records: List[Dict], sort_field: str, reverse: bool = False) -> L
             return float(val)
         except (ValueError, TypeError):
             return str(val).lower()
+
     return sorted(records, key=sort_key, reverse=reverse)
 
 
-def apply_group_by(records: List[Dict], field: str) -> Dict[str, int]:
+def apply_group_by(records: list[dict], field: str) -> dict[str, int]:
     """Group records by a field and count."""
-    groups: Dict[str, int] = {}
+    groups: dict[str, int] = {}
     for rec in records:
         val = get_nested(rec, field)
         key = str(val) if val is not None else "(null)"
@@ -159,7 +218,7 @@ def apply_group_by(records: List[Dict], field: str) -> Dict[str, int]:
     return dict(sorted(groups.items(), key=lambda x: x[1], reverse=True))
 
 
-def compute_stats(records: List[Dict], field: str) -> Dict[str, Any]:
+def compute_stats(records: list[dict], field: str) -> dict[str, Any]:
     """Compute min/max/avg/sum for a numeric field."""
     values = []
     for rec in records:
@@ -181,7 +240,7 @@ def compute_stats(records: List[Dict], field: str) -> Dict[str, Any]:
     }
 
 
-def format_table(records: List[Dict]) -> str:
+def format_table(records: list[dict]) -> str:
     """Format records as an aligned text table."""
     if not records:
         return "(no records)"
@@ -214,7 +273,7 @@ def format_table(records: List[Dict]) -> str:
     return "\n".join(lines)
 
 
-def format_csv_output(records: List[Dict]) -> str:
+def format_csv_output(records: list[dict]) -> str:
     """Format records as CSV."""
     if not records:
         return ""
@@ -249,10 +308,13 @@ Examples:
     parser.add_argument("--reverse", action="store_true", help="Reverse sort order")
     parser.add_argument("--group-by", help="Group by field and count")
     parser.add_argument("--stats", help="Compute stats for a numeric field")
-    parser.add_argument("--format", choices=["json", "table", "csv"], default="json",
-                        help="Output format (default: json)")
-    parser.add_argument("--json", action="store_true",
-                        help="Shorthand for --format json")
+    parser.add_argument(
+        "--format",
+        choices=["json", "table", "csv"],
+        default="json",
+        help="Output format (default: json)",
+    )
+    parser.add_argument("--json", action="store_true", help="Shorthand for --format json")
     args = parser.parse_args()
 
     if args.json:

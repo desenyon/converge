@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """content_scorer.py — scores content 0-100 on readability, SEO, structure, and engagement."""
 
-import sys
-import re
 import json
 import math
-from collections import Counter
+import re
+import sys
 
 # ── Sample content for zero-config demo run ──────────────────────────────────
 SAMPLE_CONTENT = """
@@ -52,6 +51,7 @@ SAMPLE_TITLE = "How to Reduce Churn in SaaS: 7 Proven Tactics That Actually Work
 
 # ── Scoring functions ─────────────────────────────────────────────────────────
 
+
 def count_syllables(word: str) -> int:
     """Approximate syllable count using vowel-group heuristic."""
     word = word.lower().strip(".,!?;:")
@@ -77,11 +77,11 @@ def flesch_reading_ease(text: str) -> float:
     206.835 - 1.015 * (words/sentences) - 84.6 * (syllables/words)
     Higher = easier. Target: 60-70 for professional content.
     """
-    sentences = re.split(r'[.!?]+', text)
+    sentences = re.split(r"[.!?]+", text)
     sentences = [s.strip() for s in sentences if s.strip()]
     n_sentences = max(1, len(sentences))
 
-    words = re.findall(r'\b[a-zA-Z]+\b', text)
+    words = re.findall(r"\b[a-zA-Z]+\b", text)
     n_words = max(1, len(words))
 
     n_syllables = sum(count_syllables(w) for w in words)
@@ -110,7 +110,7 @@ def score_readability(text: str) -> dict:
         fre_points = 0
 
     # Sentence length variance
-    sentences = re.split(r'[.!?]+', text)
+    sentences = re.split(r"[.!?]+", text)
     sentences = [s.strip() for s in sentences if len(s.split()) > 2]
     lengths = [len(s.split()) for s in sentences]
     if len(lengths) > 1:
@@ -126,7 +126,7 @@ def score_readability(text: str) -> dict:
         "score": total,
         "max": 25,
         "flesch_reading_ease": fre,
-        "sentence_length_std_dev": round(math.sqrt(variance) if len(lengths) > 1 else 0, 1)
+        "sentence_length_std_dev": round(math.sqrt(variance) if len(lengths) > 1 else 0, 1),
     }
 
 
@@ -147,7 +147,7 @@ def score_seo(text: str, title: str = "", keyword: str = "") -> dict:
         signals["keyword_in_title"] = False
 
     # Keyword in first 100 words
-    first_100 = " ".join(re.findall(r'\b\w+\b', text_lower)[:100])
+    first_100 = " ".join(re.findall(r"\b\w+\b", text_lower)[:100])
     if keyword_lower and keyword_lower in first_100:
         points += 5
         signals["keyword_in_intro"] = True
@@ -155,12 +155,12 @@ def score_seo(text: str, title: str = "", keyword: str = "") -> dict:
         signals["keyword_in_intro"] = False
 
     # Keyword density (target 0.5-2%)
-    words = re.findall(r'\b\w+\b', text_lower)
+    words = re.findall(r"\b\w+\b", text_lower)
     n_words = max(1, len(words))
     kw_words = keyword_lower.split()
     kw_count = 0
     for i in range(len(words) - len(kw_words) + 1):
-        if words[i:i+len(kw_words)] == kw_words:
+        if words[i : i + len(kw_words)] == kw_words:
             kw_count += 1
     density = (kw_count * len(kw_words)) / n_words * 100
     signals["keyword_density_pct"] = round(density, 2)
@@ -171,7 +171,7 @@ def score_seo(text: str, title: str = "", keyword: str = "") -> dict:
         points += 2
 
     # H2 headings present
-    h2_count = len(re.findall(r'^## .+', text, re.MULTILINE))
+    h2_count = len(re.findall(r"^## .+", text, re.MULTILINE))
     signals["h2_count"] = h2_count
     if h2_count >= 3:
         points += 5
@@ -192,14 +192,14 @@ def score_structure(text: str) -> dict:
     points = 0
     signals = {}
 
-    lines = text.strip().split('\n')
+    lines = text.strip().split("\n")
 
     # Intro: first non-empty paragraph
-    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     signals["paragraph_count"] = len(paragraphs)
 
     # Has intro (first paragraph isn't a heading)
-    if paragraphs and not paragraphs[0].startswith('#'):
+    if paragraphs and not paragraphs[0].startswith("#"):
         intro_words = len(paragraphs[0].split())
         signals["intro_word_count"] = intro_words
         if 30 <= intro_words <= 200:
@@ -210,7 +210,7 @@ def score_structure(text: str) -> dict:
         signals["intro_word_count"] = 0
 
     # Has H2 sections
-    h2s = [l for l in lines if l.startswith('## ')]
+    h2s = [l for l in lines if l.startswith("## ")]
     signals["h2_count"] = len(h2s)
     if len(h2s) >= 4:
         points += 8
@@ -223,14 +223,14 @@ def score_structure(text: str) -> dict:
     last_para = paragraphs[-1] if paragraphs else ""
     conclusion_words = len(last_para.split())
     signals["conclusion_word_count"] = conclusion_words
-    conclusion_signals = ['conclusion', 'summary', 'final', 'start ', 'next step', 'action']
+    conclusion_signals = ["conclusion", "summary", "final", "start ", "next step", "action"]
     if any(sig in last_para.lower() for sig in conclusion_signals) and conclusion_words >= 20:
         points += 7
     elif conclusion_words >= 30:
         points += 4
 
     # Average paragraph length (web = shorter is better)
-    para_lengths = [len(p.split()) for p in paragraphs if not p.startswith('#')]
+    para_lengths = [len(p.split()) for p in paragraphs if not p.startswith("#")]
     if para_lengths:
         avg_para_len = sum(para_lengths) / len(para_lengths)
         signals["avg_paragraph_word_count"] = round(avg_para_len, 1)
@@ -250,7 +250,7 @@ def score_engagement(text: str) -> dict:
     text_lower = text.lower()
 
     # Questions (engage readers, prompt thought)
-    question_count = len(re.findall(r'\?', text))
+    question_count = len(re.findall(r"\?", text))
     signals["question_count"] = question_count
     if question_count >= 3:
         points += 6
@@ -258,7 +258,7 @@ def score_engagement(text: str) -> dict:
         points += 3
 
     # Specific numbers / data points
-    number_count = len(re.findall(r'\b\d+(?:\.\d+)?%?\b', text))
+    number_count = len(re.findall(r"\b\d+(?:\.\d+)?%?\b", text))
     signals["numbers_and_stats"] = number_count
     if number_count >= 5:
         points += 7
@@ -268,8 +268,19 @@ def score_engagement(text: str) -> dict:
         points += 2
 
     # Example signals
-    example_phrases = ['for example', 'for instance', 'such as', 'like ', 'e.g.', 'case study',
-                       'imagine', 'consider', 'let\'s say', 'here\'s', 'specifically']
+    example_phrases = [
+        "for example",
+        "for instance",
+        "such as",
+        "like ",
+        "e.g.",
+        "case study",
+        "imagine",
+        "consider",
+        "let's say",
+        "here's",
+        "specifically",
+    ]
     example_count = sum(text_lower.count(p) for p in example_phrases)
     signals["example_signals"] = example_count
     if example_count >= 3:
@@ -278,7 +289,7 @@ def score_engagement(text: str) -> dict:
         points += 3
 
     # Lists (bulleted or numbered)
-    list_items = len(re.findall(r'^\s*[-*•]\s+.+|^\s*\d+\.\s+.+', text, re.MULTILINE))
+    list_items = len(re.findall(r"^\s*[-*•]\s+.+|^\s*\d+\.\s+.+", text, re.MULTILINE))
     signals["list_items"] = list_items
     if list_items >= 5:
         points += 6
@@ -290,6 +301,7 @@ def score_engagement(text: str) -> dict:
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 
 def score_content(text: str, title: str = "", keyword: str = "") -> dict:
     readability = score_readability(text)
@@ -317,7 +329,7 @@ def score_content(text: str, title: str = "", keyword: str = "") -> dict:
             "seo": seo,
             "structure": structure,
             "engagement": engagement,
-        }
+        },
     }
 
 
@@ -344,8 +356,8 @@ def print_report(result: dict, title: str, keyword: str) -> None:
     sections = [
         ("Readability", s["readability"]),
         ("SEO Signals", s["seo"]),
-        ("Structure",   s["structure"]),
-        ("Engagement",  s["engagement"]),
+        ("Structure", s["structure"]),
+        ("Engagement", s["engagement"]),
     ]
     for label, section in sections:
         sc = section["score"]
@@ -395,7 +407,7 @@ def print_report(result: dict, title: str, keyword: str) -> None:
     if total >= 70:
         print("  ✅ Content is publish-ready (score ≥ 70)")
     else:
-        print(f"  ❌ Score below 70 — address recommendations before publishing")
+        print("  ❌ Score below 70 — address recommendations before publishing")
 
     print()
 
@@ -407,18 +419,16 @@ def main():
         description="Scores content 0-100 on readability, SEO, structure, and engagement."
     )
     parser.add_argument(
-        "file", nargs="?", default=None,
+        "file",
+        nargs="?",
+        default=None,
         help="Path to a text/markdown file to analyze. If omitted, runs demo "
-             "with embedded sample content."
+        "with embedded sample content.",
     )
     parser.add_argument(
-        "keyword", nargs="?", default="",
-        help="Target SEO keyword to check density and placement."
+        "keyword", nargs="?", default="", help="Target SEO keyword to check density and placement."
     )
-    parser.add_argument(
-        "--json", action="store_true",
-        help="Also output results as JSON."
-    )
+    parser.add_argument("--json", action="store_true", help="Also output results as JSON.")
     args = parser.parse_args()
 
     title = ""
@@ -434,23 +444,23 @@ def main():
     else:
         # Read from file
         try:
-            with open(args.file, 'r', encoding='utf-8') as f:
+            with open(args.file, encoding="utf-8") as f:
                 text = f.read()
         except FileNotFoundError:
             print(f"Error: file not found: {args.file}", file=sys.stderr)
             sys.exit(1)
 
         # Extract title from first H1 or first line
-        for line in text.split('\n'):
+        for line in text.split("\n"):
             line = line.strip()
-            if line.startswith('# '):
+            if line.startswith("# "):
                 title = line[2:].strip()
                 break
-            elif line.startswith('Title:'):
+            elif line.startswith("Title:"):
                 title = line[6:].strip()
                 break
         if not title and text:
-            title = text.split('\n')[0][:80]
+            title = text.split("\n")[0][:80]
 
     result = score_content(text, title, keyword)
     print_report(result, title, keyword)

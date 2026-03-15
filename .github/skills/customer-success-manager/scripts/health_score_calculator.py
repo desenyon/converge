@@ -14,14 +14,13 @@ Usage:
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-DIMENSION_WEIGHTS: Dict[str, float] = {
+DIMENSION_WEIGHTS: dict[str, float] = {
     "usage": 0.30,
     "engagement": 0.25,
     "support": 0.20,
@@ -29,14 +28,14 @@ DIMENSION_WEIGHTS: Dict[str, float] = {
 }
 
 # Segment-specific thresholds (green_min, yellow_min)
-SEGMENT_THRESHOLDS: Dict[str, Dict[str, Tuple[int, int]]] = {
+SEGMENT_THRESHOLDS: dict[str, dict[str, tuple[int, int]]] = {
     "enterprise": {"green": (75, 100), "yellow": (50, 74), "red": (0, 49)},
     "mid-market": {"green": (70, 100), "yellow": (45, 69), "red": (0, 44)},
     "smb": {"green": (65, 100), "yellow": (40, 64), "red": (0, 39)},
 }
 
 # Benchmarks per segment for normalising raw metrics
-SEGMENT_BENCHMARKS: Dict[str, Dict[str, Any]] = {
+SEGMENT_BENCHMARKS: dict[str, dict[str, Any]] = {
     "enterprise": {
         "login_frequency_target": 90,
         "feature_adoption_target": 80,
@@ -81,7 +80,7 @@ SEGMENT_BENCHMARKS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-RENEWAL_SENTIMENT_SCORES: Dict[str, float] = {
+RENEWAL_SENTIMENT_SCORES: dict[str, float] = {
     "positive": 100.0,
     "neutral": 60.0,
     "negative": 20.0,
@@ -106,12 +105,12 @@ def clamp(value: float, lo: float = 0.0, hi: float = 100.0) -> float:
     return max(lo, min(hi, value))
 
 
-def get_benchmarks(segment: str) -> Dict[str, Any]:
+def get_benchmarks(segment: str) -> dict[str, Any]:
     """Return benchmarks for the given segment, falling back to mid-market."""
     return SEGMENT_BENCHMARKS.get(segment.lower(), SEGMENT_BENCHMARKS["mid-market"])
 
 
-def get_thresholds(segment: str) -> Dict[str, Tuple[int, int]]:
+def get_thresholds(segment: str) -> dict[str, tuple[int, int]]:
     """Return classification thresholds for the given segment."""
     return SEGMENT_THRESHOLDS.get(segment.lower(), SEGMENT_THRESHOLDS["mid-market"])
 
@@ -126,7 +125,7 @@ def classify(score: float, segment: str) -> str:
     return "red"
 
 
-def trend_direction(current: float, previous: Optional[float]) -> str:
+def trend_direction(current: float, previous: float | None) -> str:
     """Return trend direction string."""
     if previous is None:
         return "no_data"
@@ -143,41 +142,54 @@ def trend_direction(current: float, previous: Optional[float]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def score_usage(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tuple[float, List[str]]:
+def score_usage(data: dict[str, Any], benchmarks: dict[str, Any]) -> tuple[float, list[str]]:
     """Score the usage dimension (0-100).
 
     Metrics: login_frequency, feature_adoption, dau_mau_ratio.
     """
-    recommendations: List[str] = []
+    recommendations: list[str] = []
 
-    login = clamp(safe_divide(data.get("login_frequency", 0), benchmarks["login_frequency_target"]) * 100)
-    adoption = clamp(safe_divide(data.get("feature_adoption", 0), benchmarks["feature_adoption_target"]) * 100)
+    login = clamp(
+        safe_divide(data.get("login_frequency", 0), benchmarks["login_frequency_target"]) * 100
+    )
+    adoption = clamp(
+        safe_divide(data.get("feature_adoption", 0), benchmarks["feature_adoption_target"]) * 100
+    )
     dau_mau = clamp(safe_divide(data.get("dau_mau_ratio", 0), benchmarks["dau_mau_target"]) * 100)
 
     score = round(login * 0.35 + adoption * 0.40 + dau_mau * 0.25, 1)
 
     if login < 60:
-        recommendations.append("Login frequency below target -- schedule product engagement session")
+        recommendations.append(
+            "Login frequency below target -- schedule product engagement session"
+        )
     if adoption < 50:
         recommendations.append("Feature adoption is low -- recommend guided feature walkthrough")
     if dau_mau < 50:
-        recommendations.append("DAU/MAU ratio indicates shallow usage -- investigate stickiness barriers")
+        recommendations.append(
+            "DAU/MAU ratio indicates shallow usage -- investigate stickiness barriers"
+        )
 
     return score, recommendations
 
 
-def score_engagement(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tuple[float, List[str]]:
+def score_engagement(data: dict[str, Any], benchmarks: dict[str, Any]) -> tuple[float, list[str]]:
     """Score the engagement dimension (0-100).
 
     Metrics: support_ticket_volume (inverse), meeting_attendance, nps_score, csat_score.
     """
-    recommendations: List[str] = []
+    recommendations: list[str] = []
 
     # Lower ticket volume is better -- invert
     ticket_vol = data.get("support_ticket_volume", 0)
-    ticket_score = clamp((1.0 - safe_divide(ticket_vol, benchmarks["support_ticket_volume_max"])) * 100)
+    ticket_score = clamp(
+        (1.0 - safe_divide(ticket_vol, benchmarks["support_ticket_volume_max"])) * 100
+    )
 
-    attendance = clamp(safe_divide(data.get("meeting_attendance", 0), benchmarks["meeting_attendance_target"]) * 100)
+    attendance = clamp(
+        safe_divide(data.get("meeting_attendance", 0), benchmarks["meeting_attendance_target"])
+        * 100
+    )
 
     nps_raw = data.get("nps_score", 5)
     nps_score = clamp(safe_divide(nps_raw, benchmarks["nps_target"]) * 100)
@@ -188,7 +200,9 @@ def score_engagement(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tuple[
     score = round(ticket_score * 0.20 + attendance * 0.30 + nps_score * 0.25 + csat_score * 0.25, 1)
 
     if attendance < 60:
-        recommendations.append("Meeting attendance is low -- re-evaluate meeting cadence and agenda value")
+        recommendations.append(
+            "Meeting attendance is low -- re-evaluate meeting cadence and agenda value"
+        )
     if nps_raw < 7:
         recommendations.append("NPS below threshold -- conduct a feedback deep-dive with customer")
     if csat_raw < 3.5:
@@ -197,12 +211,12 @@ def score_engagement(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tuple[
     return score, recommendations
 
 
-def score_support(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tuple[float, List[str]]:
+def score_support(data: dict[str, Any], benchmarks: dict[str, Any]) -> tuple[float, list[str]]:
     """Score the support dimension (0-100).
 
     Metrics: open_tickets (inverse), escalation_rate (inverse), avg_resolution_hours (inverse).
     """
-    recommendations: List[str] = []
+    recommendations: list[str] = []
 
     open_tix = data.get("open_tickets", 0)
     open_score = clamp((1.0 - safe_divide(open_tix, benchmarks["open_tickets_max"])) * 100)
@@ -225,14 +239,17 @@ def score_support(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tuple[flo
     return score, recommendations
 
 
-def score_relationship(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tuple[float, List[str]]:
+def score_relationship(data: dict[str, Any], benchmarks: dict[str, Any]) -> tuple[float, list[str]]:
     """Score the relationship dimension (0-100).
 
     Metrics: executive_sponsor_engagement, multi_threading_depth, renewal_sentiment.
     """
-    recommendations: List[str] = []
+    recommendations: list[str] = []
 
-    exec_score = clamp(safe_divide(data.get("executive_sponsor_engagement", 0), benchmarks["exec_sponsor_target"]) * 100)
+    exec_score = clamp(
+        safe_divide(data.get("executive_sponsor_engagement", 0), benchmarks["exec_sponsor_target"])
+        * 100
+    )
 
     threading = data.get("multi_threading_depth", 1)
     thread_score = clamp(safe_divide(threading, benchmarks["multi_threading_target"]) * 100)
@@ -243,7 +260,9 @@ def score_relationship(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tupl
     score = round(exec_score * 0.35 + thread_score * 0.30 + sentiment_score * 0.35, 1)
 
     if exec_score < 50:
-        recommendations.append("Executive sponsor engagement is weak -- schedule executive alignment meeting")
+        recommendations.append(
+            "Executive sponsor engagement is weak -- schedule executive alignment meeting"
+        )
     if threading < 2:
         recommendations.append("Single-threaded relationship -- expand contacts across departments")
     if sentiment_str == "negative":
@@ -257,7 +276,7 @@ def score_relationship(data: Dict[str, Any], benchmarks: Dict[str, Any]) -> Tupl
 # ---------------------------------------------------------------------------
 
 
-def calculate_health_score(customer: Dict[str, Any]) -> Dict[str, Any]:
+def calculate_health_score(customer: dict[str, Any]) -> dict[str, Any]:
     """Calculate the overall health score for a single customer."""
     segment = customer.get("segment", "mid-market").lower()
     benchmarks = get_benchmarks(segment)
@@ -266,7 +285,9 @@ def calculate_health_score(customer: Dict[str, Any]) -> Dict[str, Any]:
     usage_score, usage_recs = score_usage(customer.get("usage", {}), benchmarks)
     engagement_score, engagement_recs = score_engagement(customer.get("engagement", {}), benchmarks)
     support_score, support_recs = score_support(customer.get("support", {}), benchmarks)
-    relationship_score, relationship_recs = score_relationship(customer.get("relationship", {}), benchmarks)
+    relationship_score, relationship_recs = score_relationship(
+        customer.get("relationship", {}), benchmarks
+    )
 
     # Weighted overall
     overall = round(
@@ -301,10 +322,26 @@ def calculate_health_score(customer: Dict[str, Any]) -> Dict[str, Any]:
         "overall_score": overall,
         "classification": classification,
         "dimensions": {
-            "usage": {"score": usage_score, "weight": "30%", "classification": classify(usage_score, segment)},
-            "engagement": {"score": engagement_score, "weight": "25%", "classification": classify(engagement_score, segment)},
-            "support": {"score": support_score, "weight": "20%", "classification": classify(support_score, segment)},
-            "relationship": {"score": relationship_score, "weight": "25%", "classification": classify(relationship_score, segment)},
+            "usage": {
+                "score": usage_score,
+                "weight": "30%",
+                "classification": classify(usage_score, segment),
+            },
+            "engagement": {
+                "score": engagement_score,
+                "weight": "25%",
+                "classification": classify(engagement_score, segment),
+            },
+            "support": {
+                "score": support_score,
+                "weight": "20%",
+                "classification": classify(support_score, segment),
+            },
+            "relationship": {
+                "score": relationship_score,
+                "weight": "25%",
+                "classification": classify(relationship_score, segment),
+            },
         },
         "trends": trends,
         "recommendations": all_recs,
@@ -322,9 +359,9 @@ CLASSIFICATION_LABELS = {
 }
 
 
-def format_text(results: List[Dict[str, Any]]) -> str:
+def format_text(results: list[dict[str, Any]]) -> str:
     """Format results as human-readable text."""
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("=" * 72)
     lines.append("CUSTOMER HEALTH SCORE REPORT")
     lines.append("=" * 72)
@@ -355,7 +392,9 @@ def format_text(results: List[Dict[str, Any]]) -> str:
         lines.append("  Dimension Scores:")
         for dim_name, dim_data in r["dimensions"].items():
             dim_label = CLASSIFICATION_LABELS.get(dim_data["classification"], "")
-            lines.append(f"    {dim_name.title():15s} {dim_data['score']:6.1f}/100  ({dim_data['weight']})  [{dim_label}]")
+            lines.append(
+                f"    {dim_name.title():15s} {dim_data['score']:6.1f}/100  ({dim_data['weight']})  [{dim_label}]"
+            )
 
         lines.append("")
         lines.append("  Trends:")
@@ -375,7 +414,7 @@ def format_text(results: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def format_json(results: List[Dict[str, Any]]) -> str:
+def format_json(results: list[dict[str, Any]]) -> str:
     """Format results as JSON."""
     total = len(results)
     output = {
@@ -412,7 +451,7 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        with open(args.input_file, "r") as f:
+        with open(args.input_file) as f:
             data = json.load(f)
     except FileNotFoundError:
         print(f"Error: File not found: {args.input_file}", file=sys.stderr)

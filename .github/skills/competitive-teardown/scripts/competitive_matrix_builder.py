@@ -12,15 +12,14 @@ Usage:
 
 import argparse
 import json
-import sys
-from typing import Dict, List, Any, Optional
 from datetime import datetime
 from statistics import mean, stdev
+from typing import Any
 
 
-def load_competitors(path: str) -> Dict[str, Any]:
+def load_competitors(path: str) -> dict[str, Any]:
     """Load competitor data from JSON file."""
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 
@@ -30,13 +29,13 @@ def normalize_score(value: float, min_val: float = 1.0, max_val: float = 10.0) -
 
 
 def calculate_weighted_scores(
-    competitors: List[Dict[str, Any]],
-    dimensions: List[str],
-    weights: Optional[Dict[str, float]] = None
-) -> List[Dict[str, Any]]:
+    competitors: list[dict[str, Any]],
+    dimensions: list[str],
+    weights: dict[str, float] | None = None,
+) -> list[dict[str, Any]]:
     """Calculate weighted scores for each competitor across dimensions."""
     if weights is None:
-        weights = {d: 1.0 for d in dimensions}
+        weights = dict.fromkeys(dimensions, 1.0)
 
     results = []
     for comp in competitors:
@@ -56,19 +55,21 @@ def calculate_weighted_scores(
                 "raw": raw,
                 "normalized": round(normalized, 1),
                 "weight": w,
-                "weighted": round(weighted, 1)
+                "weighted": round(weighted, 1),
             }
 
         overall = round(weighted_total / weight_sum, 1) if weight_sum > 0 else 0
-        results.append({
-            "name": comp["name"],
-            "overall_score": overall,
-            "dimensions": dimension_results,
-            "tier": classify_tier(overall),
-            "pricing": comp.get("pricing", {}),
-            "strengths": comp.get("strengths", []),
-            "weaknesses": comp.get("weaknesses", [])
-        })
+        results.append(
+            {
+                "name": comp["name"],
+                "overall_score": overall,
+                "dimensions": dimension_results,
+                "tier": classify_tier(overall),
+                "pricing": comp.get("pricing", {}),
+                "strengths": comp.get("strengths", []),
+                "weaknesses": comp.get("weaknesses", []),
+            }
+        )
 
     results.sort(key=lambda x: x["overall_score"], reverse=True)
     return results
@@ -89,15 +90,15 @@ def classify_tier(score: float) -> str:
 
 
 def gap_analysis(
-    your_scores: Dict[str, float],
-    competitor_scores: List[Dict[str, Any]],
-    dimensions: List[str]
-) -> Dict[str, Any]:
+    your_scores: dict[str, float], competitor_scores: list[dict[str, Any]], dimensions: list[str]
+) -> dict[str, Any]:
     """Identify gaps between your product and competitors."""
     gaps = {}
     for dim in dimensions:
         your_val = your_scores.get(dim, 0)
-        comp_vals = [c["dimensions"][dim]["raw"] for c in competitor_scores if dim in c.get("dimensions", {})]
+        comp_vals = [
+            c["dimensions"][dim]["raw"] for c in competitor_scores if dim in c.get("dimensions", {})
+        ]
         if not comp_vals:
             continue
 
@@ -112,24 +113,26 @@ def gap_analysis(
             "competitor_best": best_comp,
             "gap_to_avg": gap_to_avg,
             "gap_to_best": gap_to_best,
-            "status": "ahead" if gap_to_avg > 0.5 else ("behind" if gap_to_avg < -0.5 else "parity"),
-            "priority": "high" if gap_to_best < -2 else ("medium" if gap_to_best < -1 else "low")
+            "status": "ahead"
+            if gap_to_avg > 0.5
+            else ("behind" if gap_to_avg < -0.5 else "parity"),
+            "priority": "high" if gap_to_best < -2 else ("medium" if gap_to_best < -1 else "low"),
         }
 
     return {
         "gaps": gaps,
         "biggest_opportunities": sorted(
             [{"dimension": k, **v} for k, v in gaps.items() if v["status"] == "behind"],
-            key=lambda x: x["gap_to_best"]
+            key=lambda x: x["gap_to_best"],
         )[:5],
         "competitive_advantages": sorted(
             [{"dimension": k, **v} for k, v in gaps.items() if v["status"] == "ahead"],
-            key=lambda x: -x["gap_to_avg"]
-        )[:5]
+            key=lambda x: -x["gap_to_avg"],
+        )[:5],
     }
 
 
-def positioning_analysis(scored: List[Dict[str, Any]]) -> Dict[str, Any]:
+def positioning_analysis(scored: list[dict[str, Any]]) -> dict[str, Any]:
     """Generate positioning insights from scored competitors."""
     scores = [c["overall_score"] for c in scored]
     return {
@@ -140,16 +143,22 @@ def positioning_analysis(scored: List[Dict[str, Any]]) -> Dict[str, Any]:
             "mean": round(mean(scores), 1) if scores else 0,
             "stdev": round(stdev(scores), 1) if len(scores) > 1 else 0,
             "min": round(min(scores), 1) if scores else 0,
-            "max": round(max(scores), 1) if scores else 0
+            "max": round(max(scores), 1) if scores else 0,
         },
         "tier_distribution": {
             tier: len([c for c in scored if c["tier"] == tier])
-            for tier in ["Leader", "Strong Competitor", "Viable Alternative", "Niche Player", "Weak"]
-        }
+            for tier in [
+                "Leader",
+                "Strong Competitor",
+                "Viable Alternative",
+                "Niche Player",
+                "Weak",
+            ]
+        },
     }
 
 
-def format_text(result: Dict[str, Any]) -> str:
+def format_text(result: dict[str, Any]) -> str:
     """Format results as human-readable text."""
     lines = []
     lines.append("=" * 70)
@@ -168,7 +177,9 @@ def format_text(result: Dict[str, Any]) -> str:
     # Dimension breakdown
     lines.append("\n## DIMENSION BREAKDOWN\n")
     dims = result["dimensions"]
-    header = f"{'Dimension':<20}" + "".join(f"{c['name'][:12]:<14}" for c in result["scored_competitors"])
+    header = f"{'Dimension':<20}" + "".join(
+        f"{c['name'][:12]:<14}" for c in result["scored_competitors"]
+    )
     lines.append(header)
     lines.append("-" * len(header))
     for dim in dims:
@@ -184,15 +195,19 @@ def format_text(result: Dict[str, Any]) -> str:
         if ga["biggest_opportunities"]:
             lines.append("\n## BIGGEST OPPORTUNITIES (where you're behind)\n")
             for opp in ga["biggest_opportunities"]:
-                lines.append(f"  • {opp['dimension']}: You={opp['your_score']}, "
-                           f"Best={opp['competitor_best']}, Gap={opp['gap_to_best']} "
-                           f"[{opp['priority'].upper()} priority]")
+                lines.append(
+                    f"  • {opp['dimension']}: You={opp['your_score']}, "
+                    f"Best={opp['competitor_best']}, Gap={opp['gap_to_best']} "
+                    f"[{opp['priority'].upper()} priority]"
+                )
 
         if ga["competitive_advantages"]:
             lines.append("\n## COMPETITIVE ADVANTAGES (where you lead)\n")
             for adv in ga["competitive_advantages"]:
-                lines.append(f"  • {adv['dimension']}: You={adv['your_score']}, "
-                           f"Avg={adv['competitor_avg']}, Lead=+{adv['gap_to_avg']}")
+                lines.append(
+                    f"  • {adv['dimension']}: You={adv['your_score']}, "
+                    f"Avg={adv['competitor_avg']}, Lead=+{adv['gap_to_avg']}"
+                )
 
     # Positioning
     pos = result.get("positioning", {})
@@ -202,14 +217,18 @@ def format_text(result: Dict[str, Any]) -> str:
         if pos.get("your_rank"):
             lines.append(f"  Your Rank: #{pos['your_rank']} of {pos['total_competitors']}")
         dist = pos.get("score_distribution", {})
-        lines.append(f"  Score Range: {dist.get('min', 0)} - {dist.get('max', 0)} "
-                    f"(avg: {dist.get('mean', 0)}, stdev: {dist.get('stdev', 0)})")
+        lines.append(
+            f"  Score Range: {dist.get('min', 0)} - {dist.get('max', 0)} "
+            f"(avg: {dist.get('mean', 0)}, stdev: {dist.get('stdev', 0)})"
+        )
 
     lines.append("\n" + "=" * 70)
     return "\n".join(lines)
 
 
-def build_matrix(data: Dict[str, Any], weight_overrides: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+def build_matrix(
+    data: dict[str, Any], weight_overrides: dict[str, float] | None = None
+) -> dict[str, Any]:
     """Main entry: build competitive matrix from input data."""
     competitors = data.get("competitors", [])
     dimensions = data.get("dimensions", [])
@@ -241,20 +260,18 @@ def build_matrix(data: Dict[str, Any], weight_overrides: Optional[Dict[str, floa
     result = {
         "generated_at": datetime.now().isoformat(),
         "dimensions": dimensions,
-        "weights": weights if weights else {d: 1.0 for d in dimensions},
+        "weights": weights if weights else dict.fromkeys(dimensions, 1.0),
         "scored_competitors": scored,
-        "positioning": positioning_analysis(scored)
+        "positioning": positioning_analysis(scored),
     }
 
     if your_product:
-        result["gap_analysis"] = gap_analysis(
-            your_product.get("scores", {}), scored, dimensions
-        )
+        result["gap_analysis"] = gap_analysis(your_product.get("scores", {}), scored, dimensions)
 
     return result
 
 
-def parse_weights(weight_str: str) -> Dict[str, float]:
+def parse_weights(weight_str: str) -> dict[str, float]:
     """Parse weight string like 'pricing=2,ux=1.5' into dict."""
     weights = {}
     for pair in weight_str.split(","):
@@ -269,12 +286,15 @@ def main():
         description="Build competitive matrix with scoring and gap analysis"
     )
     parser.add_argument("input", help="Path to competitors JSON file")
-    parser.add_argument("--format", choices=["json", "text"], default="text",
-                       help="Output format (default: text)")
-    parser.add_argument("--weights", type=str, default=None,
-                       help="Weight overrides: 'dim1=2.0,dim2=1.5'")
-    parser.add_argument("--output", type=str, default=None,
-                       help="Output file path (default: stdout)")
+    parser.add_argument(
+        "--format", choices=["json", "text"], default="text", help="Output format (default: text)"
+    )
+    parser.add_argument(
+        "--weights", type=str, default=None, help="Weight overrides: 'dim1=2.0,dim2=1.5'"
+    )
+    parser.add_argument(
+        "--output", type=str, default=None, help="Output file path (default: stdout)"
+    )
 
     args = parser.parse_args()
 

@@ -12,7 +12,7 @@ def parse_date(value: str) -> dt.date:
 
 
 def load_csv(path: str):
-    with open(path, "r", encoding="utf-8", newline="") as handle:
+    with open(path, encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
 
 

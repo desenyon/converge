@@ -20,8 +20,7 @@ import argparse
 import json
 import sys
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 MODELS = ["first-touch", "last-touch", "linear", "time-decay", "position-based"]
 
@@ -43,9 +42,9 @@ def parse_timestamp(ts: str) -> datetime:
     raise ValueError(f"Cannot parse timestamp: {ts}")
 
 
-def first_touch_attribution(journeys: List[Dict]) -> Dict[str, float]:
+def first_touch_attribution(journeys: list[dict]) -> dict[str, float]:
     """First-touch: 100% credit to the first touchpoint in each journey."""
-    credits: Dict[str, float] = {}
+    credits: dict[str, float] = {}
     for journey in journeys:
         if not journey.get("converted", False):
             continue
@@ -59,9 +58,9 @@ def first_touch_attribution(journeys: List[Dict]) -> Dict[str, float]:
     return credits
 
 
-def last_touch_attribution(journeys: List[Dict]) -> Dict[str, float]:
+def last_touch_attribution(journeys: list[dict]) -> dict[str, float]:
     """Last-touch: 100% credit to the last touchpoint in each journey."""
-    credits: Dict[str, float] = {}
+    credits: dict[str, float] = {}
     for journey in journeys:
         if not journey.get("converted", False):
             continue
@@ -75,9 +74,9 @@ def last_touch_attribution(journeys: List[Dict]) -> Dict[str, float]:
     return credits
 
 
-def linear_attribution(journeys: List[Dict]) -> Dict[str, float]:
+def linear_attribution(journeys: list[dict]) -> dict[str, float]:
     """Linear: Equal credit split across all touchpoints in each journey."""
-    credits: Dict[str, float] = {}
+    credits: dict[str, float] = {}
     for journey in journeys:
         if not journey.get("converted", False):
             continue
@@ -92,7 +91,7 @@ def linear_attribution(journeys: List[Dict]) -> Dict[str, float]:
     return credits
 
 
-def time_decay_attribution(journeys: List[Dict], half_life_days: float = 7.0) -> Dict[str, float]:
+def time_decay_attribution(journeys: list[dict], half_life_days: float = 7.0) -> dict[str, float]:
     """Time-decay: Exponential decay giving more credit to recent touchpoints.
 
     Uses a configurable half-life (in days). Touchpoints closer to conversion
@@ -100,7 +99,7 @@ def time_decay_attribution(journeys: List[Dict], half_life_days: float = 7.0) ->
     """
     import math
 
-    credits: Dict[str, float] = {}
+    credits: dict[str, float] = {}
     decay_rate = math.log(2) / half_life_days
 
     for journey in journeys:
@@ -115,7 +114,7 @@ def time_decay_attribution(journeys: List[Dict], half_life_days: float = 7.0) ->
         conversion_time = parse_timestamp(sorted_tp[-1]["timestamp"])
 
         # Calculate raw weights
-        weights: List[float] = []
+        weights: list[float] = []
         for tp in sorted_tp:
             tp_time = parse_timestamp(tp["timestamp"])
             days_before = (conversion_time - tp_time).total_seconds() / 86400.0
@@ -134,9 +133,9 @@ def time_decay_attribution(journeys: List[Dict], half_life_days: float = 7.0) ->
     return credits
 
 
-def position_based_attribution(journeys: List[Dict]) -> Dict[str, float]:
+def position_based_attribution(journeys: list[dict]) -> dict[str, float]:
     """Position-based: 40% first, 40% last, 20% split among middle touchpoints."""
-    credits: Dict[str, float] = {}
+    credits: dict[str, float] = {}
     for journey in journeys:
         if not journey.get("converted", False):
             continue
@@ -170,7 +169,7 @@ def position_based_attribution(journeys: List[Dict]) -> Dict[str, float]:
     return credits
 
 
-def run_model(model_name: str, journeys: List[Dict], half_life: float = 7.0) -> Dict[str, float]:
+def run_model(model_name: str, journeys: list[dict], half_life: float = 7.0) -> dict[str, float]:
     """Dispatch to the appropriate attribution model."""
     if model_name == "first-touch":
         return first_touch_attribution(journeys)
@@ -186,7 +185,7 @@ def run_model(model_name: str, journeys: List[Dict], half_life: float = 7.0) -> 
         raise ValueError(f"Unknown model: {model_name}. Choose from: {', '.join(MODELS)}")
 
 
-def compute_summary(journeys: List[Dict]) -> Dict[str, Any]:
+def compute_summary(journeys: list[dict]) -> dict[str, Any]:
     """Compute summary statistics about the journey data."""
     total_journeys = len(journeys)
     converted = sum(1 for j in journeys if j.get("converted", False))
@@ -205,9 +204,9 @@ def compute_summary(journeys: List[Dict]) -> Dict[str, Any]:
     }
 
 
-def format_text(results: Dict[str, Any]) -> str:
+def format_text(results: dict[str, Any]) -> str:
     """Format results as human-readable text."""
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("=" * 70)
     lines.append("MULTI-TOUCH ATTRIBUTION ANALYSIS")
     lines.append("=" * 70)
@@ -235,7 +234,7 @@ def format_text(results: Dict[str, Any]) -> str:
         sorted_channels = sorted(credits.items(), key=lambda x: x[1], reverse=True)
 
         lines.append(f"  {'Channel':<25} {'Revenue Credit':>15} {'Share':>10}")
-        lines.append(f"  {'-'*25} {'-'*15} {'-'*10}")
+        lines.append(f"  {'-' * 25} {'-' * 15} {'-' * 10}")
 
         for channel, credit in sorted_channels:
             pct = safe_divide(credit, total_credit) * 100
@@ -261,7 +260,7 @@ def format_text(results: Dict[str, Any]) -> str:
             short = mn.replace("-", " ").title()
             header += f" {short:>14}"
         lines.append(header)
-        lines.append(f"  {'-'*20}" + f" {'-'*14}" * len(model_names))
+        lines.append(f"  {'-' * 20}" + f" {'-' * 14}" * len(model_names))
 
         for ch in all_channels_sorted:
             row = f"  {ch:<20}"
@@ -308,7 +307,7 @@ def main() -> None:
 
     # Load input data
     try:
-        with open(args.input_file, "r") as f:
+        with open(args.input_file) as f:
             data = json.load(f)
     except FileNotFoundError:
         print(f"Error: File not found: {args.input_file}", file=sys.stderr)
@@ -326,13 +325,13 @@ def main() -> None:
     models_to_run = [args.model] if args.model else MODELS
 
     # Run models
-    model_results: Dict[str, Dict[str, float]] = {}
+    model_results: dict[str, dict[str, float]] = {}
     for model_name in models_to_run:
         credits = run_model(model_name, journeys, args.half_life)
         model_results[model_name] = {ch: round(v, 2) for ch, v in credits.items()}
 
     # Build output
-    results: Dict[str, Any] = {
+    results: dict[str, Any] = {
         "summary": compute_summary(journeys),
         "models": model_results,
     }

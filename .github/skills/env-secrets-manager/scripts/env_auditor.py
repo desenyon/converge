@@ -7,8 +7,8 @@ import argparse
 import json
 import os
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List
 
 IGNORED_DIRS = {
     ".git",
@@ -44,8 +44,18 @@ PATTERNS = [
     ("critical", "aws_access_key_id", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("high", "slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
     ("high", "private_key_block", re.compile(r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----")),
-    ("high", "generic_secret_assignment", re.compile(r"(?i)\b(secret|token|password|passwd|api[_-]?key)\b\s*[:=]\s*['\"]?[A-Za-z0-9_\-\/.+=]{8,}")),
-    ("medium", "jwt_like", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")),
+    (
+        "high",
+        "generic_secret_assignment",
+        re.compile(
+            r"(?i)\b(secret|token|password|passwd|api[_-]?key)\b\s*[:=]\s*['\"]?[A-Za-z0-9_\-\/.+=]{8,}"
+        ),
+    ),
+    (
+        "medium",
+        "jwt_like",
+        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
+    ),
 ]
 
 
@@ -64,8 +74,8 @@ def is_candidate(path: Path) -> bool:
     return path.suffix.lower() in SOURCE_EXTS
 
 
-def scan_file(path: Path, max_bytes: int, root: Path) -> List[Dict[str, object]]:
-    findings: List[Dict[str, object]] = []
+def scan_file(path: Path, max_bytes: int, root: Path) -> list[dict[str, object]]:
+    findings: list[dict[str, object]] = []
     try:
         if path.stat().st_size > max_bytes:
             return findings
@@ -88,7 +98,7 @@ def scan_file(path: Path, max_bytes: int, root: Path) -> List[Dict[str, object]]
     return findings
 
 
-def severity_counts(findings: List[Dict[str, object]]) -> Dict[str, int]:
+def severity_counts(findings: list[dict[str, object]]) -> dict[str, int]:
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     for item in findings:
         sev = str(item.get("severity", "low"))
@@ -97,9 +107,16 @@ def severity_counts(findings: List[Dict[str, object]]) -> Dict[str, int]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Audit a repository for likely secret leaks in env files and source.")
+    parser = argparse.ArgumentParser(
+        description="Audit a repository for likely secret leaks in env files and source."
+    )
     parser.add_argument("path", help="Path to repository root")
-    parser.add_argument("--max-file-size-kb", type=int, default=512, help="Skip files larger than this size (default: 512)")
+    parser.add_argument(
+        "--max-file-size-kb",
+        type=int,
+        default=512,
+        help="Skip files larger than this size (default: 512)",
+    )
     parser.add_argument("--json", action="store_true", help="Output JSON")
     return parser.parse_args()
 
@@ -111,7 +128,7 @@ def main() -> int:
         raise SystemExit(f"Path is not a directory: {root}")
 
     max_bytes = max(1, args.max_file_size_kb) * 1024
-    findings: List[Dict[str, object]] = []
+    findings: list[dict[str, object]] = []
 
     for file_path in iter_files(root):
         if is_candidate(file_path):

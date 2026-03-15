@@ -6,8 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
 
 EXT_WEIGHTS = {
     ".js": 1.0,
@@ -21,15 +21,20 @@ EXT_WEIGHTS = {
 
 def iter_files(root: Path) -> Iterable[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in {".git", "node_modules", ".next", "dist", "build", "coverage", "__pycache__"}]
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d
+            not in {".git", "node_modules", ".next", "dist", "build", "coverage", "__pycache__"}
+        ]
         for filename in filenames:
             path = Path(dirpath) / filename
             if path.is_file():
                 yield path
 
 
-def get_large_files(root: Path, threshold_bytes: int) -> List[Tuple[str, int]]:
-    large: List[Tuple[str, int]] = []
+def get_large_files(root: Path, threshold_bytes: int) -> list[tuple[str, int]]:
+    large: list[tuple[str, int]] = []
     for file_path in iter_files(root):
         size = file_path.stat().st_size
         if size >= threshold_bytes:
@@ -37,7 +42,7 @@ def get_large_files(root: Path, threshold_bytes: int) -> List[Tuple[str, int]]:
     return sorted(large, key=lambda item: item[1], reverse=True)
 
 
-def count_dependencies(root: Path) -> Dict[str, int]:
+def count_dependencies(root: Path) -> dict[str, int]:
     counts = {"node_dependencies": 0, "python_dependencies": 0, "go_dependencies": 0}
 
     package_json = root / "package.json"
@@ -52,7 +57,10 @@ def count_dependencies(root: Path) -> Dict[str, int]:
 
     requirements = root / "requirements.txt"
     if requirements.exists():
-        lines = [ln.strip() for ln in requirements.read_text(encoding="utf-8", errors="ignore").splitlines()]
+        lines = [
+            ln.strip()
+            for ln in requirements.read_text(encoding="utf-8", errors="ignore").splitlines()
+        ]
         counts["python_dependencies"] = sum(1 for ln in lines if ln and not ln.startswith("#"))
 
     go_mod = root / "go.mod"
@@ -77,7 +85,7 @@ def count_dependencies(root: Path) -> Dict[str, int]:
     return counts
 
 
-def bundle_indicators(root: Path) -> Dict[str, object]:
+def bundle_indicators(root: Path) -> dict[str, object]:
     indicators = {
         "build_dirs_present": [],
         "bundle_like_files": 0,
@@ -111,7 +119,7 @@ def format_size(num_bytes: int) -> str:
     return f"{num_bytes}B"
 
 
-def build_report(root: Path, threshold_bytes: int) -> Dict[str, object]:
+def build_report(root: Path, threshold_bytes: int) -> dict[str, object]:
     large = get_large_files(root, threshold_bytes)
     deps = count_dependencies(root)
     bundles = bundle_indicators(root)
@@ -124,7 +132,7 @@ def build_report(root: Path, threshold_bytes: int) -> Dict[str, object]:
     }
 
 
-def print_text(report: Dict[str, object]) -> None:
+def print_text(report: dict[str, object]) -> None:
     print("Performance Profile Report")
     print(f"Root: {report['root']}")
     print(f"Large-file threshold: {format_size(int(report['large_file_threshold_bytes']))}")

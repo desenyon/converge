@@ -12,113 +12,125 @@ Usage:
 import argparse
 import json
 import os
-import sys
-from typing import Dict, List, Any, Optional
 from datetime import datetime
-
+from typing import Any
 
 STACK_TEMPLATES = {
     "nextjs": {
-        "package.json": lambda c: json.dumps({
-            "name": c["name"],
-            "version": "0.1.0",
-            "private": True,
-            "scripts": {
-                "dev": "next dev",
-                "build": "next build",
-                "start": "next start",
-                "lint": "next lint",
-                "test": "jest",
-                "test:watch": "jest --watch"
+        "package.json": lambda c: json.dumps(
+            {
+                "name": c["name"],
+                "version": "0.1.0",
+                "private": True,
+                "scripts": {
+                    "dev": "next dev",
+                    "build": "next build",
+                    "start": "next start",
+                    "lint": "next lint",
+                    "test": "jest",
+                    "test:watch": "jest --watch",
+                },
+                "dependencies": {"next": "^14.0.0", "react": "^18.0.0", "react-dom": "^18.0.0"},
+                "devDependencies": {
+                    "typescript": "^5.0.0",
+                    "@types/react": "^18.0.0",
+                    "@types/node": "^20.0.0",
+                    "eslint": "^8.0.0",
+                    "eslint-config-next": "^14.0.0",
+                },
             },
-            "dependencies": {
-                "next": "^14.0.0",
-                "react": "^18.0.0",
-                "react-dom": "^18.0.0"
+            indent=2,
+        ),
+        "tsconfig.json": lambda c: json.dumps(
+            {
+                "compilerOptions": {
+                    "target": "es5",
+                    "lib": ["dom", "dom.iterable", "esnext"],
+                    "allowJs": True,
+                    "skipLibCheck": True,
+                    "strict": True,
+                    "forceConsistentCasingInFileNames": True,
+                    "noEmit": True,
+                    "esModuleInterop": True,
+                    "module": "esnext",
+                    "moduleResolution": "bundler",
+                    "resolveJsonModule": True,
+                    "isolatedModules": True,
+                    "jsx": "preserve",
+                    "incremental": True,
+                    "paths": {"@/*": ["./src/*"]},
+                },
+                "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+                "exclude": ["node_modules"],
             },
-            "devDependencies": {
-                "typescript": "^5.0.0",
-                "@types/react": "^18.0.0",
-                "@types/node": "^20.0.0",
-                "eslint": "^8.0.0",
-                "eslint-config-next": "^14.0.0"
-            }
-        }, indent=2),
-        "tsconfig.json": lambda c: json.dumps({
-            "compilerOptions": {
-                "target": "es5",
-                "lib": ["dom", "dom.iterable", "esnext"],
-                "allowJs": True,
-                "skipLibCheck": True,
-                "strict": True,
-                "forceConsistentCasingInFileNames": True,
-                "noEmit": True,
-                "esModuleInterop": True,
-                "module": "esnext",
-                "moduleResolution": "bundler",
-                "resolveJsonModule": True,
-                "isolatedModules": True,
-                "jsx": "preserve",
-                "incremental": True,
-                "paths": {"@/*": ["./src/*"]}
-            },
-            "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-            "exclude": ["node_modules"]
-        }, indent=2),
+            indent=2,
+        ),
         "dirs": ["src/app", "src/components", "src/lib", "src/styles", "public", "tests"],
         "files": {
-            "src/app/layout.tsx": "export default function RootLayout({ children }: { children: React.ReactNode }) {\n  return <html lang=\"en\"><body>{children}</body></html>;\n}\n",
+            "src/app/layout.tsx": 'export default function RootLayout({ children }: { children: React.ReactNode }) {\n  return <html lang="en"><body>{children}</body></html>;\n}\n',
             "src/app/page.tsx": "export default function Home() {\n  return <main><h1>Welcome</h1></main>;\n}\n",
-        }
+        },
     },
     "express": {
-        "package.json": lambda c: json.dumps({
-            "name": c["name"],
-            "version": "0.1.0",
-            "main": "src/index.ts",
-            "scripts": {
-                "dev": "tsx watch src/index.ts",
-                "build": "tsc",
-                "start": "node dist/index.js",
-                "test": "jest",
-                "lint": "eslint src/"
+        "package.json": lambda c: json.dumps(
+            {
+                "name": c["name"],
+                "version": "0.1.0",
+                "main": "src/index.ts",
+                "scripts": {
+                    "dev": "tsx watch src/index.ts",
+                    "build": "tsc",
+                    "start": "node dist/index.js",
+                    "test": "jest",
+                    "lint": "eslint src/",
+                },
+                "dependencies": {
+                    "express": "^4.18.0",
+                    "cors": "^2.8.5",
+                    "helmet": "^7.0.0",
+                    "dotenv": "^16.0.0",
+                },
+                "devDependencies": {
+                    "typescript": "^5.0.0",
+                    "@types/express": "^4.17.0",
+                    "@types/cors": "^2.8.0",
+                    "@types/node": "^20.0.0",
+                    "tsx": "^4.0.0",
+                    "jest": "^29.0.0",
+                    "@types/jest": "^29.0.0",
+                    "eslint": "^8.0.0",
+                },
             },
-            "dependencies": {
-                "express": "^4.18.0",
-                "cors": "^2.8.5",
-                "helmet": "^7.0.0",
-                "dotenv": "^16.0.0"
-            },
-            "devDependencies": {
-                "typescript": "^5.0.0",
-                "@types/express": "^4.17.0",
-                "@types/cors": "^2.8.0",
-                "@types/node": "^20.0.0",
-                "tsx": "^4.0.0",
-                "jest": "^29.0.0",
-                "@types/jest": "^29.0.0",
-                "eslint": "^8.0.0"
-            }
-        }, indent=2),
-        "dirs": ["src/routes", "src/middleware", "src/models", "src/services", "src/utils", "tests"],
+            indent=2,
+        ),
+        "dirs": [
+            "src/routes",
+            "src/middleware",
+            "src/models",
+            "src/services",
+            "src/utils",
+            "tests",
+        ],
         "files": {
             "src/index.ts": "import express from 'express';\nimport cors from 'cors';\nimport helmet from 'helmet';\nimport { config } from 'dotenv';\n\nconfig();\n\nconst app = express();\nconst PORT = process.env.PORT || 3000;\n\napp.use(helmet());\napp.use(cors());\napp.use(express.json());\n\napp.get('/health', (req, res) => res.json({ status: 'ok' }));\n\napp.listen(PORT, () => console.log(`Server running on port ${PORT}`));\n",
-        }
+        },
     },
     "fastapi": {
-        "requirements.txt": lambda c: "fastapi>=0.100.0\nuvicorn[standard]>=0.23.0\npydantic>=2.0.0\npython-dotenv>=1.0.0\nsqlalchemy>=2.0.0\nalembic>=1.12.0\npytest>=7.0.0\nhttpx>=0.24.0\n",
+        "requirements.txt": lambda c: (
+            "fastapi>=0.100.0\nuvicorn[standard]>=0.23.0\npydantic>=2.0.0\npython-dotenv>=1.0.0\nsqlalchemy>=2.0.0\nalembic>=1.12.0\npytest>=7.0.0\nhttpx>=0.24.0\n"
+        ),
         "dirs": ["app/api", "app/models", "app/services", "app/core", "tests", "alembic"],
         "files": {
             "app/__init__.py": "",
             "app/main.py": "from fastapi import FastAPI\nfrom app.core.config import settings\n\napp = FastAPI(title=settings.PROJECT_NAME)\n\n@app.get('/health')\ndef health(): return {'status': 'ok'}\n",
             "app/core/__init__.py": "",
             "app/core/config.py": "from pydantic_settings import BaseSettings\n\nclass Settings(BaseSettings):\n    PROJECT_NAME: str = 'API'\n    DATABASE_URL: str = 'sqlite:///./app.db'\n    class Config:\n        env_file = '.env'\n\nsettings = Settings()\n",
-        }
-    }
+        },
+    },
 }
 
 
-def generate_readme(config: Dict[str, Any]) -> str:
+def generate_readme(config: dict[str, Any]) -> str:
     """Generate README.md content."""
     name = config.get("name", "my-project")
     desc = config.get("description", "A SaaS application")
@@ -131,8 +143,8 @@ def generate_readme(config: Dict[str, Any]) -> str:
 ## Tech Stack
 
 - **Framework**: {stack}
-- **Database**: {config.get('database', 'PostgreSQL')}
-- **Auth**: {config.get('auth', 'JWT')}
+- **Database**: {config.get("database", "PostgreSQL")}
+- **Auth**: {config.get("auth", "JWT")}
 
 ## Getting Started
 
@@ -155,20 +167,20 @@ cp .env.example .env
 docker compose up -d
 
 # Or run locally
-{'npm install && npm run dev' if stack in ('nextjs', 'express') else 'pip install -r requirements.txt && uvicorn app.main:app --reload'}
+{"npm install && npm run dev" if stack in ("nextjs", "express") else "pip install -r requirements.txt && uvicorn app.main:app --reload"}
 ```
 
 ### Testing
 
 ```bash
-{'npm test' if stack in ('nextjs', 'express') else 'pytest'}
+{"npm test" if stack in ("nextjs", "express") else "pytest"}
 ```
 
 ## Project Structure
 
 ```
 {name}/
-├── {'src/' if stack in ('nextjs', 'express') else 'app/'}
+├── {"src/" if stack in ("nextjs", "express") else "app/"}
 ├── tests/
 ├── docker-compose.yml
 ├── .env.example
@@ -181,7 +193,7 @@ MIT
 """
 
 
-def generate_env_example(config: Dict[str, Any]) -> str:
+def generate_env_example(config: dict[str, Any]) -> str:
     """Generate .env.example file."""
     lines = [
         "# Application",
@@ -200,23 +212,36 @@ def generate_env_example(config: Dict[str, Any]) -> str:
         lines.extend(["DATABASE_URL=mysql://user:password@localhost:3306/mydb", ""])
 
     if config.get("auth"):
-        lines.extend([
-            "# Auth",
-            "JWT_SECRET=change-me-in-production",
-            "JWT_EXPIRY=7d",
-            ""
-        ])
+        lines.extend(["# Auth", "JWT_SECRET=change-me-in-production", "JWT_EXPIRY=7d", ""])
 
     if config.get("features", {}).get("email"):
-        lines.extend(["# Email", "SMTP_HOST=smtp.example.com", "SMTP_PORT=587", "SMTP_USER=", "SMTP_PASS=", ""])
+        lines.extend(
+            [
+                "# Email",
+                "SMTP_HOST=smtp.example.com",
+                "SMTP_PORT=587",
+                "SMTP_USER=",
+                "SMTP_PASS=",
+                "",
+            ]
+        )
 
     if config.get("features", {}).get("storage"):
-        lines.extend(["# Storage", "S3_BUCKET=", "S3_REGION=us-east-1", "AWS_ACCESS_KEY_ID=", "AWS_SECRET_ACCESS_KEY=", ""])
+        lines.extend(
+            [
+                "# Storage",
+                "S3_BUCKET=",
+                "S3_REGION=us-east-1",
+                "AWS_ACCESS_KEY_ID=",
+                "AWS_SECRET_ACCESS_KEY=",
+                "",
+            ]
+        )
 
     return "\n".join(lines)
 
 
-def generate_docker_compose(config: Dict[str, Any]) -> str:
+def generate_docker_compose(config: dict[str, Any]) -> str:
     """Generate docker-compose.yml."""
     name = config.get("name", "app")
     stack = config.get("stack", "nextjs")
@@ -228,7 +253,7 @@ def generate_docker_compose(config: Dict[str, Any]) -> str:
             "ports": ["3000:3000"],
             "env_file": [".env"],
             "depends_on": ["db"] if db else [],
-            "volumes": [".:/app", "/app/node_modules"] if stack != "fastapi" else [".:/app"]
+            "volumes": [".:/app", "/app/node_modules"] if stack != "fastapi" else [".:/app"],
         }
     }
 
@@ -239,28 +264,21 @@ def generate_docker_compose(config: Dict[str, Any]) -> str:
             "environment": {
                 "POSTGRES_USER": "user",
                 "POSTGRES_PASSWORD": "password",
-                "POSTGRES_DB": "mydb"
+                "POSTGRES_DB": "mydb",
             },
-            "volumes": ["pgdata:/var/lib/postgresql/data"]
+            "volumes": ["pgdata:/var/lib/postgresql/data"],
         }
     elif db == "mongodb":
         services["db"] = {
             "image": "mongo:7",
             "ports": ["27017:27017"],
-            "volumes": ["mongodata:/data/db"]
+            "volumes": ["mongodata:/data/db"],
         }
 
     if config.get("features", {}).get("redis"):
-        services["redis"] = {
-            "image": "redis:7-alpine",
-            "ports": ["6379:6379"]
-        }
+        services["redis"] = {"image": "redis:7-alpine", "ports": ["6379:6379"]}
 
-    compose = {
-        "version": "3.8",
-        "services": services,
-        "volumes": {}
-    }
+    compose = {"version": "3.8", "services": services, "volumes": {}}
     if db == "postgresql":
         compose["volumes"]["pgdata"] = {}
     elif db == "mongodb":
@@ -314,7 +332,7 @@ def generate_db_service(db: str) -> str:
     return ""
 
 
-def generate_redis_service(config: Dict[str, Any]) -> str:
+def generate_redis_service(config: dict[str, Any]) -> str:
     if config.get("features", {}).get("redis"):
         return """  redis:
     image: redis:7-alpine
@@ -330,7 +348,7 @@ def generate_gitignore(stack: str) -> str:
     return common
 
 
-def generate_dockerfile(config: Dict[str, Any]) -> str:
+def generate_dockerfile(config: dict[str, Any]) -> str:
     """Generate Dockerfile."""
     stack = config.get("stack", "nextjs")
     if stack == "fastapi":
@@ -353,7 +371,9 @@ CMD ["npm", "start"]
 """
 
 
-def scaffold_project(config: Dict[str, Any], output_dir: str, dry_run: bool = False) -> Dict[str, Any]:
+def scaffold_project(
+    config: dict[str, Any], output_dir: str, dry_run: bool = False
+) -> dict[str, Any]:
     """Generate project scaffolding."""
     stack = config.get("stack", "nextjs")
     template = STACK_TEMPLATES.get(stack, STACK_TEMPLATES["nextjs"])
@@ -404,7 +424,7 @@ def scaffold_project(config: Dict[str, Any], output_dir: str, dry_run: bool = Fa
         "files_created": files_created,
         "total_files": len([f for f in files_created if f["type"] == "file"]),
         "total_dirs": len([f for f in files_created if f["type"] == "directory"]),
-        "dry_run": dry_run
+        "dry_run": dry_run,
     }
 
 

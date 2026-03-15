@@ -15,16 +15,14 @@ Usage:
 JSON input format: see sample_data() function below.
 """
 
+import argparse
 import json
 import sys
-import argparse
-import math
-from typing import Optional
-
 
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
+
 
 def sample_data() -> dict:
     """
@@ -36,7 +34,6 @@ def sample_data() -> dict:
     return {
         "product_name": "Acme SaaS",
         "business_model": "b2b_saas",  # b2b_saas | consumer | marketplace | plg
-
         # Retention: D30 and D90 as decimals (e.g. 0.42 = 42%)
         # Provide multiple cohorts if available. Most recent first.
         "retention": {
@@ -44,28 +41,25 @@ def sample_data() -> dict:
             "d90_cohorts": [0.28, 0.30, 0.31],
             "curve_flattening": True,  # Does the curve flatten (vs. continuing to drop)?
         },
-
         # Engagement
         "engagement": {
-            "dau_mau_ratio": 0.24,           # Daily active / Monthly active (decimal)
-            "avg_sessions_per_week": 3.2,    # Per active user
-            "key_action_rate": 0.55,         # % of users who performed core value action in last 30d
-            "session_depth_score": 0.6,      # 0-1: 0 = one page, 1 = full feature exploration
+            "dau_mau_ratio": 0.24,  # Daily active / Monthly active (decimal)
+            "avg_sessions_per_week": 3.2,  # Per active user
+            "key_action_rate": 0.55,  # % of users who performed core value action in last 30d
+            "session_depth_score": 0.6,  # 0-1: 0 = one page, 1 = full feature exploration
         },
-
         # Satisfaction
         "satisfaction": {
             "sean_ellis_very_disappointed": 0.38,  # Fraction (e.g. 0.38 = 38%)
-            "sean_ellis_sample_size": 87,           # Raw response count
-            "nps_score": 34,                        # -100 to 100
+            "sean_ellis_sample_size": 87,  # Raw response count
+            "nps_score": 34,  # -100 to 100
             "nps_sample_size": 210,
         },
-
         # Growth
         "growth": {
-            "organic_signup_pct": 0.27,     # % of new signups from organic/referral/WOM
-            "referral_rate": 0.18,          # % of active users who referred someone last 90d
-            "mom_growth_rate": 0.08,        # Month-over-month new user growth (decimal)
+            "organic_signup_pct": 0.27,  # % of new signups from organic/referral/WOM
+            "referral_rate": 0.18,  # % of active users who referred someone last 90d
+            "mom_growth_rate": 0.08,  # Month-over-month new user growth (decimal)
         },
     }
 
@@ -76,41 +70,61 @@ def sample_data() -> dict:
 
 THRESHOLDS = {
     "b2b_saas": {
-        "d30_pmf": 0.40,   "d30_strong": 0.60,
-        "d90_pmf": 0.25,   "d90_strong": 0.45,
-        "dau_mau_pmf": 0.15, "dau_mau_strong": 0.35,
-        "sean_ellis_pmf": 0.40, "sean_ellis_strong": 0.55,
-        "nps_pmf": 30, "nps_strong": 50,
+        "d30_pmf": 0.40,
+        "d30_strong": 0.60,
+        "d90_pmf": 0.25,
+        "d90_strong": 0.45,
+        "dau_mau_pmf": 0.15,
+        "dau_mau_strong": 0.35,
+        "sean_ellis_pmf": 0.40,
+        "sean_ellis_strong": 0.55,
+        "nps_pmf": 30,
+        "nps_strong": 50,
     },
     "consumer": {
-        "d30_pmf": 0.20,   "d30_strong": 0.35,
-        "d90_pmf": 0.10,   "d90_strong": 0.20,
-        "dau_mau_pmf": 0.20, "dau_mau_strong": 0.40,
-        "sean_ellis_pmf": 0.40, "sean_ellis_strong": 0.55,
-        "nps_pmf": 20, "nps_strong": 45,
+        "d30_pmf": 0.20,
+        "d30_strong": 0.35,
+        "d90_pmf": 0.10,
+        "d90_strong": 0.20,
+        "dau_mau_pmf": 0.20,
+        "dau_mau_strong": 0.40,
+        "sean_ellis_pmf": 0.40,
+        "sean_ellis_strong": 0.55,
+        "nps_pmf": 20,
+        "nps_strong": 45,
     },
     "marketplace": {
-        "d30_pmf": 0.30,   "d30_strong": 0.50,
-        "d90_pmf": 0.20,   "d90_strong": 0.35,
-        "dau_mau_pmf": 0.15, "dau_mau_strong": 0.30,
-        "sean_ellis_pmf": 0.40, "sean_ellis_strong": 0.55,
-        "nps_pmf": 25, "nps_strong": 45,
+        "d30_pmf": 0.30,
+        "d30_strong": 0.50,
+        "d90_pmf": 0.20,
+        "d90_strong": 0.35,
+        "dau_mau_pmf": 0.15,
+        "dau_mau_strong": 0.30,
+        "sean_ellis_pmf": 0.40,
+        "sean_ellis_strong": 0.55,
+        "nps_pmf": 25,
+        "nps_strong": 45,
     },
     "plg": {
-        "d30_pmf": 0.25,   "d30_strong": 0.45,
-        "d90_pmf": 0.15,   "d90_strong": 0.30,
-        "dau_mau_pmf": 0.20, "dau_mau_strong": 0.40,
-        "sean_ellis_pmf": 0.40, "sean_ellis_strong": 0.55,
-        "nps_pmf": 30, "nps_strong": 50,
+        "d30_pmf": 0.25,
+        "d30_strong": 0.45,
+        "d90_pmf": 0.15,
+        "d90_strong": 0.30,
+        "dau_mau_pmf": 0.20,
+        "dau_mau_strong": 0.40,
+        "sean_ellis_pmf": 0.40,
+        "sean_ellis_strong": 0.55,
+        "nps_pmf": 30,
+        "nps_strong": 50,
     },
 }
 
 # Weights for the four dimensions (must sum to 1.0)
 DIMENSION_WEIGHTS = {
-    "retention":    0.40,
-    "engagement":   0.25,
+    "retention": 0.40,
+    "engagement": 0.25,
     "satisfaction": 0.20,
-    "growth":       0.15,
+    "growth": 0.15,
 }
 
 
@@ -118,11 +132,12 @@ DIMENSION_WEIGHTS = {
 # Scoring helpers
 # ---------------------------------------------------------------------------
 
+
 def clamp(value: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, value))
 
 
-def score_between(value: Optional[float], lo: float, hi: float) -> float:
+def score_between(value: float | None, lo: float, hi: float) -> float:
     """Linear interpolation: lo → 0.0, hi → 1.0, beyond hi → 1.0."""
     if value is None:
         return 0.0
@@ -154,6 +169,7 @@ def cohort_trend(cohorts: list) -> float:
 # Dimension scorers
 # ---------------------------------------------------------------------------
 
+
 def score_retention(data: dict, thresholds: dict) -> tuple[float, list]:
     """Returns (score 0-1, list of findings)."""
     r = data.get("retention", {})
@@ -164,7 +180,9 @@ def score_retention(data: dict, thresholds: dict) -> tuple[float, list]:
     d90 = r.get("d90_cohorts", [])
 
     if not d30:
-        findings.append("⚠ No D30 retention data — this is the most important PMF signal. Instrument it immediately.")
+        findings.append(
+            "⚠ No D30 retention data — this is the most important PMF signal. Instrument it immediately."
+        )
         return 0.0, findings
 
     latest_d30 = d30[0]
@@ -174,9 +192,13 @@ def score_retention(data: dict, thresholds: dict) -> tuple[float, list]:
     if latest_d30 >= thresholds["d30_strong"]:
         findings.append(f"✓ D30 retention {latest_d30:.0%} — strong PMF signal")
     elif latest_d30 >= thresholds["d30_pmf"]:
-        findings.append(f"◑ D30 retention {latest_d30:.0%} — approaching PMF threshold ({thresholds['d30_pmf']:.0%})")
+        findings.append(
+            f"◑ D30 retention {latest_d30:.0%} — approaching PMF threshold ({thresholds['d30_pmf']:.0%})"
+        )
     else:
-        findings.append(f"✗ D30 retention {latest_d30:.0%} — below PMF threshold ({thresholds['d30_pmf']:.0%}). Focus here before anything else.")
+        findings.append(
+            f"✗ D30 retention {latest_d30:.0%} — below PMF threshold ({thresholds['d30_pmf']:.0%}). Focus here before anything else."
+        )
 
     # Trend bonus
     if len(d30) >= 2:
@@ -184,9 +206,11 @@ def score_retention(data: dict, thresholds: dict) -> tuple[float, list]:
         trend_score = (trend + 1) / 2  # normalize to 0-1
         scores.append(trend_score * 0.5)  # trend is bonus, not primary
         if trend > 0.1:
-            findings.append(f"✓ D30 retention improving across cohorts — strong learning signal")
+            findings.append("✓ D30 retention improving across cohorts — strong learning signal")
         elif trend < -0.1:
-            findings.append(f"✗ D30 retention declining across cohorts — product changes may be hurting core users")
+            findings.append(
+                "✗ D30 retention declining across cohorts — product changes may be hurting core users"
+            )
 
     if d90:
         latest_d90 = d90[0]
@@ -226,7 +250,9 @@ def score_engagement(data: dict, thresholds: dict) -> tuple[float, list]:
         elif dau_mau >= thresholds["dau_mau_pmf"]:
             findings.append(f"◑ DAU/MAU {dau_mau:.0%} — moderate engagement")
         else:
-            findings.append(f"✗ DAU/MAU {dau_mau:.0%} — users not building a habit. Find the daily job or accept weekly use pattern.")
+            findings.append(
+                f"✗ DAU/MAU {dau_mau:.0%} — users not building a habit. Find the daily job or accept weekly use pattern."
+            )
     else:
         findings.append("⚠ No DAU/MAU data.")
 
@@ -240,7 +266,9 @@ def score_engagement(data: dict, thresholds: dict) -> tuple[float, list]:
         elif sessions >= 2:
             findings.append(f"◑ {sessions:.1f} sessions/week — moderate")
         else:
-            findings.append(f"✗ {sessions:.1f} sessions/week — very low. Users not returning within week.")
+            findings.append(
+                f"✗ {sessions:.1f} sessions/week — very low. Users not returning within week."
+            )
     else:
         findings.append("⚠ No session frequency data.")
 
@@ -253,7 +281,9 @@ def score_engagement(data: dict, thresholds: dict) -> tuple[float, list]:
         elif kar >= 0.30:
             findings.append(f"◑ Key action rate {kar:.0%} — improve onboarding to drive this up")
         else:
-            findings.append(f"✗ Key action rate {kar:.0%} — most users not reaching core value. This is an activation problem.")
+            findings.append(
+                f"✗ Key action rate {kar:.0%} — most users not reaching core value. This is an activation problem."
+            )
     else:
         findings.append("⚠ No key action rate. Define your 'aha moment' action and track it.")
 
@@ -279,17 +309,27 @@ def score_satisfaction(data: dict, thresholds: dict) -> tuple[float, list]:
     se_n = s_data.get("sean_ellis_sample_size", 0)
     if se_score is not None:
         if se_n < 40:
-            findings.append(f"⚠ Sean Ellis n={se_n} — too small to be reliable. Need 40+ responses.")
-            scores.append(score_between(se_score, 0, thresholds["sean_ellis_strong"]) * 0.5)  # half weight
+            findings.append(
+                f"⚠ Sean Ellis n={se_n} — too small to be reliable. Need 40+ responses."
+            )
+            scores.append(
+                score_between(se_score, 0, thresholds["sean_ellis_strong"]) * 0.5
+            )  # half weight
         else:
             s = score_between(se_score, 0, thresholds["sean_ellis_strong"])
             scores.append(s)
             if se_score >= thresholds["sean_ellis_strong"]:
-                findings.append(f"✓ Sean Ellis {se_score:.0%} 'very disappointed' — strong PMF signal (n={se_n})")
+                findings.append(
+                    f"✓ Sean Ellis {se_score:.0%} 'very disappointed' — strong PMF signal (n={se_n})"
+                )
             elif se_score >= thresholds["sean_ellis_pmf"]:
-                findings.append(f"◑ Sean Ellis {se_score:.0%} — at PMF threshold. Push to > {thresholds['sean_ellis_strong']:.0%}.")
+                findings.append(
+                    f"◑ Sean Ellis {se_score:.0%} — at PMF threshold. Push to > {thresholds['sean_ellis_strong']:.0%}."
+                )
             else:
-                findings.append(f"✗ Sean Ellis {se_score:.0%} — below {thresholds['sean_ellis_pmf']:.0%} threshold. Interview 'somewhat disappointed' group.")
+                findings.append(
+                    f"✗ Sean Ellis {se_score:.0%} — below {thresholds['sean_ellis_pmf']:.0%} threshold. Interview 'somewhat disappointed' group."
+                )
     else:
         findings.append("⚠ No Sean Ellis data. Run a one-question survey to your active users now.")
 
@@ -329,9 +369,13 @@ def score_growth(data: dict, _thresholds: dict) -> tuple[float, list]:
         if organic_pct >= 0.30:
             findings.append(f"✓ {organic_pct:.0%} organic signups — word of mouth is working")
         elif organic_pct >= 0.20:
-            findings.append(f"◑ {organic_pct:.0%} organic — moderate. Build referral loop deliberately.")
+            findings.append(
+                f"◑ {organic_pct:.0%} organic — moderate. Build referral loop deliberately."
+            )
         else:
-            findings.append(f"✗ {organic_pct:.0%} organic — almost all paid. PMF may not be strong enough to generate word of mouth.")
+            findings.append(
+                f"✗ {organic_pct:.0%} organic — almost all paid. PMF may not be strong enough to generate word of mouth."
+            )
     else:
         findings.append("⚠ No organic signup tracking. Tag all signup sources now.")
 
@@ -342,9 +386,13 @@ def score_growth(data: dict, _thresholds: dict) -> tuple[float, list]:
         if referral >= 0.25:
             findings.append(f"✓ {referral:.0%} of active users referring — strong viral signal")
         elif referral >= 0.15:
-            findings.append(f"◑ {referral:.0%} referral rate — building. Add referral incentive or friction removal.")
+            findings.append(
+                f"◑ {referral:.0%} referral rate — building. Add referral incentive or friction removal."
+            )
         else:
-            findings.append(f"✗ {referral:.0%} referral rate — users not recommending. Satisfaction or network effects missing.")
+            findings.append(
+                f"✗ {referral:.0%} referral rate — users not recommending. Satisfaction or network effects missing."
+            )
     else:
         findings.append("⚠ No referral rate data.")
 
@@ -355,7 +403,9 @@ def score_growth(data: dict, _thresholds: dict) -> tuple[float, list]:
         if mom >= 0.15:
             findings.append(f"✓ {mom:.0%} MoM growth — strong momentum")
         elif mom >= 0.08:
-            findings.append(f"◑ {mom:.0%} MoM growth — moderate. Identify top acquisition channel and double it.")
+            findings.append(
+                f"◑ {mom:.0%} MoM growth — moderate. Identify top acquisition channel and double it."
+            )
         else:
             findings.append(f"✗ {mom:.0%} MoM growth — slow. Acquisition is a bottleneck.")
 
@@ -368,18 +418,34 @@ def score_growth(data: dict, _thresholds: dict) -> tuple[float, list]:
 # Overall scoring and recommendations
 # ---------------------------------------------------------------------------
 
+
 def pmf_status(overall: float) -> tuple[str, str]:
     """Returns (status label, description)."""
     if overall >= 0.80:
-        return "STRONG PMF", "Clear product-market fit. Shift focus to scaling acquisition and defending moat."
+        return (
+            "STRONG PMF",
+            "Clear product-market fit. Shift focus to scaling acquisition and defending moat.",
+        )
     elif overall >= 0.60:
-        return "PMF APPROACHING", "Meaningful signals present. Identify and remove the 1-2 friction points blocking retention."
+        return (
+            "PMF APPROACHING",
+            "Meaningful signals present. Identify and remove the 1-2 friction points blocking retention.",
+        )
     elif overall >= 0.40:
-        return "EARLY SIGNALS", "Weak PMF. Some users find value. Narrow your ICP and double down on what's working."
+        return (
+            "EARLY SIGNALS",
+            "Weak PMF. Some users find value. Narrow your ICP and double down on what's working.",
+        )
     elif overall >= 0.20:
-        return "PRE-PMF", "No clear PMF yet. Don't scale acquisition. Focus entirely on retention experiments."
+        return (
+            "PRE-PMF",
+            "No clear PMF yet. Don't scale acquisition. Focus entirely on retention experiments.",
+        )
     else:
-        return "NO SIGNAL", "No PMF signals detected. Revisit the problem hypothesis before investing further in the solution."
+        return (
+            "NO SIGNAL",
+            "No PMF signals detected. Revisit the problem hypothesis before investing further in the solution.",
+        )
 
 
 def top_recommendations(dim_scores: dict, data: dict) -> list[str]:
@@ -419,13 +485,21 @@ def top_recommendations(dim_scores: dict, data: dict) -> list[str]:
         )
 
     if model == "b2b_saas":
-        recs.append("B2B tip: Track NRR (Net Revenue Retention). PMF in B2B requires expansion, not just retention.")
+        recs.append(
+            "B2B tip: Track NRR (Net Revenue Retention). PMF in B2B requires expansion, not just retention."
+        )
     elif model == "consumer":
-        recs.append("Consumer tip: Find your D7 'magic moment'. The habit window is small — optimize for it.")
+        recs.append(
+            "Consumer tip: Find your D7 'magic moment'. The habit window is small — optimize for it."
+        )
     elif model == "plg":
-        recs.append("PLG tip: Define your PQL (product-qualified lead). The activation event that predicts paid conversion.")
+        recs.append(
+            "PLG tip: Define your PQL (product-qualified lead). The activation event that predicts paid conversion."
+        )
     elif model == "marketplace":
-        recs.append("Marketplace tip: Measure both sides separately. PMF on demand side ≠ PMF on supply side.")
+        recs.append(
+            "Marketplace tip: Measure both sides separately. PMF on demand side ≠ PMF on supply side."
+        )
 
     return recs
 
@@ -433,6 +507,7 @@ def top_recommendations(dim_scores: dict, data: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 # Report renderer
 # ---------------------------------------------------------------------------
+
 
 def render_report(data: dict, dim_scores: dict, dim_findings: dict, overall: float) -> str:
     status, description = pmf_status(overall)
@@ -500,6 +575,7 @@ def render_report(data: dict, dim_scores: dict, dim_findings: dict, overall: flo
 # Main
 # ---------------------------------------------------------------------------
 
+
 def run(data: dict) -> dict:
     """
     Score PMF from input data dict.
@@ -527,10 +603,7 @@ def run(data: dict) -> dict:
     dim_scores["growth"] = grow_score
     dim_findings["growth"] = grow_findings
 
-    overall = sum(
-        dim_scores[dim] * weight
-        for dim, weight in DIMENSION_WEIGHTS.items()
-    )
+    overall = sum(dim_scores[dim] * weight for dim, weight in DIMENSION_WEIGHTS.items())
 
     return {
         "overall": overall,
@@ -547,7 +620,8 @@ def main():
         epilog=__doc__,
     )
     parser.add_argument(
-        "--input", "-i",
+        "--input",
+        "-i",
         metavar="FILE",
         help="JSON file with your product data (default: built-in sample data)",
     )

@@ -12,9 +12,8 @@ Usage:
 """
 
 import json
-import sys
 import os
-import re
+import sys
 from html.parser import HTMLParser
 
 
@@ -37,42 +36,48 @@ class FormAnalyzer(HTMLParser):
                 "method": attrs_dict.get("method", "GET").upper(),
                 "fields": [],
                 "buttons": [],
-                "has_autocomplete": "autocomplete" in attrs_dict
+                "has_autocomplete": "autocomplete" in attrs_dict,
             }
 
         elif tag == "input" and self.current_form is not None:
             input_type = attrs_dict.get("type", "text").lower()
             if input_type not in ("hidden", "submit"):
-                self.current_form["fields"].append({
-                    "type": input_type,
-                    "name": attrs_dict.get("name", ""),
-                    "placeholder": attrs_dict.get("placeholder", ""),
-                    "required": "required" in attrs_dict,
-                    "autocomplete": attrs_dict.get("autocomplete", ""),
-                    "has_label": False
-                })
+                self.current_form["fields"].append(
+                    {
+                        "type": input_type,
+                        "name": attrs_dict.get("name", ""),
+                        "placeholder": attrs_dict.get("placeholder", ""),
+                        "required": "required" in attrs_dict,
+                        "autocomplete": attrs_dict.get("autocomplete", ""),
+                        "has_label": False,
+                    }
+                )
             elif input_type == "submit":
                 self.current_form["buttons"].append(attrs_dict.get("value", "Submit"))
 
         elif tag == "textarea" and self.current_form is not None:
-            self.current_form["fields"].append({
-                "type": "textarea",
-                "name": attrs_dict.get("name", ""),
-                "placeholder": attrs_dict.get("placeholder", ""),
-                "required": "required" in attrs_dict,
-                "autocomplete": "",
-                "has_label": False
-            })
+            self.current_form["fields"].append(
+                {
+                    "type": "textarea",
+                    "name": attrs_dict.get("name", ""),
+                    "placeholder": attrs_dict.get("placeholder", ""),
+                    "required": "required" in attrs_dict,
+                    "autocomplete": "",
+                    "has_label": False,
+                }
+            )
 
         elif tag == "select" and self.current_form is not None:
-            self.current_form["fields"].append({
-                "type": "select",
-                "name": attrs_dict.get("name", ""),
-                "placeholder": "",
-                "required": "required" in attrs_dict,
-                "autocomplete": "",
-                "has_label": False
-            })
+            self.current_form["fields"].append(
+                {
+                    "type": "select",
+                    "name": attrs_dict.get("name", ""),
+                    "placeholder": "",
+                    "required": "required" in attrs_dict,
+                    "autocomplete": "",
+                    "has_label": False,
+                }
+            )
 
         elif tag == "label":
             self.in_label = True
@@ -116,7 +121,9 @@ def analyze_form(form):
 
     # Field count analysis
     if field_count > 7:
-        issues.append(f"Too many fields ({field_count}). Each field above 3 reduces conversion by ~5-10%. Consider progressive disclosure.")
+        issues.append(
+            f"Too many fields ({field_count}). Each field above 3 reduces conversion by ~5-10%. Consider progressive disclosure."
+        )
     elif field_count > 4:
         warnings.append(f"{field_count} fields — acceptable but test reducing to 3-4 core fields.")
     elif field_count <= 3:
@@ -127,37 +134,53 @@ def analyze_form(form):
     if phone_fields:
         required_phones = [f for f in phone_fields if f["required"]]
         if required_phones:
-            issues.append("Phone number is REQUIRED — this is the #1 form abandonment trigger. Make optional or remove.")
+            issues.append(
+                "Phone number is REQUIRED — this is the #1 form abandonment trigger. Make optional or remove."
+            )
         else:
-            warnings.append("Phone field present (optional) — still causes friction. Consider removing unless sales-critical.")
+            warnings.append(
+                "Phone field present (optional) — still causes friction. Consider removing unless sales-critical."
+            )
 
     # Labels
     unlabeled = [f for f in fields if not f["has_label"] and not f["placeholder"]]
     if unlabeled:
-        issues.append(f"{len(unlabeled)} fields have no label AND no placeholder. Users won't know what to enter.")
+        issues.append(
+            f"{len(unlabeled)} fields have no label AND no placeholder. Users won't know what to enter."
+        )
 
     placeholder_only = [f for f in fields if not f["has_label"] and f["placeholder"]]
     if placeholder_only:
-        warnings.append(f"{len(placeholder_only)} fields use placeholder-only labels. Placeholders disappear on focus — use visible labels.")
+        warnings.append(
+            f"{len(placeholder_only)} fields use placeholder-only labels. Placeholders disappear on focus — use visible labels."
+        )
 
     # Button text
     weak_ctas = ["submit", "send", "go", "ok"]
     for btn in form["buttons"]:
         if btn.lower() in weak_ctas:
-            warnings.append(f'CTA button says "{btn}" — use action-specific text like "Get My Free Report" or "Start Free Trial".')
+            warnings.append(
+                f'CTA button says "{btn}" — use action-specific text like "Get My Free Report" or "Start Free Trial".'
+            )
 
     if not form["buttons"]:
-        issues.append("No submit button found. Form may be broken or use JavaScript submission only.")
+        issues.append(
+            "No submit button found. Form may be broken or use JavaScript submission only."
+        )
 
     # Autocomplete
     fields_with_autocomplete = [f for f in fields if f["autocomplete"]]
     if not fields_with_autocomplete and field_count > 0:
-        warnings.append("No autocomplete attributes. Adding autocomplete reduces mobile friction significantly.")
+        warnings.append(
+            "No autocomplete attributes. Adding autocomplete reduces mobile friction significantly."
+        )
 
     # Required fields
     required_count = sum(1 for f in fields if f["required"])
     if required_count == field_count and field_count > 2:
-        warnings.append("ALL fields are required. Consider making some optional to reduce perceived commitment.")
+        warnings.append(
+            "ALL fields are required. Consider making some optional to reduce perceived commitment."
+        )
 
     # Score
     score = 100
@@ -175,7 +198,9 @@ def analyze_form(form):
         "warnings": warnings,
         "positives": positives,
         "score": score,
-        "fields": [{"name": f["name"], "type": f["type"], "required": f["required"]} for f in fields]
+        "fields": [
+            {"name": f["name"], "type": f["type"], "required": f["required"]} for f in fields
+        ],
     }
 
 
@@ -190,7 +215,9 @@ def format_report(analyses):
     for i, analysis in enumerate(analyses):
         lines.append("")
         lines.append(f"  FORM {i + 1}")
-        lines.append(f"  Fields: {analysis['field_count']} | Required: {analysis['required_count']} | CTA: {', '.join(analysis['cta_text']) or 'none'}")
+        lines.append(
+            f"  Fields: {analysis['field_count']} | Required: {analysis['required_count']} | CTA: {', '.join(analysis['cta_text']) or 'none'}"
+        )
         lines.append("")
 
         score = analysis["score"]

@@ -13,15 +13,14 @@ Usage:
 JSON input format: see sample_data() function below.
 """
 
+import argparse
 import json
 import sys
-import argparse
-from typing import Optional
-
 
 # ---------------------------------------------------------------------------
 # Sample data
 # ---------------------------------------------------------------------------
+
 
 def sample_data() -> dict:
     """
@@ -129,7 +128,7 @@ def quadrant_emoji(quadrant: str) -> str:
     }.get(quadrant, "?")
 
 
-def investment_posture(quadrant: str, qoq_growth: float, retention: Optional[float]) -> str:
+def investment_posture(quadrant: str, qoq_growth: float, retention: float | None) -> str:
     """
     Invest / Maintain / Kill recommendation with nuance.
     """
@@ -166,6 +165,7 @@ def posture_color(posture: str) -> str:
 # ---------------------------------------------------------------------------
 # Product analysis
 # ---------------------------------------------------------------------------
+
 
 def analyze_product(p: dict) -> dict:
     revenue_q = p.get("revenue_quarterly", 0)
@@ -204,8 +204,9 @@ def analyze_product(p: dict) -> dict:
         "posture": posture,
         "alignment_score": alignment_score,
         "notes": p.get("notes", ""),
-        "findings": _product_findings(quadrant, posture, qoq_growth, share_ratio,
-                                      market_growth, retention, nps, eng_pct),
+        "findings": _product_findings(
+            quadrant, posture, qoq_growth, share_ratio, market_growth, retention, nps, eng_pct
+        ),
     }
 
 
@@ -220,56 +221,93 @@ def _compute_alignment(posture: str, eng_pct: float) -> float:
 
 
 def _product_findings(
-    quadrant: str, posture: str,
-    qoq_growth: float, share_ratio: float, market_growth: float,
-    retention: Optional[float], nps: Optional[int], eng_pct: float
+    quadrant: str,
+    posture: str,
+    qoq_growth: float,
+    share_ratio: float,
+    market_growth: float,
+    retention: float | None,
+    nps: int | None,
+    eng_pct: float,
 ) -> list:
     findings = []
 
     if quadrant == "Star":
         if eng_pct < 30:
-            findings.append(f"⚠ Star product getting only {eng_pct}% of eng capacity — likely underinvested. Stars need fuel.")
+            findings.append(
+                f"⚠ Star product getting only {eng_pct}% of eng capacity — likely underinvested. Stars need fuel."
+            )
         else:
-            findings.append(f"✓ Star product with {eng_pct}% eng allocation — appropriate investment.")
+            findings.append(
+                f"✓ Star product with {eng_pct}% eng allocation — appropriate investment."
+            )
         if share_ratio < 1.5:
-            findings.append(f"◑ Share ratio {share_ratio:.1f}x — leading but not dominant. Accelerate to widen the gap.")
+            findings.append(
+                f"◑ Share ratio {share_ratio:.1f}x — leading but not dominant. Accelerate to widen the gap."
+            )
         else:
             findings.append(f"✓ Share ratio {share_ratio:.1f}x — strong lead. Defend aggressively.")
 
     elif quadrant == "Cash Cow":
         if eng_pct > 25:
-            findings.append(f"⚠ Cash Cow getting {eng_pct}% of eng — overinvested. Reduce to 10-15% max. Redeploy to Stars.")
+            findings.append(
+                f"⚠ Cash Cow getting {eng_pct}% of eng — overinvested. Reduce to 10-15% max. Redeploy to Stars."
+            )
         else:
-            findings.append(f"✓ Cash Cow with {eng_pct}% eng — appropriate. Don't innovate, just maintain.")
+            findings.append(
+                f"✓ Cash Cow with {eng_pct}% eng — appropriate. Don't innovate, just maintain."
+            )
         if qoq_growth < -0.05:
-            findings.append(f"⚠ Revenue declining {abs(qoq_growth):.0%} QoQ — monitor for transition to Dog.")
+            findings.append(
+                f"⚠ Revenue declining {abs(qoq_growth):.0%} QoQ — monitor for transition to Dog."
+            )
         else:
             findings.append(f"✓ Revenue stable (QoQ: {qoq_growth:+.0%}) — milk this.")
 
     elif quadrant == "Question Mark":
-        findings.append(f"⚠ Fast market ({market_growth:.0f}% growth) but only {share_ratio:.1f}x relative share.")
-        findings.append(f"  Decision required: Invest to capture share or exit. 'Maintain' loses share every quarter.")
+        findings.append(
+            f"⚠ Fast market ({market_growth:.0f}% growth) but only {share_ratio:.1f}x relative share."
+        )
+        findings.append(
+            "  Decision required: Invest to capture share or exit. 'Maintain' loses share every quarter."
+        )
         if qoq_growth >= 0.15:
-            findings.append(f"✓ QoQ growth {qoq_growth:+.0%} — momentum building. Investment may be justified.")
+            findings.append(
+                f"✓ QoQ growth {qoq_growth:+.0%} — momentum building. Investment may be justified."
+            )
         elif qoq_growth < 0.05:
-            findings.append(f"✗ QoQ growth {qoq_growth:+.0%} — stalled despite hot market. Strong exit signal.")
+            findings.append(
+                f"✗ QoQ growth {qoq_growth:+.0%} — stalled despite hot market. Strong exit signal."
+            )
 
     elif quadrant == "Dog":
-        findings.append(f"✗ Low share ({share_ratio:.1f}x) in slow/declining market ({market_growth:.0f}% growth).")
+        findings.append(
+            f"✗ Low share ({share_ratio:.1f}x) in slow/declining market ({market_growth:.0f}% growth)."
+        )
         if eng_pct > 10:
-            findings.append(f"✗ Dog consuming {eng_pct}% of eng capacity. Set a sunset date. Migrate customers.")
+            findings.append(
+                f"✗ Dog consuming {eng_pct}% of eng capacity. Set a sunset date. Migrate customers."
+            )
         if qoq_growth > 0:
-            findings.append(f"◑ Slight QoQ growth ({qoq_growth:+.0%}) — verify whether this is genuine or contract timing.")
+            findings.append(
+                f"◑ Slight QoQ growth ({qoq_growth:+.0%}) — verify whether this is genuine or contract timing."
+            )
 
     if retention is not None:
         if retention < 0.30:
-            findings.append(f"✗ D30 retention {retention:.0%} — users not finding value. Weak unit economics for any posture.")
+            findings.append(
+                f"✗ D30 retention {retention:.0%} — users not finding value. Weak unit economics for any posture."
+            )
         elif retention >= 0.50:
-            findings.append(f"✓ D30 retention {retention:.0%} — users find value. Supports investment or stable maintenance.")
+            findings.append(
+                f"✓ D30 retention {retention:.0%} — users find value. Supports investment or stable maintenance."
+            )
 
     if nps is not None:
         if nps < 0:
-            findings.append(f"✗ NPS {nps} — net detractors. Word of mouth is negative. Fix before scaling.")
+            findings.append(
+                f"✗ NPS {nps} — net detractors. Word of mouth is negative. Fix before scaling."
+            )
         elif nps >= 40:
             findings.append(f"✓ NPS {nps} — strong promoter base. Harness for referrals.")
 
@@ -279,6 +317,7 @@ def _product_findings(
 # ---------------------------------------------------------------------------
 # Portfolio-level analysis
 # ---------------------------------------------------------------------------
+
 
 def analyze_portfolio(data: dict) -> dict:
     products = [analyze_product(p) for p in data.get("products", [])]
@@ -298,7 +337,9 @@ def analyze_portfolio(data: dict) -> dict:
     health = _portfolio_health(products, total_revenue, total_eng)
 
     # Portfolio-level findings
-    portfolio_findings = _portfolio_findings(products, total_revenue, quadrant_revenue, quadrant_eng)
+    portfolio_findings = _portfolio_findings(
+        products, total_revenue, quadrant_revenue, quadrant_eng
+    )
 
     return {
         "company": data.get("company", "Unknown"),
@@ -347,7 +388,9 @@ def _portfolio_health(products: list, total_revenue: float, total_eng: float) ->
 
     # Revenue in dogs penalty
     if total_revenue > 0:
-        dog_rev_pct = sum(p["revenue_quarterly"] for p in products if p["quadrant"] == "Dog") / total_revenue
+        dog_rev_pct = (
+            sum(p["revenue_quarterly"] for p in products if p["quadrant"] == "Dog") / total_revenue
+        )
         if dog_rev_pct > 0.30:
             score -= 0.15
 
@@ -359,8 +402,7 @@ def _portfolio_health(products: list, total_revenue: float, total_eng: float) ->
 
 
 def _portfolio_findings(
-    products: list, total_revenue: float,
-    quadrant_revenue: dict, quadrant_eng: dict
+    products: list, total_revenue: float, quadrant_revenue: dict, quadrant_eng: dict
 ) -> list:
     findings = []
 
@@ -370,32 +412,48 @@ def _portfolio_findings(
     dogs = [p for p in products if p["quadrant"] == "Dog"]
 
     if not stars:
-        findings.append("✗ CRITICAL: No Star products. You have no growth engine. Identify a Question Mark to invest in or revisit your market positioning.")
+        findings.append(
+            "✗ CRITICAL: No Star products. You have no growth engine. Identify a Question Mark to invest in or revisit your market positioning."
+        )
     elif len(stars) == 1:
-        findings.append(f"◑ Single Star ({stars[0]['name']}). Portfolio is fragile — one product drives all growth. Diversify.")
+        findings.append(
+            f"◑ Single Star ({stars[0]['name']}). Portfolio is fragile — one product drives all growth. Diversify."
+        )
     else:
         findings.append(f"✓ {len(stars)} Star products — healthy growth engine.")
 
     if not cows:
-        findings.append("⚠ No Cash Cow products. Stars are consuming capital without a self-funding mechanism. Watch burn rate.")
+        findings.append(
+            "⚠ No Cash Cow products. Stars are consuming capital without a self-funding mechanism. Watch burn rate."
+        )
     else:
         cow_rev = quadrant_revenue.get("Cash Cow", 0)
         cow_pct = cow_rev / total_revenue if total_revenue else 0
         findings.append(f"✓ Cash Cow revenue: {cow_pct:.0%} of total — funds Star investment.")
 
     if questions:
-        findings.append(f"⚠ {len(questions)} Question Mark(s): {', '.join(p['name'] for p in questions)}.")
-        findings.append("  Each needs a binary decision: invest to win share, or exit. Set a 2-quarter deadline.")
+        findings.append(
+            f"⚠ {len(questions)} Question Mark(s): {', '.join(p['name'] for p in questions)}."
+        )
+        findings.append(
+            "  Each needs a binary decision: invest to win share, or exit. Set a 2-quarter deadline."
+        )
 
     if dogs:
         dog_eng_total = sum(p["eng_capacity_pct"] for p in dogs)
-        findings.append(f"✗ {len(dogs)} Dog product(s): {', '.join(p['name'] for p in dogs)} consuming {dog_eng_total}% of eng capacity.")
-        findings.append(f"  That's {dog_eng_total}% of your engineers on declining products. Set sunset dates.")
+        findings.append(
+            f"✗ {len(dogs)} Dog product(s): {', '.join(p['name'] for p in dogs)} consuming {dog_eng_total}% of eng capacity."
+        )
+        findings.append(
+            f"  That's {dog_eng_total}% of your engineers on declining products. Set sunset dates."
+        )
 
     # Alignment check
     misaligned = [p for p in products if p["alignment_score"] < 0.50]
     if misaligned:
-        findings.append(f"⚠ Engineering allocation misaligned on: {', '.join(p['name'] for p in misaligned)}.")
+        findings.append(
+            f"⚠ Engineering allocation misaligned on: {', '.join(p['name'] for p in misaligned)}."
+        )
         findings.append("  Rebalance: move capacity from Dogs/Cows to Stars.")
 
     return findings
@@ -405,11 +463,12 @@ def _portfolio_findings(
 # Report rendering
 # ---------------------------------------------------------------------------
 
+
 def fmt_currency(n: float) -> str:
     if n >= 1_000_000:
-        return f"${n/1_000_000:.1f}M"
+        return f"${n / 1_000_000:.1f}M"
     elif n >= 1_000:
-        return f"${n/1_000:.0f}K"
+        return f"${n / 1_000:.0f}K"
     return f"${n:.0f}"
 
 
@@ -455,9 +514,7 @@ def render_report(result: dict) -> str:
     for p in result["products"]:
         emoji = quadrant_emoji(p["quadrant"])
         pc = posture_color(p["posture"])
-        lines.append(
-            f"  {emoji} {p['name']} — {p['quadrant']} → {pc} {p['posture']}"
-        )
+        lines.append(f"  {emoji} {p['name']} — {p['quadrant']} → {pc} {p['posture']}")
         lines.append(
             f"     Revenue: {fmt_currency(p['revenue_quarterly'])}/qtr  "
             f"QoQ: {p['qoq_growth']:+.0%}  "
@@ -494,6 +551,7 @@ def render_report(result: dict) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Portfolio Analyzer — BCG matrix classification and investment recommendations",
@@ -501,7 +559,8 @@ def main():
         epilog=__doc__,
     )
     parser.add_argument(
-        "--input", "-i",
+        "--input",
+        "-i",
         metavar="FILE",
         help="JSON file with portfolio data (default: built-in sample data)",
     )
@@ -538,6 +597,7 @@ def main():
             elif isinstance(obj, float):
                 return round(obj, 4)
             return obj
+
         print(json.dumps(clean(result), indent=2))
     else:
         print(render_report(result))

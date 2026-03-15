@@ -10,16 +10,21 @@ Usage:
 
 import argparse
 import json
-import sys
-
 
 # ---------------------------------------------------------------------------
 # Calculation core
 # ---------------------------------------------------------------------------
 
-def calculate(spend: float, revenue: float = 0.0, conversions: int = 0,
-              leads: int = 0, margin_pct: float = 0.0,
-              impressions: int = 0, clicks: int = 0) -> dict:
+
+def calculate(
+    spend: float,
+    revenue: float = 0.0,
+    conversions: int = 0,
+    leads: int = 0,
+    margin_pct: float = 0.0,
+    impressions: int = 0,
+    clicks: int = 0,
+) -> dict:
 
     results = {
         "inputs": {
@@ -58,7 +63,9 @@ def calculate(spend: float, revenue: float = 0.0, conversions: int = 0,
             metrics["profitability"] = {
                 "is_profitable": profitable,
                 "gap": round(actual_roas - be_roas, 2),
-                "note": "Profitable ✅" if profitable else f"Unprofitable ❌ — need +{be_roas - actual_roas:.2f}x ROAS",
+                "note": "Profitable ✅"
+                if profitable
+                else f"Unprofitable ❌ — need +{be_roas - actual_roas:.2f}x ROAS",
             }
 
     # --- CPA ---
@@ -153,9 +160,13 @@ def _recommendations(metrics: dict, spend: float, margin_pct: float) -> list:
     if roas and be_roas:
         if roas < be_roas:
             shortfall = round((be_roas - roas) * spend, 2)
-            recs.append(f"⚠️  Losing ${shortfall:,.2f}/period — pause or restructure campaign immediately")
+            recs.append(
+                f"⚠️  Losing ${shortfall:,.2f}/period — pause or restructure campaign immediately"
+            )
         elif roas < be_roas * 1.5:
-            recs.append("⚠️  Marginally profitable — optimize creatives and targeting before scaling")
+            recs.append(
+                "⚠️  Marginally profitable — optimize creatives and targeting before scaling"
+            )
         else:
             recs.append("✅  Profitable — consider increasing budget or duplicating campaign")
 
@@ -171,7 +182,9 @@ def _recommendations(metrics: dict, spend: float, margin_pct: float) -> list:
     if cpa and cpl:
         l2c = metrics.get("lead_to_conversion_rate", {}).get("value", 0)
         if l2c < 10:
-            recs.append(f"⚠️  Lead-to-close rate {l2c}% is low — review sales qualification or nurture sequence")
+            recs.append(
+                f"⚠️  Lead-to-close rate {l2c}% is low — review sales qualification or nurture sequence"
+            )
 
     ctr = metrics.get("ctr", {}).get("value")
     if ctr:
@@ -205,23 +218,26 @@ DEMO_DATA = {
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="ROAS calculator — paid ads performance metrics and recommendations."
     )
-    parser.add_argument("--spend",       type=float, help="Total ad spend ($)")
-    parser.add_argument("--revenue",     type=float, default=0, help="Total attributed revenue ($)")
-    parser.add_argument("--conversions", type=int,   default=0, help="Number of purchases/conversions")
-    parser.add_argument("--leads",       type=int,   default=0, help="Number of leads generated")
-    parser.add_argument("--margin",      type=float, default=0, help="Gross margin %% (e.g. 40)")
-    parser.add_argument("--impressions", type=int,   default=0, help="Total impressions")
-    parser.add_argument("--clicks",      type=int,   default=0, help="Total clicks")
-    parser.add_argument("--file",        help="JSON file with campaign data")
-    parser.add_argument("--json",        action="store_true", help="Output as JSON")
+    parser.add_argument("--spend", type=float, help="Total ad spend ($)")
+    parser.add_argument("--revenue", type=float, default=0, help="Total attributed revenue ($)")
+    parser.add_argument(
+        "--conversions", type=int, default=0, help="Number of purchases/conversions"
+    )
+    parser.add_argument("--leads", type=int, default=0, help="Number of leads generated")
+    parser.add_argument("--margin", type=float, default=0, help="Gross margin %% (e.g. 40)")
+    parser.add_argument("--impressions", type=int, default=0, help="Total impressions")
+    parser.add_argument("--clicks", type=int, default=0, help="Total clicks")
+    parser.add_argument("--file", help="JSON file with campaign data")
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args()
 
     if args.file:
-        with open(args.file, "r") as f:
+        with open(args.file) as f:
             data = json.load(f)
     elif args.spend:
         data = {
@@ -260,28 +276,37 @@ def main():
     print("  PAID ADS PERFORMANCE REPORT")
     print("=" * 62)
     print(f"  Spend:      ${inp['ad_spend']:>10,.2f}")
-    if inp["revenue"]:    print(f"  Revenue:    ${inp['revenue']:>10,.2f}")
-    if inp["conversions"]:print(f"  Conversions:{inp['conversions']:>10}")
-    if inp["leads"]:      print(f"  Leads:      {inp['leads']:>10}")
-    if inp["impressions"]:print(f"  Impressions:{inp['impressions']:>10,}")
-    if inp["clicks"]:     print(f"  Clicks:     {inp['clicks']:>10,}")
+    if inp["revenue"]:
+        print(f"  Revenue:    ${inp['revenue']:>10,.2f}")
+    if inp["conversions"]:
+        print(f"  Conversions:{inp['conversions']:>10}")
+    if inp["leads"]:
+        print(f"  Leads:      {inp['leads']:>10}")
+    if inp["impressions"]:
+        print(f"  Impressions:{inp['impressions']:>10,}")
+    if inp["clicks"]:
+        print(f"  Clicks:     {inp['clicks']:>10,}")
 
     print()
     print("  METRICS")
     print("  " + "─" * 58)
 
     metric_labels = [
-        ("roas",                   "ROAS",                    lambda m: f"{m['value']}x  — {m['interpretation']}"),
-        ("break_even_roas",        "Break-even ROAS",         lambda m: f"{m['value']}x  — {m['note']}"),
-        ("profitability",          "Profitability",           lambda m: m['note']),
-        ("cpa",                    "CPA",                     lambda m: f"${m['value']:,.2f} / {m['unit']}"),
-        ("revenue_per_conversion", "Rev/Conversion",          lambda m: f"${m['value']:,.2f}  (ROI {m['roi_per_conversion']}%)"),
-        ("cpl",                    "CPL",                     lambda m: f"${m['value']:,.2f} / {m['unit']}"),
-        ("lead_to_conversion_rate","Lead→Conv Rate",          lambda m: f"{m['value']}%"),
-        ("conversion_rate",        "Conversion Rate",         lambda m: f"{m['value']}%  ({m['benchmark']})"),
-        ("ctr",                    "CTR",                     lambda m: f"{m['value']}%"),
-        ("cpc",                    "CPC",                     lambda m: f"${m['value']:,.2f}"),
-        ("cpm",                    "CPM",                     lambda m: f"${m['value']:,.2f}"),
+        ("roas", "ROAS", lambda m: f"{m['value']}x  — {m['interpretation']}"),
+        ("break_even_roas", "Break-even ROAS", lambda m: f"{m['value']}x  — {m['note']}"),
+        ("profitability", "Profitability", lambda m: m["note"]),
+        ("cpa", "CPA", lambda m: f"${m['value']:,.2f} / {m['unit']}"),
+        (
+            "revenue_per_conversion",
+            "Rev/Conversion",
+            lambda m: f"${m['value']:,.2f}  (ROI {m['roi_per_conversion']}%)",
+        ),
+        ("cpl", "CPL", lambda m: f"${m['value']:,.2f} / {m['unit']}"),
+        ("lead_to_conversion_rate", "Lead→Conv Rate", lambda m: f"{m['value']}%"),
+        ("conversion_rate", "Conversion Rate", lambda m: f"{m['value']}%  ({m['benchmark']})"),
+        ("ctr", "CTR", lambda m: f"{m['value']}%"),
+        ("cpc", "CPC", lambda m: f"${m['value']:,.2f}"),
+        ("cpm", "CPM", lambda m: f"${m['value']:,.2f}"),
     ]
 
     for key, label, fmt in metric_labels:

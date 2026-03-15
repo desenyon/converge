@@ -16,10 +16,10 @@ import re
 import shlex
 import subprocess
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import mean
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class CLIError(Exception):
@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_text_file(path: Optional[str]) -> Optional[str]:
+def read_text_file(path: str | None) -> str | None:
     if not path:
         return None
     try:
@@ -63,7 +63,7 @@ def read_text_file(path: Optional[str]) -> Optional[str]:
         raise CLIError(f"Failed reading file {path}: {exc}") from exc
 
 
-def load_payload(args: argparse.Namespace) -> Dict[str, Any]:
+def load_payload(args: argparse.Namespace) -> dict[str, Any]:
     if args.input:
         try:
             return json.loads(Path(args.input).read_text(encoding="utf-8"))
@@ -78,7 +78,7 @@ def load_payload(args: argparse.Namespace) -> Dict[str, Any]:
             except json.JSONDecodeError as exc:
                 raise CLIError(f"Invalid JSON from stdin: {exc}") from exc
 
-    payload: Dict[str, Any] = {}
+    payload: dict[str, Any] = {}
 
     prompt_a = args.prompt_a or read_text_file(args.prompt_a_file)
     prompt_b = args.prompt_b or read_text_file(args.prompt_b_file)
@@ -114,7 +114,7 @@ def static_output(prompt: str, case_input: str) -> str:
     return rendered
 
 
-def score_output(case: Dict[str, Any], output: str, prompt_variant: str) -> CaseScore:
+def score_output(case: dict[str, Any], output: str, prompt_variant: str) -> CaseScore:
     case_id = str(case.get("id", "case"))
     expected = [str(x) for x in case.get("expected_contains", []) if str(x)]
     forbidden = [str(x) for x in case.get("forbidden_contains", []) if str(x)]
@@ -156,7 +156,7 @@ def score_output(case: Dict[str, Any], output: str, prompt_variant: str) -> Case
     )
 
 
-def aggregate(scores: List[CaseScore]) -> Dict[str, Any]:
+def aggregate(scores: list[CaseScore]) -> dict[str, Any]:
     if not scores:
         return {"average": 0.0, "min": 0.0, "max": 0.0, "cases": 0}
     vals = [s.score for s in scores]
@@ -182,16 +182,24 @@ def main() -> int:
     if not isinstance(cases, list) or not cases:
         raise CLIError("cases must be a non-empty array.")
 
-    scores_a: List[CaseScore] = []
-    scores_b: List[CaseScore] = []
+    scores_a: list[CaseScore] = []
+    scores_b: list[CaseScore] = []
 
     for case in cases:
         if not isinstance(case, dict):
             continue
         case_input = str(case.get("input", "")).strip()
 
-        output_a = run_runner(runner_cmd, prompt_a, case_input) if runner_cmd else static_output(prompt_a, case_input)
-        output_b = run_runner(runner_cmd, prompt_b, case_input) if runner_cmd else static_output(prompt_b, case_input)
+        output_a = (
+            run_runner(runner_cmd, prompt_a, case_input)
+            if runner_cmd
+            else static_output(prompt_a, case_input)
+        )
+        output_b = (
+            run_runner(runner_cmd, prompt_b, case_input)
+            if runner_cmd
+            else static_output(prompt_b, case_input)
+        )
 
         scores_a.append(score_output(case, output_a, "A"))
         scores_b.append(score_output(case, output_b, "B"))

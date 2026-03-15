@@ -4,15 +4,15 @@ Fixture and test data generation module.
 Generates realistic test data, mock objects, and fixtures for various scenarios.
 """
 
-from typing import Dict, List, Any, Optional
 import json
 import random
+from typing import Any
 
 
 class FixtureGenerator:
     """Generate test fixtures and mock data."""
 
-    def __init__(self, seed: Optional[int] = None):
+    def __init__(self, seed: int | None = None):
         """
         Initialize fixture generator.
 
@@ -23,10 +23,8 @@ class FixtureGenerator:
             random.seed(seed)
 
     def generate_boundary_values(
-        self,
-        data_type: str,
-        constraints: Optional[Dict[str, Any]] = None
-    ) -> List[Any]:
+        self, data_type: str, constraints: dict[str, Any] | None = None
+    ) -> list[Any]:
         """
         Generate boundary values for testing.
 
@@ -54,10 +52,10 @@ class FixtureGenerator:
         else:
             return []
 
-    def _integer_boundaries(self, constraints: Dict[str, Any]) -> List[int]:
+    def _integer_boundaries(self, constraints: dict[str, Any]) -> list[int]:
         """Generate integer boundary values."""
-        min_val = constraints.get('min', 0)
-        max_val = constraints.get('max', 100)
+        min_val = constraints.get("min", 0)
+        max_val = constraints.get("max", 100)
 
         boundaries = [
             min_val,  # Minimum
@@ -74,10 +72,10 @@ class FixtureGenerator:
 
         return sorted(set(boundaries))
 
-    def _string_boundaries(self, constraints: Dict[str, Any]) -> List[str]:
+    def _string_boundaries(self, constraints: dict[str, Any]) -> list[str]:
         """Generate string boundary values."""
-        min_len = constraints.get('min_length', 0)
-        max_len = constraints.get('max_length', 100)
+        min_len = constraints.get("min_length", 0)
+        max_len = constraints.get("max_length", 100)
 
         boundaries = [
             "",  # Empty string
@@ -95,10 +93,10 @@ class FixtureGenerator:
 
         return [b for b in boundaries if b is not None]
 
-    def _array_boundaries(self, constraints: Dict[str, Any]) -> List[List[Any]]:
+    def _array_boundaries(self, constraints: dict[str, Any]) -> list[list[Any]]:
         """Generate array boundary values."""
-        min_size = constraints.get('min_size', 0)
-        max_size = constraints.get('max_size', 10)
+        min_size = constraints.get("min_size", 0)
+        max_size = constraints.get("max_size", 10)
 
         boundaries = [
             [],  # Empty array
@@ -109,7 +107,7 @@ class FixtureGenerator:
 
         return boundaries
 
-    def _date_boundaries(self, constraints: Dict[str, Any]) -> List[str]:
+    def _date_boundaries(self, constraints: dict[str, Any]) -> list[str]:
         """Generate date boundary values."""
         return [
             "1900-01-01",  # Very old date
@@ -120,7 +118,7 @@ class FixtureGenerator:
             "invalid-date",  # Invalid format
         ]
 
-    def _email_boundaries(self) -> List[str]:
+    def _email_boundaries(self) -> list[str]:
         """Generate email boundary values."""
         return [
             "valid@example.com",  # Valid
@@ -132,7 +130,7 @@ class FixtureGenerator:
             "",  # Empty
         ]
 
-    def _url_boundaries(self) -> List[str]:
+    def _url_boundaries(self) -> list[str]:
         """Generate URL boundary values."""
         return [
             "https://example.com",  # Valid HTTPS
@@ -145,10 +143,8 @@ class FixtureGenerator:
         ]
 
     def generate_edge_cases(
-        self,
-        scenario: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        self, scenario: str, context: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """
         Generate edge case test scenarios.
 
@@ -172,155 +168,143 @@ class FixtureGenerator:
         else:
             return []
 
-    def _auth_edge_cases(self) -> List[Dict[str, Any]]:
+    def _auth_edge_cases(self) -> list[dict[str, Any]]:
         """Generate authentication edge cases."""
         return [
             {
-                'name': 'empty_credentials',
-                'input': {'username': '', 'password': ''},
-                'expected': 'validation_error'
+                "name": "empty_credentials",
+                "input": {"username": "", "password": ""},
+                "expected": "validation_error",
             },
             {
-                'name': 'sql_injection_attempt',
-                'input': {'username': "admin' OR '1'='1", 'password': 'password'},
-                'expected': 'authentication_failed'
+                "name": "sql_injection_attempt",
+                "input": {"username": "admin' OR '1'='1", "password": "password"},
+                "expected": "authentication_failed",
             },
             {
-                'name': 'very_long_password',
-                'input': {'username': 'user', 'password': 'a' * 1000},
-                'expected': 'validation_error_or_success'
+                "name": "very_long_password",
+                "input": {"username": "user", "password": "a" * 1000},
+                "expected": "validation_error_or_success",
             },
             {
-                'name': 'special_chars_username',
-                'input': {'username': 'user@#$%', 'password': 'password'},
-                'expected': 'depends_on_validation'
+                "name": "special_chars_username",
+                "input": {"username": "user@#$%", "password": "password"},
+                "expected": "depends_on_validation",
             },
             {
-                'name': 'unicode_credentials',
-                'input': {'username': '用户', 'password': 'пароль'},
-                'expected': 'should_handle_unicode'
-            }
+                "name": "unicode_credentials",
+                "input": {"username": "用户", "password": "пароль"},
+                "expected": "should_handle_unicode",
+            },
         ]
 
-    def _payment_edge_cases(self) -> List[Dict[str, Any]]:
+    def _payment_edge_cases(self) -> list[dict[str, Any]]:
         """Generate payment processing edge cases."""
         return [
             {
-                'name': 'zero_amount',
-                'input': {'amount': 0, 'currency': 'USD'},
-                'expected': 'validation_error'
+                "name": "zero_amount",
+                "input": {"amount": 0, "currency": "USD"},
+                "expected": "validation_error",
             },
             {
-                'name': 'negative_amount',
-                'input': {'amount': -10, 'currency': 'USD'},
-                'expected': 'validation_error'
+                "name": "negative_amount",
+                "input": {"amount": -10, "currency": "USD"},
+                "expected": "validation_error",
             },
             {
-                'name': 'very_large_amount',
-                'input': {'amount': 999999999.99, 'currency': 'USD'},
-                'expected': 'should_handle_or_reject'
+                "name": "very_large_amount",
+                "input": {"amount": 999999999.99, "currency": "USD"},
+                "expected": "should_handle_or_reject",
             },
             {
-                'name': 'precision_test',
-                'input': {'amount': 10.999, 'currency': 'USD'},
-                'expected': 'should_round_to_10.99'
+                "name": "precision_test",
+                "input": {"amount": 10.999, "currency": "USD"},
+                "expected": "should_round_to_10.99",
             },
             {
-                'name': 'invalid_currency',
-                'input': {'amount': 10, 'currency': 'XXX'},
-                'expected': 'validation_error'
-            }
+                "name": "invalid_currency",
+                "input": {"amount": 10, "currency": "XXX"},
+                "expected": "validation_error",
+            },
         ]
 
-    def _form_edge_cases(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _form_edge_cases(self, context: dict[str, Any]) -> list[dict[str, Any]]:
         """Generate form validation edge cases."""
-        fields = context.get('fields', [])
+        fields = context.get("fields", [])
         edge_cases = []
 
         for field in fields:
-            field_name = field.get('name', 'field')
-            field_type = field.get('type', 'text')
+            field_name = field.get("name", "field")
+            field_type = field.get("type", "text")
 
-            edge_cases.append({
-                'name': f'{field_name}_empty',
-                'input': {field_name: ''},
-                'expected': 'validation_error_if_required'
-            })
+            edge_cases.append(
+                {
+                    "name": f"{field_name}_empty",
+                    "input": {field_name: ""},
+                    "expected": "validation_error_if_required",
+                }
+            )
 
-            if field_type in ['text', 'email', 'password']:
-                edge_cases.append({
-                    'name': f'{field_name}_very_long',
-                    'input': {field_name: 'a' * 1000},
-                    'expected': 'validation_error_or_truncate'
-                })
+            if field_type in ["text", "email", "password"]:
+                edge_cases.append(
+                    {
+                        "name": f"{field_name}_very_long",
+                        "input": {field_name: "a" * 1000},
+                        "expected": "validation_error_or_truncate",
+                    }
+                )
 
         return edge_cases
 
-    def _api_edge_cases(self) -> List[Dict[str, Any]]:
+    def _api_edge_cases(self) -> list[dict[str, Any]]:
         """Generate API edge cases."""
         return [
             {
-                'name': 'missing_required_field',
-                'request': {'optional_field': 'value'},
-                'expected': 400
+                "name": "missing_required_field",
+                "request": {"optional_field": "value"},
+                "expected": 400,
             },
+            {"name": "invalid_json", "request": "not valid json{", "expected": 400},
+            {"name": "empty_body", "request": {}, "expected": 400},
             {
-                'name': 'invalid_json',
-                'request': 'not valid json{',
-                'expected': 400
+                "name": "very_large_payload",
+                "request": {"data": "x" * 1000000},
+                "expected": "413_or_400",
             },
-            {
-                'name': 'empty_body',
-                'request': {},
-                'expected': 400
-            },
-            {
-                'name': 'very_large_payload',
-                'request': {'data': 'x' * 1000000},
-                'expected': '413_or_400'
-            },
-            {
-                'name': 'invalid_method',
-                'method': 'INVALID',
-                'expected': 405
-            }
+            {"name": "invalid_method", "method": "INVALID", "expected": 405},
         ]
 
-    def _file_upload_edge_cases(self) -> List[Dict[str, Any]]:
+    def _file_upload_edge_cases(self) -> list[dict[str, Any]]:
         """Generate file upload edge cases."""
         return [
             {
-                'name': 'empty_file',
-                'file': {'name': 'test.txt', 'size': 0},
-                'expected': 'validation_error'
+                "name": "empty_file",
+                "file": {"name": "test.txt", "size": 0},
+                "expected": "validation_error",
             },
             {
-                'name': 'very_large_file',
-                'file': {'name': 'test.txt', 'size': 1000000000},
-                'expected': 'size_limit_error'
+                "name": "very_large_file",
+                "file": {"name": "test.txt", "size": 1000000000},
+                "expected": "size_limit_error",
             },
             {
-                'name': 'invalid_extension',
-                'file': {'name': 'test.exe', 'size': 1000},
-                'expected': 'validation_error'
+                "name": "invalid_extension",
+                "file": {"name": "test.exe", "size": 1000},
+                "expected": "validation_error",
             },
             {
-                'name': 'no_extension',
-                'file': {'name': 'testfile', 'size': 1000},
-                'expected': 'depends_on_validation'
+                "name": "no_extension",
+                "file": {"name": "testfile", "size": 1000},
+                "expected": "depends_on_validation",
             },
             {
-                'name': 'special_chars_filename',
-                'file': {'name': 'test@#$%.txt', 'size': 1000},
-                'expected': 'should_sanitize'
-            }
+                "name": "special_chars_filename",
+                "file": {"name": "test@#$%.txt", "size": 1000},
+                "expected": "should_sanitize",
+            },
         ]
 
-    def generate_mock_data(
-        self,
-        schema: Dict[str, Any],
-        count: int = 1
-    ) -> List[Dict[str, Any]]:
+    def generate_mock_data(self, schema: dict[str, Any], count: int = 1) -> list[dict[str, Any]]:
         """
         Generate mock data based on schema.
 
@@ -337,29 +321,29 @@ class FixtureGenerator:
             mock_obj = {}
 
             for field_name, field_def in schema.items():
-                field_type = field_def.get('type', 'string')
+                field_type = field_def.get("type", "string")
                 mock_obj[field_name] = self._generate_field_value(field_type, field_def)
 
             mock_objects.append(mock_obj)
 
         return mock_objects
 
-    def _generate_field_value(self, field_type: str, field_def: Dict[str, Any]) -> Any:
+    def _generate_field_value(self, field_type: str, field_def: dict[str, Any]) -> Any:
         """Generate value for a single field."""
         if field_type == "string":
-            options = field_def.get('options')
+            options = field_def.get("options")
             if options:
                 return random.choice(options)
             return f"test_string_{random.randint(1, 1000)}"
 
         elif field_type == "int":
-            min_val = field_def.get('min', 0)
-            max_val = field_def.get('max', 100)
+            min_val = field_def.get("min", 0)
+            max_val = field_def.get("max", 100)
             return random.randint(min_val, max_val)
 
         elif field_type == "float":
-            min_val = field_def.get('min', 0.0)
-            max_val = field_def.get('max', 100.0)
+            min_val = field_def.get("min", 0.0)
+            max_val = field_def.get("max", 100.0)
             return round(random.uniform(min_val, max_val), 2)
 
         elif field_type == "bool":
@@ -372,20 +356,17 @@ class FixtureGenerator:
             return f"2025-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}"
 
         elif field_type == "array":
-            item_type = field_def.get('items', {}).get('type', 'string')
+            item_type = field_def.get("items", {}).get("type", "string")
             size = random.randint(1, 5)
-            return [self._generate_field_value(item_type, field_def.get('items', {}))
-                   for _ in range(size)]
+            return [
+                self._generate_field_value(item_type, field_def.get("items", {}))
+                for _ in range(size)
+            ]
 
         else:
             return None
 
-    def generate_fixture_file(
-        self,
-        fixture_name: str,
-        data: Any,
-        format: str = "json"
-    ) -> str:
+    def generate_fixture_file(self, fixture_name: str, data: Any, format: str = "json") -> str:
         """
         Generate fixture file content.
 
