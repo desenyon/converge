@@ -16,7 +16,12 @@ class ExplainabilityEngine:
 
     def render_dependency_tree(self, root_id: str) -> None:
         if root_id not in self.G:
-            self.console.print(f"[red]Entity {root_id} not found in graph.[/red]")
+            if root_id.startswith("plan:") or root_id.isdigit():
+                self.console.print(
+                    f"[yellow]'{root_id}' looks like a repair plan. Plans are generated transiently during `converge fix` and cannot be explained after the fact.[/yellow]"
+                )
+            else:
+                self.console.print(f"[red]Entity {root_id} not found in graph.[/red]")
             return
 
         root_data = self.G.nodes[root_id]

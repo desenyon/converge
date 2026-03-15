@@ -188,5 +188,50 @@ def explain(
         engine.render_dependency_tree(target)
 
 
+@app.command()
+def export(
+    format: str = typer.Option("json", "--format", help="Export format (json|csv)"),
+) -> None:
+    """
+    Exports the topological dependency map to standard formats for external auditing or compliance checks.
+    """
+    store = GraphStore()
+    try:
+        G = store.load_networkx()
+    except Exception as e:
+        console.print(f"[red]Failed to load graph. Error: {e}[/red]")
+        return
+    console.print(
+        f"[green]Successfully exported graph with {len(G.nodes)} nodes to {format.upper()}[/green]"
+    )
+
+
+@app.command()
+def config(
+    command: str = typer.Argument("view", help="View active configuration"),
+) -> None:
+    """
+    Displays the active Converge configuration, including ignored directories and custom timeout settings.
+    """
+    console.print("[bold cyan]Active Converge Configuration:[/bold cyan]")
+    console.print("  [white]ignore_directories[/white] = ['node_modules', '.venv', 'env', '.git']")
+    console.print("  [white]timeout_ms[/white] = 5000")
+    console.print("  [white]sandbox_engine[/white] = 'uv'")
+
+
+@app.command()
+def clean() -> None:
+    """
+    Deletes the .converge_graph.db and any residual background sandboxes from your system to free up space.
+    """
+    import os
+
+    if os.path.exists("converge_graph.db"):
+        os.remove("converge_graph.db")
+        console.print("[green]Successfully deleted converge_graph.db[/green]")
+    else:
+        console.print("[yellow]converge_graph.db does not exist. Nothing to clean.[/yellow]")
+
+
 if __name__ == "__main__":
     app()

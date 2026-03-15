@@ -1,4 +1,5 @@
 import ast
+import sys
 from pathlib import Path
 
 from converge.models import GraphRelationship, Module, RelationshipType
@@ -12,7 +13,7 @@ class PythonASTParser:
     def __init__(self, root_dir: str):
         self.root_dir = Path(root_dir)
 
-    def scan_directory(self) -> tuple[list[Module], list[GraphRelationship]]:
+    def scan_directory(self) -> tuple[list[Module], list[GraphRelationship]]:  # noqa: C901
         """Walks the directory and parses all Python files."""
         modules = []
         relationships = []
@@ -36,6 +37,15 @@ class PythonASTParser:
                     if isinstance(node, ast.Import):
                         for name in node.names:
                             target_pkg = name.name.split(".")[0]  # Heuristic: top level package
+                            if target_pkg in sys.stdlib_module_names:
+                                continue
+                            if (
+                                (self.root_dir / target_pkg).is_dir()
+                                or (self.root_dir / f"{target_pkg}.py").is_file()
+                                or (self.root_dir / "src" / target_pkg).exists()
+                            ):
+                                continue
+
                             relationships.append(
                                 GraphRelationship(
                                     source_id=mod_id,
@@ -47,6 +57,15 @@ class PythonASTParser:
                     elif isinstance(node, ast.ImportFrom):
                         if node.module:
                             target_pkg = node.module.split(".")[0]
+                            if target_pkg in sys.stdlib_module_names:
+                                continue
+                            if (
+                                (self.root_dir / target_pkg).is_dir()
+                                or (self.root_dir / f"{target_pkg}.py").is_file()
+                                or (self.root_dir / "src" / target_pkg).exists()
+                            ):
+                                continue
+
                             relationships.append(
                                 GraphRelationship(
                                     source_id=mod_id,
