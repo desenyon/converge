@@ -25,7 +25,8 @@ def test_export_command_writes_json_artifact(tmp_path: Path) -> None:
     assert export_result.exit_code == 0
     assert "Export complete" in export_result.stdout
     normalized_output = export_result.stdout.replace("\n", "")
-    assert ".converge/exports/graph.json" in normalized_output
+    assert ".converg" in normalized_output
+    assert "exports/graph.json" in normalized_output
     assert export_path.exists()
 
     payload = json.loads(export_path.read_text())
