@@ -1,4 +1,5 @@
-import os
+import shutil
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -8,8 +9,10 @@ from rich.table import Table
 
 from converge.cli.explain import ExplainabilityEngine
 from converge.env_manager import EnvironmentManager
+from converge.exporter import ExportError, GraphExporter
 from converge.graph.store import GraphStore
-from converge.models import EntityType
+from converge.project_context import ProjectContext
+from converge.repair.manifest import apply_plan_to_pyproject
 from converge.scanner.scanner import Scanner
 from converge.solver.conflict import Conflict, ConflictDetector, ConflictType
 from converge.solver.planner import RepairPlan, RepairPlanner
@@ -24,6 +27,19 @@ app = typer.Typer(
 console = Console()
 
 
+def _print_repo_header(title: str, context: ProjectContext) -> None:
+    console.print(
+        Panel.fit(
+            f"[bold]{title}[/bold]\n[dim]{context.root_dir}[/dim]",
+            border_style="blue",
+        )
+    )
+
+
+def _activation_command(venv_path: Path) -> str:
+    return f"source {venv_path}/bin/activate"
+
+
 @app.command()
 def scan(
     path: str = typer.Argument(".", help="Path to the repository to scan"),
@@ -34,9 +50,10 @@ def scan(
     """
     [bold cyan]Scan[/bold cyan] a codebase to build a graph of repositories, packages, modules, and services.
     """
-    console.print(Panel.fit(f"[bold green]Scanning Repository:[/bold green] {path}"))
+    context = ProjectContext.from_target(path)
+    _print_repo_header("Scan Repository", context)
 
-    scanner = Scanner(path)
+    scanner = Scanner(str(context.root_dir))
 
     with Progress(
         SpinnerColumn(spinner_name="dots2"),
@@ -47,12 +64,18 @@ def scan(
         entities, rels = scanner.scan_all()
         progress.update(task, completed=True)
 
-    console.print(
-        f"Found [bold cyan]{len(entities)}[/bold cyan] entities and [bold magenta]{len(rels)}[/bold magenta] relationships."
-    )
+    summary = Table(title="Scan Summary", box=None)
+    summary.add_column("Metric", style="cyan")
+    summary.add_column("Value")
+    summary.add_row("Entities", str(len(entities)))
+    summary.add_row("Relationships", str(len(rels)))
+    summary.add_row("Repository", str(context.root_dir))
+    console.print(summary)
 
     if dry_run:
-        console.print("[yellow]Dry run mode enabled. Results will not be saved.[/yellow]")
+        console.print(
+            f"[yellow]Dry run complete.[/yellow] Graph was not written to [cyan]{context.graph_db_path}[/cyan]."
+        )
     else:
         with Progress(
             SpinnerColumn(),
@@ -60,14 +83,15 @@ def scan(
             console=console,
         ) as progress:
             task2 = progress.add_task("[cyan]Persisting Graph to Database...", total=None)
-            store = GraphStore()
+            store = GraphStore.for_context(context)
+            store.reset()
             for e in entities:
                 store.add_entity(e)
             for r in rels:
                 store.add_relationship(r)
             progress.update(task2, completed=True)
 
-        console.print("[green]✓ Successfully persisted graph to database[/green]")
+        console.print(f"[green]✓ Graph saved[/green] to [cyan]{context.graph_db_path}[/cyan].")
 
 
 @app.command()
@@ -79,31 +103,25 @@ def create(
     """
     [bold magenta]Create[/bold magenta] an optimized virtual environment precisely matching the graph requirements.
     """
-    console.print(
-        Panel.fit(f"[bold blue]Provisioning new environment via {provider.upper()}[/bold blue]")
-    )
+    context = ProjectContext.from_target(path)
+    _print_repo_header(f"Create Environment ({provider})", context)
 
     # Extract known packages from DB
-    store = GraphStore()
+    store = GraphStore.for_context(context)
     try:
         G = store.load_networkx()
     except Exception as e:
-        console.print(f"[red]Error loading graph. Did you run `converge scan`? ({e})[/red]")
+        console.print(
+            f"[red]Cannot create an environment without a graph.[/red] Run `converge scan {context.root_dir}` first. ({e})"
+        )
         return
 
-    packages = []
-    for _node_id, data in G.nodes(data=True):
-        if data.get("type") == EntityType.PACKAGE:
-            pkg_name = data.get("name")
-            if pkg_name:
-                packages.append(pkg_name)
-
+    env_mgr = EnvironmentManager(context)
+    packages = env_mgr.plan_packages(G)
     if not packages:
         console.print(
             "[yellow]No required packages found in the graph. Creating empty environment.[/yellow]"
         )
-
-    env_mgr = EnvironmentManager(path)
 
     with Progress(
         SpinnerColumn(spinner_name="dots"),
@@ -130,7 +148,7 @@ def create(
                 env_mgr.install_packages(provider, packages)
                 progress.update(task_install, completed=True)
                 console.print(
-                    f"[green]✓ Successfully mapped and installed {len(packages)} requirements[/green]"
+                    f"[green]✓ Installed[/green] {len(packages)} package(s) into [cyan]{env_mgr.venv_path}[/cyan]."
                 )
             except Exception as e:
                 progress.stop()
@@ -139,16 +157,17 @@ def create(
 
     console.print(
         Panel(
-            "[bold green]Environment Convergence Complete![/bold green]\n"
-            f"Activate via: [cyan]source {env_mgr.venv_path.name}/bin/activate[/cyan]"
+            f"[bold green]Environment ready.[/bold green]\n"
+            f"Path: [cyan]{env_mgr.venv_path}[/cyan]\n"
+            f"Activate: [cyan]{_activation_command(env_mgr.venv_path)}[/cyan]"
         )
     )
 
 
 def _run_validation(
     path: str, conflicts: list[Conflict], plans: list[RepairPlan], console: Console
-) -> None:
-    console.print("\n[bold blue]Initiating Validation Matrix...[/bold blue]")
+) -> RepairPlan | None:
+    console.print("\n[bold blue]Validating repair plans in an isolated sandbox...[/bold blue]")
     sandbox = UVSandbox(path)
     runner = ValidationRunner(sandbox)
 
@@ -162,7 +181,7 @@ def _run_validation(
         TextColumn("[progress.description]{task.description}"),
         console=console,
     ) as progress:
-        task = progress.add_task(f"[cyan]Simulating {len(plans)} repair plans...", total=None)
+        task = progress.add_task(f"[cyan]Validating {len(plans)} candidate plan(s)...", total=None)
         scores = runner.score_plans(plans, smoke_targets)
         progress.update(task, completed=True)
 
@@ -175,20 +194,22 @@ def _run_validation(
     if best_plan:
         console.print(
             Panel(
-                f"[bold green]Matrix Success![/bold green]\n"
-                f"Validated Plan: [cyan]{best_plan.id}[/cyan]\n\n"
-                "[dim]A full implementation would now lock these resolved specs into the host environment.[/dim]",
-                title="Validation Verdict",
+                f"[bold green]Validation passed.[/bold green]\n"
+                f"Selected plan: [cyan]{best_plan.id}[/cyan]\n"
+                "[dim]This plan satisfied the configured smoke-import checks.[/dim]",
+                title="Validation Result",
                 border_style="green",
             )
         )
+        return best_plan
     else:
         console.print(
             Panel(
-                "[bold red]All candidate constraints violated execution bounds.[/bold red]",
+                "[bold red]Validation failed for every candidate plan.[/bold red]",
                 border_style="red",
             )
         )
+        return None
 
 
 @app.command()
@@ -199,13 +220,14 @@ def fix(
     """
     [bold red]Repair[/bold red] conflicts by generating plans and proving them in hidden sandboxes.
     """
-    console.print(Panel.fit(f"[bold red]Engaging Repair Generator For:[/bold red] {path}"))
+    context = ProjectContext.from_target(path)
+    _print_repo_header("Repair Dependency Issues", context)
 
-    store = GraphStore()
+    store = GraphStore.for_context(context)
     try:
         G = store.load_networkx()
     except Exception as e:
-        console.print(f"[red]Failed to load graph. Error: {e}[/red]")
+        console.print(f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})")
         return
 
     with Progress(
@@ -219,13 +241,13 @@ def fix(
     if not conflicts:
         console.print(
             Panel(
-                "[bold green]Zero conflicts detected throughout geometry.[/bold green]",
+                "[bold green]No dependency issues detected.[/bold green]",
                 border_style="green",
             )
         )
         return
 
-    console.print(f"[yellow]Identified {len(conflicts)} dimensional anomalies.[/yellow]")
+    console.print(f"[yellow]Found {len(conflicts)} issue(s) that may require changes.[/yellow]")
 
     with Progress(
         SpinnerColumn(), TextColumn("[cyan]Synthesizing repair algorithms..."), console=console
@@ -249,24 +271,39 @@ def fix(
 
     if not apply:
         console.print(
-            "\n[yellow]Simulated Execution complete. Affix --apply to enforce changes.[/yellow]"
+            "\n[yellow]Dry run only.[/yellow] No files were changed. Re-run with [cyan]--apply[/cyan] to validate and write the selected plan."
         )
     else:
-        _run_validation(path, conflicts, plans, console)
+        best_plan = _run_validation(path, conflicts, plans, console)
+        if best_plan is None:
+            return
+
+        pyproject_path = context.root_dir / "pyproject.toml"
+        if not pyproject_path.exists():
+            console.print("[red]Cannot apply fix: pyproject.toml not found.[/red]")
+            return
+
+        apply_plan_to_pyproject(pyproject_path, best_plan)
+        console.print(
+            f"[green]✓ Applied validated changes[/green] to [cyan]{pyproject_path}[/cyan]."
+        )
 
 
 @app.command()
-def doctor() -> None:
+def doctor(path: str = typer.Argument(".", help="Path to the repository to inspect")) -> None:
     """
     [bold yellow]Diagnose[/bold yellow] structural anomalies across the AST dependency mappings.
     """
-    console.print("[bold cyan]Running Diagnostic Sweep...[/bold cyan]")
+    context = ProjectContext.from_target(path)
+    _print_repo_header("Doctor", context)
 
-    store = GraphStore()
+    store = GraphStore.for_context(context)
     try:
         G = store.load_networkx()
     except Exception:
-        console.print("[red]System offline. Graph missing. Run `converge scan` first.[/red]")
+        console.print(
+            f"[red]No graph found for [cyan]{context.root_dir}[/cyan].[/red] Run `converge scan {context.root_dir}` first."
+        )
         return
 
     detector = ConflictDetector(G)
@@ -275,13 +312,13 @@ def doctor() -> None:
     if not conflicts:
         console.print(
             Panel(
-                "[bold green]System Optimal. No structural integrity issues found.[/bold green]",
+                "[bold green]No dependency issues found.[/bold green]\nThe scanned graph is internally consistent for the current checks.",
                 border_style="green",
             )
         )
         return
 
-    console.print(f"\n[bold red]Critical Alerts Detected: {len(conflicts)}[/bold red]")
+    console.print(f"\n[bold red]Detected {len(conflicts)} issue(s).[/bold red]")
 
     table = Table(show_header=True, header_style="bold magenta", border_style="red")
     table.add_column("Conflict ID", style="cyan")
@@ -292,21 +329,26 @@ def doctor() -> None:
         table.add_row(c.id, c.type.upper(), c.description)
 
     console.print(table)
-    console.print("\n[dim]Run `converge explain [CONFLICT_ID]` to trace the anomaly path.[/dim]")
+    console.print(
+        f"\n[dim]Next: run `converge explain <CONFLICT_ID> {context.root_dir}` for a detailed explanation.[/dim]"
+    )
 
 
 @app.command()
 def explain(
     target: str = typer.Argument(..., help="Entity or conflict ID to explain"),
+    path: str = typer.Argument(".", help="Path to the repository to inspect"),
 ) -> None:
     """
     [bold green]Explain[/bold green] graph geometry or debug explicit constraint violations.
     """
-    store = GraphStore()
+    context = ProjectContext.from_target(path)
+    _print_repo_header("Explain", context)
+    store = GraphStore.for_context(context)
     try:
         G = store.load_networkx()
     except Exception as e:
-        console.print(f"[red]Failed to load graph. Error: {e}[/red]")
+        console.print(f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})")
         return
 
     engine = ExplainabilityEngine(G, console)
@@ -318,32 +360,69 @@ def explain(
 
 @app.command()
 def export(
+    path: str = typer.Argument(".", help="Path to the repository to export"),
     format: str = typer.Option("json", "--format", help="Export format (json|csv)"),
 ) -> None:
     """
     Export structural datasets for auditing.
     """
-    store = GraphStore()
+    context = ProjectContext.from_target(path)
+    _print_repo_header("Export", context)
+    store = GraphStore.for_context(context)
     try:
         G = store.load_networkx()
     except Exception as e:
-        console.print(f"[red]Failed to load graph. Error: {e}[/red]")
+        console.print(f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})")
         return
+    try:
+        exporter = GraphExporter(context)
+        output_paths = exporter.export(G, format)
+    except ExportError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=2) from e
+
     console.print(
-        f"[green]Successfully exported matrix ([bold]{len(G.nodes)}[/bold] nodes) as [bold]{format.upper()}[/bold][/green]"
+        Panel(
+            f"[bold green]Export complete.[/bold green]\n"
+            f"Format: [cyan]{format}[/cyan]\n"
+            f"Artifacts: [cyan]{', '.join(str(output_path) for output_path in output_paths)}[/cyan]",
+            title="Export Result",
+            border_style="green",
+        )
     )
 
 
 @app.command()
-def clean() -> None:
+def clean(path: str = typer.Argument(".", help="Path to the repository to clean")) -> None:
     """
     Eradicate database state and cached execution sandboxes.
     """
-    if os.path.exists("converge_graph.db"):
-        os.remove("converge_graph.db")
-        console.print("[green]✓ Purged converge_graph.db[/green]")
+    context = ProjectContext.from_target(path)
+    _print_repo_header("Clean", context)
+    removed = []
+
+    if context.export_dir.exists():
+        shutil.rmtree(context.export_dir)
+        removed.append(context.export_dir.name)
+
+    if context.graph_db_path.exists():
+        context.graph_db_path.unlink()
+        removed.append(context.graph_db_path.name)
+
+    if context.artifact_dir.exists() and not any(context.artifact_dir.iterdir()):
+        context.artifact_dir.rmdir()
+
+    sandbox_dir = context.root_dir / ".venv-converge-test"
+    if sandbox_dir.exists():
+        shutil.rmtree(sandbox_dir)
+        removed.append(sandbox_dir.name)
+
+    if removed:
+        console.print(
+            f"[green]✓ Removed[/green] {', '.join(removed)} from [cyan]{context.root_dir}[/cyan]."
+        )
     else:
-        console.print("[yellow]System already pristine.[/yellow]")
+        console.print("[yellow]Nothing to remove.[/yellow]")
 
 
 if __name__ == "__main__":
