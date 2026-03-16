@@ -12,6 +12,43 @@ class ProjectParser:
     def __init__(self, root_dir: str):
         self.root_dir = Path(root_dir)
 
+    def _repo_id(self) -> str:
+        return f"repo:{self.root_dir.name}"
+
+    def _package_name_from_constraint(self, constraint: str) -> str:
+        candidate = constraint.split(";")[0].strip()
+        for separator in ("==", ">=", "<=", "~=", "!=", ">", "<"):
+            if separator in candidate:
+                candidate = candidate.split(separator)[0]
+                break
+        if "[" in candidate:
+            candidate = candidate.split("[", maxsplit=1)[0]
+        return candidate.strip()
+
+    def _build_dependency_records(
+        self, constraints: list[str], source: str
+    ) -> tuple[list[Package], list[GraphRelationship]]:
+        packages = []
+        relationships = []
+
+        for constraint in constraints:
+            package_name = self._package_name_from_constraint(constraint)
+            if not package_name:
+                continue
+
+            package_id = f"pkg:{package_name}"
+            packages.append(Package(id=package_id, name=package_name, metadata={"constraint": constraint}))
+            relationships.append(
+                GraphRelationship(
+                    source_id=self._repo_id(),
+                    target_id=package_id,
+                    type=RelationshipType.REQUIRES,
+                    metadata={"source": source},
+                )
+            )
+
+        return packages, relationships
+
     def parse_pyproject(self) -> tuple[list[Package], list[GraphRelationship]]:
         """Parses pyproject.toml returning Package entities and REQUIRES relationships."""
         toml_path = self.root_dir / "pyproject.toml"
@@ -24,57 +61,37 @@ class ProjectParser:
             except tomllib.TOMLDecodeError:
                 return [], []
 
-        packages = []
-        relationships = []
+        project_data = data.get("project", {})
+        dependencies = list(project_data.get("dependencies", []))
+        optional_dependency_groups = project_data.get("optional-dependencies", {})
 
-        # Extract dependencies
-        deps = data.get("project", {}).get("dependencies", [])
-        for dep in deps:
-            # Very basic parsing, a real implementation would use packaging.requirements
-            pkg_name = dep.split(">=")[0].split("==")[0].split("<=")[0].split("~=")[0].strip()
-            pkg_id = f"pkg:{pkg_name}"
+        for group_constraints in optional_dependency_groups.values():
+            dependencies.extend(group_constraints)
 
-            pkg = Package(id=pkg_id, name=pkg_name, metadata={"constraint": dep})
-            packages.append(pkg)
-
-            # The repository requires this package
-            rel = GraphRelationship(
-                source_id=f"repo:{self.root_dir.name}",
-                target_id=pkg_id,
-                type=RelationshipType.REQUIRES,
-                metadata={"source": "pyproject.toml"},
-            )
-            relationships.append(rel)
-
-        return packages, relationships
+        return self._build_dependency_records(dependencies, "pyproject.toml")
 
     def parse_requirements_txt(self) -> tuple[list[Package], list[GraphRelationship]]:
         """Parses requirements.txt returning Package entities and REQUIRES relationships."""
-        req_path = self.root_dir / "requirements.txt"
-        if not req_path.exists():
+        requirement_files = sorted(self.root_dir.glob("requirements*.txt"))
+        if not requirement_files:
             return [], []
 
         packages = []
         relationships = []
 
-        with open(req_path) as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                # Same naive split
-                pkg_name = line.split(">=")[0].split("==")[0].split("<=")[0].split("~=")[0].strip()
-                pkg_id = f"pkg:{pkg_name}"
+        for requirement_file in requirement_files:
+            constraints = []
+            with requirement_file.open() as handle:
+                for line in handle:
+                    stripped_line = line.strip()
+                    if not stripped_line or stripped_line.startswith("#"):
+                        continue
+                    constraints.append(stripped_line)
 
-                pkg = Package(id=pkg_id, name=pkg_name, metadata={"constraint": line})
-                packages.append(pkg)
-
-                rel = GraphRelationship(
-                    source_id=f"repo:{self.root_dir.name}",
-                    target_id=pkg_id,
-                    type=RelationshipType.REQUIRES,
-                    metadata={"source": "requirements.txt"},
-                )
-                relationships.append(rel)
+            file_packages, file_relationships = self._build_dependency_records(
+                constraints, requirement_file.name
+            )
+            packages.extend(file_packages)
+            relationships.extend(file_relationships)
 
         return packages, relationships
