@@ -32,8 +32,9 @@ import colorama
     assert result.exit_code == 0
     assert "Scan Summary" in result.stdout
     assert "Graph saved" in result.stdout
-    assert ".converge" in result.stdout
-    assert "graph.db" in result.stdout
+    normalized_output = result.stdout.replace("\n", "")
+    assert ".converge" in normalized_output
+    assert "graph.db" in normalized_output
 
     # Run fix dry-run
     # First we need to chdir to the repo so the DB is created there or pass it correctly.
