@@ -3,6 +3,7 @@ Converge API
 Main entrypoints for using Converge programmatically.
 """
 
+from converge.exporter import GraphExporter
 from converge.graph.queries import GraphQueries
 from converge.graph.store import GraphStore
 from converge.models import (
@@ -15,6 +16,7 @@ from converge.models import (
     Repository,
     Route,
 )
+from converge.project_context import ProjectContext
 from converge.scanner.scanner import Scanner
 from converge.solver.conflict import ConflictDetector, ConflictType
 from converge.solver.planner import RepairPlan, RepairPlanner
@@ -25,6 +27,8 @@ __all__ = [
     "Scanner",
     "GraphStore",
     "GraphQueries",
+    "GraphExporter",
+    "ProjectContext",
     "ConflictDetector",
     "RepairPlanner",
     "UVSandbox",
