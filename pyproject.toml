@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "converge-cli"
-version = "0.1.4"
+version = "0.1.5"
 description = "A Python-first repository intelligence and environment convergence platform."
 readme = "README.md"
 authors = [
