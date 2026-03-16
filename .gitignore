@@ -9,6 +9,8 @@ venv.bak/
 
 # Converge specific
 converge_graph.db
+.converge/
+.venv-converge-test/
 
 # Python
 __pycache__/
