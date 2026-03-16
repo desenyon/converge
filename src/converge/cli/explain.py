@@ -21,10 +21,10 @@ class ExplainabilityEngine:
         if root_id not in self.G:
             if root_id.startswith("plan:") or root_id.isdigit():
                 self.console.print(
-                    f"[yellow]'{root_id}' looks like a repair plan. Plans are generated transiently during `converge fix` and cannot be explained after the fact.[/yellow]"
+                    f"[yellow]{root_id} looks like a repair plan.[/yellow] Plans are generated during `converge fix` and are not stored in the graph."
                 )
             else:
-                self.console.print(f"[red]Entity {root_id} not found in graph.[/red]")
+                self.console.print(f"[red]Entity not found:[/red] [cyan]{root_id}[/cyan]")
             return
 
         root_data = self.G.nodes[root_id]
@@ -64,7 +64,7 @@ class ExplainabilityEngine:
 
         c_type, rest = parts[0].replace("conflict:", ""), parts[1]
 
-        self.console.print(f"[bold red]Conflict Diagnostics:[/bold red] {conflict_id}")
+        self.console.print(f"[bold red]Conflict[/bold red] [cyan]{conflict_id}[/cyan]")
 
         if c_type == "unresolved":
             # format: conflict:unresolved_mod:file.py_pkg:requests
@@ -73,11 +73,11 @@ class ExplainabilityEngine:
                 origin, target = subparts[0], subparts[1]
                 self.console.print(
                     Panel(
-                        f"The module [cyan]{origin}[/cyan]\n"
-                        f"contains an import statement pointing to [magenta]{target}[/magenta].\n\n"
-                        f"However, [magenta]{target}[/magenta] is not declared in the project's dependency manifest (pyproject.toml/requirements.txt).\n"
-                        f"This will cause an ImportError at runtime if deployed.",
-                        title="Unresolved Import Graph",
+                        f"Module: [cyan]{origin}[/cyan]\n"
+                        f"Import target: [magenta]{target}[/magenta]\n\n"
+                        f"The package is imported in code but not declared in the repository manifest.\n"
+                        f"Add it to `pyproject.toml` or `requirements*.txt`, then rescan the repository.",
+                        title="Unresolved Import",
                         border_style="red",
                     )
                 )
@@ -89,10 +89,10 @@ class ExplainabilityEngine:
             pkg = rest
             self.console.print(
                 Panel(
-                    f"The package [magenta]{pkg}[/magenta] is explicitly declared as a required dependency in your manifest.\n\n"
-                    f"However, topological analysis guarantees that [bold]zero[/bold] Python files actually import it.\n"
-                    f"You should remove this package to save installation time and reduce attack surface.",
-                    title="Garbage Collection Target",
+                    f"Package: [magenta]{pkg}[/magenta]\n\n"
+                    f"The package is declared in the manifest but no scanned Python module imports it.\n"
+                    f"Remove it if it is truly unused, or keep it only if it is required indirectly at runtime.",
+                    title="Unused Dependency",
                     border_style="yellow",
                 )
             )
@@ -100,7 +100,7 @@ class ExplainabilityEngine:
         else:
             self.console.print(
                 Panel(
-                    "[white]Deep pathfinding for this anomaly type is currently unmapped.[/white]",
-                    title="Generic Analysis",
+                    "[white]Detailed tracing is not implemented for this conflict type yet.[/white]",
+                    title="Conflict Detail",
                 )
             )
