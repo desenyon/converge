@@ -39,3 +39,35 @@ from pydantic import BaseModel
     assert any(r.target_id == "pkg:fastapi" for r in rels)
     # pydantic import
     assert any(r.target_id == "pkg:pydantic" for r in rels)
+
+
+def test_project_parser_reads_optional_and_requirements(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        """
+        [project]
+        name = "test_repo"
+        dependencies = ["pytest>=8.0"]
+
+        [project.optional-dependencies]
+        dev = ["ruff>=0.3", "mypy>=1.0"]
+        """
+    )
+    requirements = tmp_path / "requirements-dev.txt"
+    requirements.write_text(
+        """
+        fastapi>=0.110
+        # comment
+        uvicorn==0.30.0
+        """
+    )
+
+    parser = ProjectParser(str(tmp_path))
+    pyproject_pkgs, _pyproject_rels = parser.parse_pyproject()
+    req_pkgs, _req_rels = parser.parse_requirements_txt()
+
+    pyproject_names = {pkg.name for pkg in pyproject_pkgs}
+    req_names = {pkg.name for pkg in req_pkgs}
+
+    assert {"pytest", "ruff", "mypy"} <= pyproject_names
+    assert {"fastapi", "uvicorn"} <= req_names
