@@ -37,7 +37,9 @@ class ProjectParser:
                 continue
 
             package_id = f"pkg:{package_name}"
-            packages.append(Package(id=package_id, name=package_name, metadata={"constraint": constraint}))
+            packages.append(
+                Package(id=package_id, name=package_name, metadata={"constraint": constraint})
+            )
             relationships.append(
                 GraphRelationship(
                     source_id=self._repo_id(),

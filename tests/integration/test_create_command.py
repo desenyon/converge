@@ -10,7 +10,9 @@ runner = CliRunner()
 def test_create_command_uses_repo_environment_path(tmp_path: Path, monkeypatch) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / "pyproject.toml").write_text('[project]\nname = "repo"\ndependencies = ["requests>=2.0"]\n')
+    (repo / "pyproject.toml").write_text(
+        '[project]\nname = "repo"\ndependencies = ["requests>=2.0"]\n'
+    )
     (repo / "main.py").write_text("import requests\n")
 
     created_paths: list[Path] = []
@@ -18,7 +20,9 @@ def test_create_command_uses_repo_environment_path(tmp_path: Path, monkeypatch) 
 
     from converge.env_manager import EnvironmentManager
 
-    def fake_create_venv(self: EnvironmentManager, provider: str = "uv", python_version: str | None = None) -> None:
+    def fake_create_venv(
+        self: EnvironmentManager, provider: str = "uv", python_version: str | None = None
+    ) -> None:
         created_paths.append(self.venv_path)
 
     def fake_install_packages(self: EnvironmentManager, provider: str, packages: list[str]) -> None:

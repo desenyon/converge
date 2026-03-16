@@ -27,7 +27,9 @@ class EnvironmentManager:
     def __init__(self, context: ProjectContext, env_dir_name: str | None = None):
         self.context = context
         self.base_dir = context.root_dir
-        self.venv_path = context.default_env_path if env_dir_name is None else self.base_dir / env_dir_name
+        self.venv_path = (
+            context.default_env_path if env_dir_name is None else self.base_dir / env_dir_name
+        )
 
     def plan_packages(self, graph: nx.DiGraph[Any]) -> list[str]:
         packages = {

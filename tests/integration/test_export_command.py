@@ -11,7 +11,9 @@ runner = CliRunner()
 def test_export_command_writes_json_artifact(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / "pyproject.toml").write_text('[project]\nname = "repo"\ndependencies = ["requests>=2.0"]\n')
+    (repo / "pyproject.toml").write_text(
+        '[project]\nname = "repo"\ndependencies = ["requests>=2.0"]\n'
+    )
     (repo / "main.py").write_text("import requests\n")
 
     scan_result = runner.invoke(app, ["scan", str(repo)])

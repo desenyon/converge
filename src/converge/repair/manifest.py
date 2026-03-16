@@ -47,7 +47,9 @@ def apply_plan_to_pyproject(pyproject_path: Path, plan: RepairPlan) -> None:
 
     project_header = "[project]"
     if project_header in content:
-        pyproject_path.write_text(content.replace(project_header, f"{project_header}\n{replacement}", 1))
+        pyproject_path.write_text(
+            content.replace(project_header, f"{project_header}\n{replacement}", 1)
+        )
         return
 
     pyproject_path.write_text(f"{content.rstrip()}\n[project]\n{replacement}\n")

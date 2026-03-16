@@ -227,7 +227,9 @@ def fix(
     try:
         G = store.load_networkx()
     except Exception as e:
-        console.print(f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})")
+        console.print(
+            f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})"
+        )
         return
 
     with Progress(
@@ -348,7 +350,9 @@ def explain(
     try:
         G = store.load_networkx()
     except Exception as e:
-        console.print(f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})")
+        console.print(
+            f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})"
+        )
         return
 
     engine = ExplainabilityEngine(G, console)
@@ -372,7 +376,9 @@ def export(
     try:
         G = store.load_networkx()
     except Exception as e:
-        console.print(f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})")
+        console.print(
+            f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})"
+        )
         return
     try:
         exporter = GraphExporter(context)
