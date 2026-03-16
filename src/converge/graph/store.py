@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Generator
+from pathlib import Path
 from typing import Any
 
 import networkx as nx
@@ -9,6 +10,7 @@ from sqlalchemy import text
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 from converge.models import EntityType, GraphEntity, GraphRelationship, RelationshipType
+from converge.project_context import ProjectContext
 
 
 # SQLModel classes for SQLite persistence
@@ -70,8 +72,15 @@ class GraphStore:
     """
 
     def __init__(self, db_url: str = "sqlite:///converge_graph.db"):
+        if db_url.startswith("sqlite:///"):
+            db_path = Path(db_url.removeprefix("sqlite:///"))
+            db_path.parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_engine(db_url)
         SQLModel.metadata.create_all(self.engine)
+
+    @classmethod
+    def for_context(cls, context: ProjectContext) -> GraphStore:
+        return cls(db_url=f"sqlite:///{context.graph_db_path}")
 
     def get_session(self) -> Generator[Session, None, None]:
         with Session(self.engine) as session:
@@ -97,6 +106,12 @@ class GraphStore:
                 session.add(sql_rel)
                 session.commit()
 
+    def reset(self) -> None:
+        with Session(self.engine) as session:
+            session.execute(text("DELETE FROM sqlrelationship"))
+            session.execute(text("DELETE FROM sqlentity"))
+            session.commit()
+
     def load_networkx(self) -> nx.DiGraph[Any]:
         """Hydrates a fully loaded NetworkX directed graph from SQLite."""
         G: nx.DiGraph[Any] = nx.DiGraph()
@@ -116,12 +131,8 @@ class GraphStore:
 
     def save_networkx(self, G: nx.DiGraph[Any]) -> None:
         """Persists a NetworkX digraph into SQLite."""
+        self.reset()
         with Session(self.engine) as session:
-            # Clear existing logic for hard reset, or intelligent merge.
-            # Fast path: wipe and replace
-            session.execute(text("DELETE FROM sqlrelationship"))
-            session.execute(text("DELETE FROM sqlentity"))
-
             for _node_id, data in G.nodes(data=True):
                 ent = GraphEntity.model_validate(data)
                 session.add(SQLEntity.from_pydantic(ent))
