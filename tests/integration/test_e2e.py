@@ -30,8 +30,10 @@ import colorama
     # Run scan
     result = runner.invoke(app, ["scan", str(repo_dir)])
     assert result.exit_code == 0
-    assert "Found" in result.stdout
-    assert "Successfully persisted graph" in result.stdout
+    assert "Scan Summary" in result.stdout
+    assert "Graph saved" in result.stdout
+    assert ".converge" in result.stdout
+    assert "graph.db" in result.stdout
 
     # Run fix dry-run
     # First we need to chdir to the repo so the DB is created there or pass it correctly.
@@ -40,7 +42,7 @@ import colorama
     fix_result = runner.invoke(app, ["fix", str(repo_dir)])
     # We should see conflicts for requests and colorama
     assert fix_result.exit_code == 0
-    assert "Identified" in fix_result.stdout
+    assert "Dry run only" in fix_result.stdout
     assert "requests" in fix_result.stdout
     assert "colorama" in fix_result.stdout
 
