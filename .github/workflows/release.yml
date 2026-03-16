@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - "v*.*.*"
+  release:
+    types:
+      - published
 
 jobs:
   build:
@@ -22,6 +25,28 @@ jobs:
         with:
           python-version-file: "pyproject.toml"
 
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            RAW_TAG="${{ github.event.release.tag_name }}"
+          else
+            RAW_TAG="${GITHUB_REF_NAME}"
+          fi
+          PACKAGE_VERSION=$(python - <<'PY'
+          import tomllib
+          with open("pyproject.toml", "rb") as handle:
+              data = tomllib.load(handle)
+          print(data["project"]["version"])
+          PY
+          )
+          EXPECTED_TAG="v${PACKAGE_VERSION}"
+          if [[ "${RAW_TAG}" != "${EXPECTED_TAG}" ]]; then
+            echo "Tag/version mismatch: got ${RAW_TAG}, expected ${EXPECTED_TAG}"
+            exit 1
+          fi
+
       - name: Build sdist and wheel
         run: uv build
 
@@ -33,6 +58,7 @@ jobs:
 
   publish-pypi:
     needs: build
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     environment:
       name: pypi
