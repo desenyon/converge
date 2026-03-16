@@ -3,8 +3,13 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
+import networkx as nx
 from rich.console import Console
+
+from converge.models import EntityType
+from converge.project_context import ProjectContext
 
 console = Console()
 
@@ -19,9 +24,18 @@ class EnvironmentManager:
     subprocesses with interactive rich telemetry.
     """
 
-    def __init__(self, base_dir: str, env_dir_name: str = ".venv"):
-        self.base_dir = Path(base_dir)
-        self.venv_path = self.base_dir / env_dir_name
+    def __init__(self, context: ProjectContext, env_dir_name: str | None = None):
+        self.context = context
+        self.base_dir = context.root_dir
+        self.venv_path = context.default_env_path if env_dir_name is None else self.base_dir / env_dir_name
+
+    def plan_packages(self, graph: nx.DiGraph[Any]) -> list[str]:
+        packages = {
+            str(data["name"])
+            for _node_id, data in graph.nodes(data=True)
+            if data.get("type") == EntityType.PACKAGE and data.get("name")
+        }
+        return sorted(packages)
 
     def is_uv_installed(self) -> bool:
         result = subprocess.run(["uv", "--version"], capture_output=True, text=True)
