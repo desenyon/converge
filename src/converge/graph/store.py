@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import weakref
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import networkx as nx
 from sqlalchemy import text
@@ -71,12 +72,32 @@ class GraphStore:
     Provides methods to persist and re-hydrate NetworkX graphs.
     """
 
-    def __init__(self, db_url: str = "sqlite:///converge_graph.db"):
+    _open_instances: ClassVar[weakref.WeakSet[GraphStore]] = weakref.WeakSet()
+
+    def __enter__(self) -> GraphStore:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
+
+    def __init__(self, db_url: str):
         if db_url.startswith("sqlite:///"):
             db_path = Path(db_url.removeprefix("sqlite:///"))
             db_path.parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_engine(db_url)
         SQLModel.metadata.create_all(self.engine)
+        type(self)._open_instances.add(self)
+
+    def close(self) -> None:
+        """Release pooled connections (avoids ResourceWarning leaks in long-lived CLIs/tests)."""
+        self.engine.dispose()
+        type(self)._open_instances.discard(self)
+
+    @classmethod
+    def close_all_open(cls) -> None:
+        """Close every GraphStore that has not been disposed (used by tests)."""
+        for store in tuple(cls._open_instances):
+            store.close()
 
     @classmethod
     def for_context(cls, context: ProjectContext) -> GraphStore:
@@ -111,6 +132,16 @@ class GraphStore:
             session.execute(text("DELETE FROM sqlrelationship"))
             session.execute(text("DELETE FROM sqlentity"))
             session.commit()
+
+    def list_entities(self) -> list[GraphEntity]:
+        with Session(self.engine) as session:
+            rows = session.exec(select(SQLEntity)).all()
+            return [row.to_pydantic() for row in rows]
+
+    def list_relationships(self) -> list[GraphRelationship]:
+        with Session(self.engine) as session:
+            rows = session.exec(select(SQLRelationship)).all()
+            return [row.to_pydantic() for row in rows]
 
     def load_networkx(self) -> nx.DiGraph[Any]:
         """Hydrates a fully loaded NetworkX directed graph from SQLite."""
