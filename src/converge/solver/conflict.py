@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 import networkx as nx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from converge.graph.queries import GraphQueries
 from converge.models import EntityType, RelationshipType
+from converge.settings import ConvergeSettings
 
 
 class ConflictType(str):
@@ -21,7 +22,7 @@ class Conflict(BaseModel):
     type: str  # ConflictType
     description: str
     involved_entities: list[str]
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ConflictDetector:
@@ -29,9 +30,18 @@ class ConflictDetector:
     Analyzes the graph to find broken relationships or unmet constraints.
     """
 
-    def __init__(self, G: nx.DiGraph[Any]):
+    def __init__(self, G: nx.DiGraph[Any], settings: ConvergeSettings | None = None):
         self.G = G
+        self.settings = settings or ConvergeSettings()
         self.queries = GraphQueries(G)
+
+    def _node_metadata(self, node_id: str) -> dict[str, Any]:
+        data = self.G.nodes.get(node_id, {})
+        md = data.get("metadata")
+        return md if isinstance(md, dict) else {}
+
+    def _is_test_module(self, mod_id: str) -> bool:
+        return self._node_metadata(mod_id).get("scan_kind") == "test"
 
     def detect_all(self) -> list[Conflict]:
         conflicts = []
@@ -104,23 +114,27 @@ class ConflictDetector:
                 ):
                     declared_packages.append(v)
 
-        # Check if they have incoming IMPORT edges
         for pkg in set(declared_packages):
-            is_imported = False
+            has_import = False
+            has_non_test_import = False
             for predecessor in self.G.predecessors(pkg):
                 edge_preds = self.G.get_edge_data(predecessor, pkg)
                 if edge_preds and (
                     edge_preds.get("type") == RelationshipType.IMPORTS
                     or edge_preds.get("type") == RelationshipType.IMPORTS.value
                 ):
-                    is_imported = True
-                    break
+                    has_import = True
+                    if not self._is_test_module(predecessor):
+                        has_non_test_import = True
 
-            if not is_imported:
+            if has_import and not has_non_test_import:
+                continue
+
+            if not has_import:
                 c = Conflict(
                     id=f"conflict:unused_{pkg}",
                     type=ConflictType.UNUSED_DEPENDENCY,
-                    description=f"Package '{pkg.replace('pkg:', '')}' is installed but never imported anywhere in the codebase.",
+                    description=f"Package '{pkg.replace('pkg:', '')}' is declared but never imported in scanned modules.",
                     involved_entities=[pkg],
                 )
                 conflicts.append(c)
