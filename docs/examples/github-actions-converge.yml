@@ -1,0 +1,21 @@
+# Example workflow for a consumer repository. Copy to .github/workflows/converge.yml
+# and adjust paths. Requires converge-cli on PATH (e.g. pip install converge-cli).
+
+name: Converge
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install converge-cli
+      - run: converge scan .
+      - run: converge doctor .

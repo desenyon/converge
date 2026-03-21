@@ -1,0 +1,14 @@
+# Example for a Python project that uses Converge on its own tree.
+# Copy to .pre-commit-config.yaml in the target repository (not this repo).
+# Requires: pipx install converge-cli  (or uv tool install converge-cli)
+#
+# Run `converge scan .` once so `.converge/graph.db` exists before hooks pass.
+
+repos:
+  - repo: local
+    hooks:
+      - id: converge-doctor
+        name: converge doctor
+        entry: converge doctor .
+        language: system
+        pass_filenames: false
