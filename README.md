@@ -27,10 +27,36 @@ When you run Converge against a repository, it writes derived artifacts inside t
 
 - Graph database: `.converge/graph.db`
 - Exports: `.converge/exports/`
+- Incremental scan fingerprints: `.converge/scan_state.json`
+- Fix audit log (append-only): `.converge/audit.log`
 - Default environment: `.venv`
 - Validation sandbox: `.venv-converge-test`
 
 This makes command behavior predictable and keeps multiple repositories isolated from each other.
+
+## Configuration
+
+Repository settings are read from `.converge.toml` (optional) and merged with `[tool.converge]` in `pyproject.toml` (values in `pyproject.toml` win on conflicts). See `docs/ROADMAP.md` for supported keys (for example `incremental_scan`, `test_roots`, `repair_targets`, `extra_scan_roots`).
+
+## Exit codes and JSON output
+
+Global CLI flags:
+
+- `--json`: machine-readable JSON on stdout for many commands (useful in CI). Each payload includes stable metadata: `schema_version` (integer, currently `1`) and `tool_version` (installed `converge-cli` version). Diagnostics go to stderr when using `--verbose` (logging).
+- `--quiet` / `--verbose`: reduce or increase console noise; verbose enables DEBUG logging on the `converge.*` loggers to stderr.
+
+Exit codes (`converge.exit_codes.ExitCode`):
+
+- `0` — success; no actionable issues for commands that distinguish that case.
+- `1` — completed but dependency conflicts were found (`doctor`, `fix` dry-run).
+- `2` — error (missing graph, export failure, etc.).
+
+Examples:
+
+```bash
+converge --json doctor /path/to/repo
+converge --quiet scan /path/to/repo
+```
 
 ## Installation
 
@@ -150,7 +176,8 @@ Current behavior:
 - Detects unresolved imports from the graph
 - Generates candidate repair plans
 - Validates plans in an isolated sandbox
-- Applies the selected validated change to `pyproject.toml`
+- Applies the selected validated change to `pyproject.toml` and optionally to `requirements*.txt` (see `[tool.converge]` / `repair_targets`)
+- Appends a JSON line to `.converge/audit.log` for each successful `--apply`
 
 Today, the repair flow is conservative and focused on dependency additions for unresolved imports.
 
@@ -183,6 +210,8 @@ This removes Converge-generated artifacts such as:
 
 - `.converge/graph.db`
 - `.converge/exports/`
+- `.converge/scan_state.json`
+- `.converge/audit.log`
 - `.venv-converge-test`
 
 ## Command Reference
