@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 from pathlib import Path
@@ -12,6 +13,7 @@ from converge.models import EntityType
 from converge.project_context import ProjectContext
 
 console = Console()
+log = logging.getLogger("converge.env")
 
 
 class EnvironmentError(Exception):
@@ -60,6 +62,7 @@ class EnvironmentManager:
             py_exec = f"python{python_version}" if python_version else "python3"
             cmd = [py_exec, "-m", "venv", str(self.venv_path)]
 
+        log.debug("create_venv: %s", cmd)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise EnvironmentError(f"Failed to provision {provider} environment: {result.stderr}")
@@ -85,6 +88,7 @@ class EnvironmentManager:
                 pip_exec = str(self.venv_path / "Scripts" / "pip.exe")
             cmd = [pip_exec, "install"] + packages
 
+        log.debug("install_packages: %s", cmd)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             raise EnvironmentError(f"Failed resolving dependencies via {provider}: {result.stderr}")
