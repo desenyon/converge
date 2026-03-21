@@ -8,6 +8,7 @@
 - Use `ProjectContext.from_target(...)` for any command or service that touches repository state.
 - Repository artifacts live under `.converge/` inside the target repo.
 - The graph database path is `.converge/graph.db` inside the target repo.
+- Incremental scan state and fix audit log: `.converge/scan_state.json`, `.converge/audit.log` (when used).
 - The default environment path is `.venv` inside the target repo.
 - `fix --apply` must not mutate the repo unless validation succeeds first.
 
@@ -27,6 +28,12 @@
 - Targeted unit tests: `TMPDIR=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src .venv/bin/pytest tests/unit/<file>.py -v -s`
 - Targeted integration tests: `TMPDIR=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src .venv/bin/pytest tests/integration/<file>.py -v -s`
 - Broader suite: `TMPDIR=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src .venv/bin/pytest tests/unit tests/integration -v`
+- Coverage (optional): `PYTHONPATH=src .venv/bin/pytest tests --cov=converge --cov-report=term-missing` (fails under 60% line coverage per `pyproject.toml`)
+- Typecheck: `mypy src/converge` (matches CI)
+
+## CLI conventions
+- Exit codes: `0` success, `1` issues found (`doctor` / `fix` dry-run), `2` error — see `converge/exit_codes.py`.
+- Repo config: `[tool.converge]` in `pyproject.toml` and optional `.converge.toml` — see `converge/settings.py`.
 
 ## Notes
 - Keep docs aligned with real behavior. Do not describe validation or repair features more strongly than the code proves.
