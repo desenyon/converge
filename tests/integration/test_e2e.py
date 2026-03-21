@@ -42,7 +42,7 @@ import colorama
 
     fix_result = runner.invoke(app, ["fix", str(repo_dir)])
     # We should see conflicts for requests and colorama
-    assert fix_result.exit_code == 0
+    assert fix_result.exit_code == 1  # ExitCode.ISSUES_FOUND: dry-run with open conflicts
     assert "Dry run only" in fix_result.stdout
     assert "requests" in fix_result.stdout
     assert "colorama" in fix_result.stdout
