@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "converge-cli"
-version = "0.1.5"
+version = "0.1.6"
 description = "A Python-first repository intelligence and environment convergence platform."
 readme = "README.md"
 authors = [
@@ -26,6 +26,7 @@ converge = "converge.cli.main:app"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
     "ruff>=0.3.0",
     "mypy>=1.9.0",
     "types-networkx>=3.0"
@@ -67,3 +68,12 @@ disallow_untyped_defs = true
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-v --tb=short"
+
+[tool.coverage.run]
+branch = true
+source = ["converge"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
