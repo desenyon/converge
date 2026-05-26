@@ -12,6 +12,28 @@ def _extract_dependencies(pyproject_path: Path) -> list[str]:
     return list(data.get("project", {}).get("dependencies", []))
 
 
+def _replace_dependencies_assignment(content: str, replacement: str) -> str:
+    replaced: list[str] = []
+    skip_until_closed = False
+    bracket_depth = 0
+
+    for line in content.splitlines():
+        if skip_until_closed:
+            bracket_depth += line.count("[") - line.count("]")
+            if bracket_depth <= 0:
+                skip_until_closed = False
+            continue
+
+        if line.strip().startswith("dependencies = ["):
+            replaced.append(replacement)
+            bracket_depth = line.count("[") - line.count("]")
+            skip_until_closed = bracket_depth > 0
+        else:
+            replaced.append(line)
+
+    return "\n".join(replaced) + "\n"
+
+
 def apply_plan_to_pyproject(pyproject_path: Path, plan: RepairPlan) -> None:
     content = pyproject_path.read_text()
     dependencies = _extract_dependencies(pyproject_path)
@@ -36,13 +58,7 @@ def apply_plan_to_pyproject(pyproject_path: Path, plan: RepairPlan) -> None:
     replacement = f"dependencies = [{rendered_dependencies}]"
 
     if "dependencies = [" in content:
-        lines = []
-        for line in content.splitlines():
-            if line.strip().startswith("dependencies = ["):
-                lines.append(replacement)
-            else:
-                lines.append(line)
-        pyproject_path.write_text("\n".join(lines) + "\n")
+        pyproject_path.write_text(_replace_dependencies_assignment(content, replacement))
         return
 
     project_header = "[project]"
