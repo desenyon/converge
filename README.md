@@ -178,7 +178,7 @@ converge --verbose doctor /path/to/repo
 ```json
 {
   "schema_version": 1,
-  "tool_version": "0.1.6"
+  "tool_version": "0.1.7"
 }
 ```
 
