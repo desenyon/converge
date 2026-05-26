@@ -71,3 +71,20 @@ def test_project_parser_reads_optional_and_requirements(tmp_path: Path) -> None:
 
     assert {"pytest", "ruff", "mypy"} <= pyproject_names
     assert {"fastapi", "uvicorn"} <= req_names
+
+
+def test_project_parser_skips_requirements_directives(tmp_path: Path) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text(
+        """
+        -r base.txt
+        --index-url https://example.test/simple
+        requests>=2
+        """,
+        encoding="utf-8",
+    )
+
+    parser = ProjectParser(str(tmp_path))
+    req_pkgs, _req_rels = parser.parse_requirements_txt()
+
+    assert [pkg.name for pkg in req_pkgs] == ["requests"]
