@@ -1,3 +1,4 @@
+import tomllib
 from pathlib import Path
 
 from converge.repair.manifest import apply_plan_to_pyproject
@@ -23,3 +24,27 @@ def test_fix_apply_updates_pyproject_dependencies(tmp_path: Path) -> None:
 
     content = pyproject.read_text()
     assert '"requests"' in content
+
+
+def test_fix_apply_preserves_multiline_pyproject_dependencies(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "repo"\ndependencies = [\n  "rich",\n]\n',
+        encoding="utf-8",
+    )
+    plan = RepairPlan(
+        id="plan:001",
+        rationale="add missing dependency",
+        actions=[
+            RepairAction(
+                action_type=RepairActionType.ADD_DEPENDENCY,
+                target_package="requests",
+                description="Add requests",
+            )
+        ],
+    )
+
+    apply_plan_to_pyproject(pyproject, plan)
+
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    assert data["project"]["dependencies"] == ["rich", "requests"]
