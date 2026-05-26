@@ -24,3 +24,25 @@ def test_fix_apply_updates_repo_after_validation(tmp_path: Path, monkeypatch) ->
     assert "Validation passed" in fix_result.stdout
     assert "Applied validated changes" in fix_result.stdout
     assert '"requests"' in (repo / "pyproject.toml").read_text()
+
+
+def test_fix_apply_preserves_multiline_pyproject_dependencies(tmp_path: Path, monkeypatch) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "pyproject.toml").write_text(
+        '[project]\nname = "repo"\ndependencies = [\n  "rich",\n]\n',
+        encoding="utf-8",
+    )
+    (repo / "main.py").write_text("import requests\n", encoding="utf-8")
+
+    monkeypatch.setattr(ValidationRunner, "validate_plan", lambda self, plan, smoke_imports: True)
+
+    scan_result = runner.invoke(app, ["scan", str(repo)])
+    fix_result = runner.invoke(app, ["fix", str(repo), "--apply"])
+
+    assert scan_result.exit_code == 0
+    assert fix_result.exit_code == 0
+    content = (repo / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"rich"' in content
+    assert '"requests"' in content
+    assert ']\n  "rich",' not in content
