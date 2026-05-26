@@ -25,6 +25,9 @@ class ProjectParser:
             candidate = candidate.split("[", maxsplit=1)[0]
         return candidate.strip()
 
+    def _is_requirement_directive(self, line: str) -> bool:
+        return line.startswith("-")
+
     def _build_dependency_records(
         self, constraints: list[str], source: str
     ) -> tuple[list[Package], list[GraphRelationship]]:
@@ -87,6 +90,8 @@ class ProjectParser:
                 for line in handle:
                     stripped_line = line.strip()
                     if not stripped_line or stripped_line.startswith("#"):
+                        continue
+                    if self._is_requirement_directive(stripped_line):
                         continue
                     constraints.append(stripped_line)
 
