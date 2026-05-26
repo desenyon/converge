@@ -9,6 +9,16 @@ from converge.graph.queries import GraphQueries
 from converge.models import EntityType, RelationshipType
 from converge.settings import ConvergeSettings
 
+PACKAGE_IMPORT_ALIASES = {
+    "beautifulsoup4": {"bs4"},
+    "opencv-python": {"cv2"},
+    "pillow": {"PIL"},
+    "python-dateutil": {"dateutil"},
+    "python-dotenv": {"dotenv"},
+    "pyyaml": {"yaml"},
+    "scikit-learn": {"sklearn"},
+}
+
 
 class ConflictType(str):
     MISSING_PACKAGE = "missing_package"
@@ -43,6 +53,20 @@ class ConflictDetector:
     def _is_test_module(self, mod_id: str) -> bool:
         return self._node_metadata(mod_id).get("scan_kind") == "test"
 
+    def _package_import_names(self, package_id: str) -> set[str]:
+        package_name = package_id.replace("pkg:", "", 1)
+        return {package_name, *PACKAGE_IMPORT_ALIASES.get(package_name.lower(), set())}
+
+    def _declared_package_ids(self) -> set[str]:
+        declared = set()
+        for _u, v, data in self.G.edges(data=True):
+            if (
+                data.get("type") == RelationshipType.REQUIRES
+                or data.get("type") == RelationshipType.REQUIRES.value
+            ):
+                declared.add(v)
+        return declared
+
     def detect_all(self) -> list[Conflict]:
         conflicts = []
         conflicts.extend(self._detect_unresolved_imports())
@@ -55,21 +79,18 @@ class ConflictDetector:
         Finds IMPORTS edges that do not point to a known installed package or internal module.
         """
         conflicts = []
+        declared_package_ids = self._declared_package_ids()
         for u, v, data in self.G.edges(data=True):
             if (
                 data.get("type") == RelationshipType.IMPORTS
                 or data.get("type") == RelationshipType.IMPORTS.value
             ):
                 # An import is valid if the target package has been declared via REQUIRES from a repo/project
-                has_requires = False
-                for predecessor in self.G.predecessors(v):
-                    edge_preds = self.G.get_edge_data(predecessor, v)
-                    if edge_preds and (
-                        edge_preds.get("type") == RelationshipType.REQUIRES
-                        or edge_preds.get("type") == RelationshipType.REQUIRES.value
-                    ):
-                        has_requires = True
-                        break
+                imported_name = v.replace("pkg:", "", 1)
+                has_requires = any(
+                    imported_name in self._package_import_names(package_id)
+                    for package_id in declared_package_ids
+                )
 
                 if not has_requires:
                     # We might have imported a third-party package without adding to pyproject.toml
@@ -103,28 +124,26 @@ class ConflictDetector:
         conflicts = []
         # Find all packages declared in the project
         declared_packages = []
-        for _u, v, data in self.G.edges(data=True):
+        for package_id in self._declared_package_ids():
             if (
-                data.get("type") == RelationshipType.REQUIRES
-                or data.get("type") == RelationshipType.REQUIRES.value
+                self.G.nodes[package_id].get("type") == EntityType.PACKAGE
+                or self.G.nodes[package_id].get("type") == EntityType.PACKAGE.value
             ):
-                if (
-                    self.G.nodes[v].get("type") == EntityType.PACKAGE
-                    or self.G.nodes[v].get("type") == EntityType.PACKAGE.value
-                ):
-                    declared_packages.append(v)
+                declared_packages.append(package_id)
 
         for pkg in set(declared_packages):
+            import_target_ids = {f"pkg:{name}" for name in self._package_import_names(pkg)}
             has_import = False
             has_non_test_import = False
-            for predecessor in self.G.predecessors(pkg):
-                edge_preds = self.G.get_edge_data(predecessor, pkg)
-                if edge_preds and (
-                    edge_preds.get("type") == RelationshipType.IMPORTS
-                    or edge_preds.get("type") == RelationshipType.IMPORTS.value
+            for _u, v, data in self.G.edges(data=True):
+                if v not in import_target_ids:
+                    continue
+                if (
+                    data.get("type") == RelationshipType.IMPORTS
+                    or data.get("type") == RelationshipType.IMPORTS.value
                 ):
                     has_import = True
-                    if not self._is_test_module(predecessor):
+                    if not self._is_test_module(_u):
                         has_non_test_import = True
 
             if has_import and not has_non_test_import:
