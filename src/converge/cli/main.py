@@ -208,7 +208,7 @@ def create(  # noqa: C901
     python: str = typer.Option(None, "--python", help="Python version to initialize"),
 ) -> None:
     """
-    [bold magenta]Create[/bold magenta] an optimized virtual environment precisely matching the graph requirements.
+    [bold magenta]Create[/bold magenta] a repository-local virtual environment from the graph requirements.
     """
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
@@ -241,12 +241,12 @@ def create(  # noqa: C901
             console=console,
         ) as progress:
             task_create = progress.add_task(
-                f"[cyan]Initializing Sandbox with {provider}...", total=None
+                f"[cyan]Creating environment with {provider}...", total=None
             )
             try:
                 env_mgr.create_venv(provider=provider, python_version=python)
                 progress.update(task_create, completed=True)
-                oc.print(f"[green]Created Sandbox at {env_mgr.venv_path}[/green]")
+                oc.print(f"[green]Created environment[/green] at [cyan]{env_mgr.venv_path}[/cyan]")
             except Exception as e:
                 progress.stop()
                 oc.print(f"[bold red]Environment Failure /[/bold red] {e}")
@@ -351,7 +351,7 @@ def fix(  # noqa: C901
     apply: bool = typer.Option(False, "--apply", help="Apply the fix plan after validation"),
 ) -> None:
     """
-    [bold red]Repair[/bold red] conflicts by generating plans and proving them in hidden sandboxes.
+    [bold red]Repair[/bold red] conflicts by generating plans and validating them in isolated sandboxes.
     """
     context = ProjectContext.from_target(path)
     settings = load_converge_settings(context.root_dir)
@@ -630,7 +630,7 @@ def clean(
     path: str = typer.Argument(".", help="Path to the repository to clean"),
 ) -> None:
     """
-    Eradicate database state and cached execution sandboxes.
+    Remove Converge database state and cached validation sandboxes.
     """
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)

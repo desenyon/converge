@@ -38,6 +38,8 @@ def test_create_command_uses_repo_environment_path(tmp_path: Path, monkeypatch) 
     assert create_result.exit_code == 0
     assert created_paths == [repo / ".venv"]
     assert installed_packages == [["requests"]]
+    assert "Created environment" in create_result.stdout
+    assert "Created Sandbox" not in create_result.stdout
     assert "Environment ready" in create_result.stdout
     assert ".venv" in create_result.stdout
     assert "Activate" in create_result.stdout
