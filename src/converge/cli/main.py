@@ -45,6 +45,13 @@ log = logging.getLogger("converge.cli")
 @app.callback()
 def main(
     ctx: typer.Context,
+    version: bool = typer.Option(
+        False,
+        "--version",
+        help="Show the installed Converge version and exit.",
+        is_eager=True,
+        callback=lambda v: (_print_version_and_exit() if v else None),
+    ),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON on stdout"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal progress output"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose diagnostics"),
@@ -55,6 +62,11 @@ def main(
     ctx.obj["quiet"] = quiet
     ctx.obj["verbose"] = verbose
     configure_cli_logging(verbose)
+
+
+def _print_version_and_exit() -> None:
+    typer.echo(f"converge {package_version()}")
+    raise typer.Exit(ExitCode.SUCCESS)
 
 
 def _opts(ctx: typer.Context) -> dict[str, Any]:
