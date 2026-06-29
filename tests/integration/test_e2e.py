@@ -31,10 +31,10 @@ import colorama
     result = runner.invoke(app, ["scan", str(repo_dir)])
     assert result.exit_code == 0
     assert "Scan Summary" in result.stdout
-    assert "Graph saved" in result.stdout
+    assert "Graph persisted" in result.stdout
     normalized_output = result.stdout.replace("\n", "")
-    assert ".converge" in normalized_output
     assert "graph.db" in normalized_output
+    assert (repo_dir / ".converge" / "graph.db").exists()
 
     # Run fix dry-run
     # First we need to chdir to the repo so the DB is created there or pass it correctly.

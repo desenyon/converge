@@ -6,8 +6,6 @@ from typing import Any
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
 
 from converge.audit import append_audit_event, read_audit_events
 from converge.cli.explain import ExplainabilityEngine
@@ -15,6 +13,22 @@ from converge.cli.init_template import INIT_TEMPLATE
 from converge.cli.jsonutil import print_json
 from converge.cli.packages_report import summarize_packages
 from converge.cli.repo_guard import ensure_target_directory, load_graph_or_exit
+from converge.cli.tui import (
+    activation_panel,
+    audit_table,
+    conflict_table,
+    export_result_panel,
+    footer_hint,
+    make_progress,
+    metrics_table,
+    package_inventory_table,
+    print_header,
+    repair_plan_table,
+    scan_complete_panel,
+    status_dashboard,
+    success_panel,
+    warning_panel,
+)
 from converge.env_manager import EnvironmentManager
 from converge.exit_codes import ExitCode
 from converge.exporter import ExportError, GraphExporter
@@ -81,16 +95,18 @@ def _out_console(ctx: typer.Context) -> Console:
     return Console(quiet=o.get("quiet", False))
 
 
-def _print_repo_header(title: str, context: ProjectContext, ctx: typer.Context) -> None:
+def _print_repo_header(
+    command: str,
+    title: str,
+    context: ProjectContext,
+    ctx: typer.Context,
+    *,
+    subtitle: str | None = None,
+) -> None:
     o = _opts(ctx)
-    if o.get("json") or o.get("quiet"):
+    if o.get("json") or o.get("quiet") or o.get("suppress_header"):
         return
-    console.print(
-        Panel.fit(
-            f"[bold]{title}[/bold]\n[dim]{context.root_dir}[/dim]",
-            border_style="blue",
-        )
-    )
+    print_header(console, command, title, context, subtitle=subtitle)
 
 
 def _activation_command(venv_path: Path) -> str:
@@ -143,7 +159,7 @@ def scan(  # noqa: C901
     ensure_target_directory(context, command="scan", json_mode=_opts(ctx).get("json", False))
     settings = load_converge_settings(context.root_dir)
     oc = _out_console(ctx)
-    _print_repo_header("Scan Repository", context, ctx)
+    _print_repo_header("scan", "Build Dependency Graph", context, ctx)
 
     py_files = iter_python_files(context.root_dir, settings)
     if (
@@ -180,15 +196,10 @@ def scan(  # noqa: C901
         entities, rels = merged
         log.debug("scan used partial incremental merge")
     elif use_progress:
-        with Progress(
-            SpinnerColumn(spinner_name="dots2"),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-            disable=False,
-        ) as progress:
-            task = progress.add_task("[cyan]Parsing ASTs and gathering dependencies...", total=None)
+        with make_progress(console) as progress:
+            task = progress.add_task("Parsing ASTs and gathering dependencies...", total=100)
             entities, rels = scanner.scan_all()
-            progress.update(task, completed=True)
+            progress.update(task, completed=100)
     else:
         entities, rels = scanner.scan_all()
 
@@ -207,13 +218,14 @@ def scan(  # noqa: C901
             summary_payload["graph_path"] = str(context.graph_db_path)
         print_json(summary_payload)
     else:
-        summary = Table(title="Scan Summary", box=None)
-        summary.add_column("Metric", style="cyan")
-        summary.add_column("Value")
-        summary.add_row("Entities", str(len(entities)))
-        summary.add_row("Relationships", str(len(rels)))
-        summary.add_row("Repository", str(context.root_dir))
-        oc.print(summary)
+        scan_mode = "incremental_partial" if merged is not None else "full"
+        rows = [
+            ("Entities", str(len(entities))),
+            ("Relationships", str(len(rels))),
+            ("Scan mode", scan_mode),
+            ("Repository", str(context.root_dir)),
+        ]
+        oc.print(metrics_table("Scan Summary", rows))
 
     if dry_run:
         if not _opts(ctx).get("json"):
@@ -231,21 +243,18 @@ def scan(  # noqa: C901
                 store.add_relationship(r)
 
     if use_progress:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task2 = progress.add_task("[cyan]Persisting Graph to Database...", total=None)
+        with make_progress(console) as progress:
+            task2 = progress.add_task("Persisting graph to database...", total=100)
             _persist_graph()
-            progress.update(task2, completed=True)
+            progress.update(task2, completed=100)
     else:
         _persist_graph()
 
     write_scan_state(context.scan_state_path, context.root_dir, py_files)
 
     if not _opts(ctx).get("json"):
-        oc.print(f"[green]Graph saved[/green] to [cyan]{context.graph_db_path}[/cyan].")
+        mode = "incremental_partial" if merged is not None else "full"
+        oc.print(scan_complete_panel(context.graph_db_path, len(entities), len(rels), mode))
     raise typer.Exit(ExitCode.SUCCESS)
 
 
@@ -261,7 +270,7 @@ def create(  # noqa: C901
     """
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
-    _print_repo_header(f"Create Environment ({provider})", context, ctx)
+    _print_repo_header("create", f"Environment ({provider})", context, ctx)
 
     with load_graph_or_exit(
         context, command="create", json_mode=_opts(ctx).get("json", False), console=oc
@@ -277,17 +286,14 @@ def create(  # noqa: C901
 
     use_progress = not _opts(ctx).get("json") and not _opts(ctx).get("quiet")
     if use_progress:
-        with Progress(
-            SpinnerColumn(spinner_name="dots"),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
+        with make_progress(console) as progress:
             task_create = progress.add_task(
-                f"[cyan]Creating environment with {provider}...", total=None
+                f"Creating environment with {provider}...",
+                total=100,
             )
             try:
                 env_mgr.create_venv(provider=provider, python_version=python)
-                progress.update(task_create, completed=True)
+                progress.update(task_create, completed=100)
                 oc.print(f"[green]Created environment[/green] at [cyan]{env_mgr.venv_path}[/cyan]")
             except Exception as e:
                 progress.stop()
@@ -296,11 +302,12 @@ def create(  # noqa: C901
 
             if packages:
                 task_install = progress.add_task(
-                    f"[cyan]Resolving {len(packages)} dependencies...", total=None
+                    f"Resolving {len(packages)} dependencies...",
+                    total=100,
                 )
                 try:
                     env_mgr.install_packages(provider, packages)
-                    progress.update(task_install, completed=True)
+                    progress.update(task_install, completed=100)
                     oc.print(
                         f"[green]Installed[/green] {len(packages)} package(s) into [cyan]{env_mgr.venv_path}[/cyan]."
                     )
@@ -330,13 +337,7 @@ def create(  # noqa: C901
     if _opts(ctx).get("json"):
         print_json(result)
     else:
-        oc.print(
-            Panel(
-                f"[bold green]Environment ready.[/bold green]\n"
-                f"Path: [cyan]{env_mgr.venv_path}[/cyan]\n"
-                f"Activate: [cyan]{_activation_command(env_mgr.venv_path)}[/cyan]"
-            )
-        )
+        oc.print(activation_panel(env_mgr.venv_path, _activation_command(env_mgr.venv_path)))
     raise typer.Exit(ExitCode.SUCCESS)
 
 
@@ -352,14 +353,10 @@ def _run_validation(
         if c.type == ConflictType.UNRESOLVED_IMPORT:
             smoke_targets.append(c.involved_entities[1].replace("pkg:", ""))
 
-    with Progress(
-        SpinnerColumn("bouncingBar"),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task(f"[cyan]Validating {len(plans)} candidate plan(s)...", total=None)
+    with make_progress(console, transient=False) as progress:
+        task = progress.add_task(f"Validating {len(plans)} candidate plan(s)...", total=100)
         scores = runner.score_plans(plans, smoke_targets)
-        progress.update(task, completed=True)
+        progress.update(task, completed=100)
 
     best_plan = None
     for plan_id, success in scores.items():
@@ -399,7 +396,7 @@ def fix(  # noqa: C901
     context = ProjectContext.from_target(path)
     settings = load_converge_settings(context.root_dir)
     oc = _out_console(ctx)
-    _print_repo_header("Repair Dependency Issues", context, ctx)
+    _print_repo_header("fix", "Repair Dependency Issues", context, ctx)
 
     with load_graph_or_exit(
         context, command="fix", json_mode=_opts(ctx).get("json", False), console=oc
@@ -414,12 +411,7 @@ def fix(  # noqa: C901
         if _opts(ctx).get("json"):
             print_json(payload)
         else:
-            oc.print(
-                Panel(
-                    "[bold green]No dependency issues detected.[/bold green]",
-                    border_style="green",
-                )
-            )
+            oc.print(success_panel("All Clear", "No dependency issues detected."))
         raise typer.Exit(ExitCode.SUCCESS)
 
     planner = RepairPlanner(conflicts)
@@ -439,15 +431,7 @@ def fix(  # noqa: C901
     else:
         oc.print(f"[yellow]Found {len(conflicts)} issue(s) that may require changes.[/yellow]")
         for plan in plans:
-            table = Table(
-                title=f"Plan Specification: {plan.id}", title_justify="left", border_style="cyan"
-            )
-            table.add_column("Action", style="magenta")
-            table.add_column("Target", style="green")
-            table.add_column("Rationale")
-            for action in plan.actions:
-                table.add_row(action.action_type, action.target_package, action.description)
-            oc.print(table)
+            oc.print(repair_plan_table(plan.id, plan.actions))
 
     if not apply:
         if not _opts(ctx).get("json"):
@@ -518,7 +502,7 @@ def doctor(
     context = ProjectContext.from_target(path)
     settings = load_converge_settings(context.root_dir)
     oc = _out_console(ctx)
-    _print_repo_header("Doctor", context, ctx)
+    _print_repo_header("doctor", "Diagnose Dependencies", context, ctx)
 
     with load_graph_or_exit(
         context, command="doctor", json_mode=_opts(ctx).get("json", False), console=oc
@@ -545,32 +529,21 @@ def doctor(
 
     if not conflicts:
         oc.print(
-            Panel(
-                "[bold green]No dependency issues found.[/bold green]\nThe scanned graph is internally consistent for the current checks.",
-                border_style="green",
+            success_panel(
+                "All Clear",
+                "No dependency issues found.\nThe scanned graph is internally consistent for the current checks.",
             )
         )
         raise typer.Exit(ExitCode.SUCCESS)
 
-    oc.print(f"\n[bold red]Detected {len(conflicts)} issue(s).[/bold red]")
-
-    table = Table(show_header=True, header_style="bold magenta", border_style="red")
-    table.add_column("Conflict ID", style="cyan")
-    table.add_column("Classification", style="red")
-    table.add_column("Description")
-
-    for c in conflicts:
-        table.add_row(c.id, c.type.upper(), c.description)
-
-    oc.print(table)
+    oc.print(conflict_table(conflicts))
     lockfiles = lock_hints.get("lockfiles", [])
     if isinstance(lockfiles, list) and lockfiles:
-        oc.print(
-            f"\n[dim]Lockfiles detected: {len(lockfiles)} "
-            f"({', '.join(str(item.get('path', '')) for item in lockfiles if isinstance(item, dict))}).[/dim]"
-        )
-    oc.print(
-        f"\n[dim]Next: run `converge explain <CONFLICT_ID> {context.root_dir}` for a detailed explanation.[/dim]"
+        paths = ", ".join(str(item.get("path", "")) for item in lockfiles if isinstance(item, dict))
+        footer_hint(oc, f"Lockfiles detected: {len(lockfiles)} ({paths})")
+    footer_hint(
+        oc,
+        f"Next: converge explain <CONFLICT_ID> {context.root_dir}",
     )
     raise typer.Exit(ExitCode.ISSUES_FOUND)
 
@@ -593,16 +566,22 @@ def check(
     """
     [bold cyan]Check[/bold cyan] a repository by scanning the graph and running doctor in one step.
     """
+    context = ProjectContext.from_target(path)
+    _print_repo_header("check", "Scan + Diagnose", context, ctx, subtitle="Full pipeline in one step")
+    ctx.obj["suppress_header"] = True
     try:
-        ctx.invoke(scan, ctx=ctx, path=path, dry_run=False, force=force)
-    except typer.Exit as exc:
-        if exc.exit_code != int(ExitCode.SUCCESS):
-            raise typer.Exit(exc.exit_code) from None
+        try:
+            ctx.invoke(scan, ctx=ctx, path=path, dry_run=False, force=force)
+        except typer.Exit as exc:
+            if exc.exit_code != int(ExitCode.SUCCESS):
+                raise typer.Exit(exc.exit_code) from None
 
-    try:
-        ctx.invoke(doctor, ctx=ctx, path=path, conflict_type=conflict_type)
-    except typer.Exit as exc:
-        raise typer.Exit(exc.exit_code) from None
+        try:
+            ctx.invoke(doctor, ctx=ctx, path=path, conflict_type=conflict_type)
+        except typer.Exit as exc:
+            raise typer.Exit(exc.exit_code) from None
+    finally:
+        ctx.obj["suppress_header"] = False
 
 
 @app.command()
@@ -616,7 +595,7 @@ def packages(
     context = ProjectContext.from_target(path)
     settings = load_converge_settings(context.root_dir)
     oc = _out_console(ctx)
-    _print_repo_header("Packages", context, ctx)
+    _print_repo_header("packages", "Package Inventory", context, ctx)
 
     with load_graph_or_exit(
         context, command="packages", json_mode=_opts(ctx).get("json", False), console=oc
@@ -631,23 +610,9 @@ def packages(
         print_json(payload)
         raise typer.Exit(exit_code)
 
-    table = Table(title="Package Inventory", box=None)
-    table.add_column("Category", style="cyan")
-    table.add_column("Count", justify="right")
-    table.add_column("Packages")
-    table.add_row("Declared", str(summary["declared_count"]), ", ".join(summary["declared"]) or "—")
-    table.add_row("Imported", str(summary["imported_count"]), ", ".join(summary["imported"]) or "—")
-    table.add_row(
-        "Missing",
-        str(summary["missing_count"]),
-        ", ".join(summary["missing"]) or "—",
-    )
-    table.add_row(
-        "Unused",
-        str(summary["unused_count"]),
-        ", ".join(summary["unused"]) or "—",
-    )
-    oc.print(table)
+    oc.print(package_inventory_table(summary))
+    if summary["missing_count"]:
+        footer_hint(oc, "Run converge fix . to generate repair plans for missing packages.")
     raise typer.Exit(exit_code)
 
 
@@ -663,7 +628,7 @@ def audit(
     context = ProjectContext.from_target(path)
     ensure_target_directory(context, command="audit", json_mode=_opts(ctx).get("json", False))
     oc = _out_console(ctx)
-    _print_repo_header("Audit Log", context, ctx)
+    _print_repo_header("audit", "Repair Audit Log", context, ctx)
 
     cap = None if limit == 0 else limit
     events = read_audit_events(context, limit=cap)
@@ -681,25 +646,14 @@ def audit(
 
     if not events:
         oc.print(
-            Panel(
-                "[yellow]No audit events recorded yet.[/yellow]\n"
-                "Run [cyan]converge fix . --apply[/cyan] after a successful validation.",
-                border_style="yellow",
+            warning_panel(
+                "No Events",
+                "No audit events recorded yet.\nRun [cyan]converge fix . --apply[/cyan] after a successful validation.",
             )
         )
         raise typer.Exit(ExitCode.SUCCESS)
 
-    table = Table(title=f"Audit Events ({len(events)})", show_header=True, header_style="bold")
-    table.add_column("Timestamp", style="dim")
-    table.add_column("Event", style="cyan")
-    table.add_column("Details")
-    for event in events:
-        table.add_row(
-            str(event.get("ts", "")),
-            str(event.get("event", "")),
-            str(event.get("plan_id") or event.get("applied") or ""),
-        )
-    oc.print(table)
+    oc.print(audit_table(events))
     raise typer.Exit(ExitCode.SUCCESS)
 
 
@@ -715,7 +669,7 @@ def init(
     context = ProjectContext.from_target(path)
     ensure_target_directory(context, command="init", json_mode=_opts(ctx).get("json", False))
     oc = _out_console(ctx)
-    _print_repo_header("Init", context, ctx)
+    _print_repo_header("init", "Scaffold Configuration", context, ctx)
 
     config_path = context.root_dir / ".converge.toml"
     if config_path.exists() and not force:
@@ -731,7 +685,7 @@ def init(
     if _opts(ctx).get("json"):
         print_json(payload)
     else:
-        oc.print(f"[green]Created[/green] [cyan]{config_path}[/cyan]")
+        oc.print(success_panel("Created", f"Wrote configuration to [cyan]{config_path}[/cyan]"))
     raise typer.Exit(ExitCode.SUCCESS)
 
 
@@ -747,7 +701,7 @@ def status(
     ensure_target_directory(context, command="status", json_mode=_opts(ctx).get("json", False))
     settings = load_converge_settings(context.root_dir)
     oc = _out_console(ctx)
-    _print_repo_header("Status", context, ctx)
+    _print_repo_header("status", "Repository State", context, ctx)
 
     py_files = iter_python_files(context.root_dir, settings)
     scan_state = load_scan_state(context.scan_state_path)
@@ -789,25 +743,19 @@ def status(
         print_json(payload)
         raise typer.Exit(ExitCode.SUCCESS)
 
-    table = Table(title="Repository Status", box=None)
-    table.add_column("Field", style="cyan")
-    table.add_column("Value")
-    table.add_row("Graph", "present" if graph_ready else "missing")
-    table.add_row("Entities", str(entity_count))
-    table.add_row("Relationships", str(relationship_count))
-    table.add_row("Tracked source files", str(len(scan_state)))
-    table.add_row(
-        "Incremental scan",
-        "enabled" if settings.incremental_scan else "disabled",
-    )
-    table.add_row(
-        "Tree unchanged since last scan",
-        "yes" if tree_unchanged else "no",
-    )
     lockfiles = lock_hints.get("lockfiles", [])
     lockfile_count = len(lockfiles) if isinstance(lockfiles, list) else 0
-    table.add_row("Lockfiles", str(lockfile_count))
-    oc.print(table)
+    oc.print(
+        status_dashboard(
+            graph_ready=graph_ready,
+            entity_count=entity_count,
+            relationship_count=relationship_count,
+            tracked_files=len(scan_state),
+            incremental_enabled=settings.incremental_scan,
+            tree_unchanged=tree_unchanged,
+            lockfile_count=lockfile_count,
+        )
+    )
     raise typer.Exit(ExitCode.SUCCESS)
 
 
@@ -822,7 +770,7 @@ def explain(
     """
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
-    _print_repo_header("Explain", context, ctx)
+    _print_repo_header("explain", "Graph Explanation", context, ctx)
     with load_graph_or_exit(
         context, command="explain", json_mode=_opts(ctx).get("json", False), console=oc
     ) as store:
@@ -854,7 +802,7 @@ def export(
     """
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
-    _print_repo_header("Export", context, ctx)
+    _print_repo_header("export", "Export Graph Data", context, ctx)
     with load_graph_or_exit(
         context, command="export", json_mode=_opts(ctx).get("json", False), console=oc
     ) as store:
@@ -877,15 +825,7 @@ def export(
     if _opts(ctx).get("json"):
         print_json(payload)
     else:
-        oc.print(
-            Panel(
-                f"[bold green]Export complete.[/bold green]\n"
-                f"Format: [cyan]{format}[/cyan]\n"
-                f"Artifacts: [cyan]{', '.join(str(output_path) for output_path in output_paths)}[/cyan]",
-                title="Export Result",
-                border_style="green",
-            )
-        )
+        oc.print(export_result_panel(format, output_paths))
     raise typer.Exit(ExitCode.SUCCESS)
 
 
@@ -902,7 +842,7 @@ def clean(
     """
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
-    _print_repo_header("Clean", context, ctx)
+    _print_repo_header("clean", "Remove Artifacts", context, ctx)
     candidates = _artifacts_to_remove(context)
 
     if dry_run:

@@ -8,7 +8,17 @@ This document maps the product roadmap to what exists in the codebase today.
 |------------|--------|
 | Machine-readable `--json` on commands | Implemented (global flag) |
 | Stable exit codes (`ExitCode`: 0 / 1 / 2) | Implemented |
-| `--quiet` / `--verbose` | Implemented (quiet suppresses most Rich output) |
+| `--quiet` / `--verbose` | Implemented (quiet suppresses Rich TUI output) |
+| `--version` | Implemented |
+| `converge check` (scan + doctor) | Implemented |
+| `converge packages` inventory | Implemented |
+| `converge status` dashboard | Implemented |
+| `converge audit` log viewer | Implemented |
+| `converge init` config scaffold | Implemented |
+| `scan --force` | Implemented |
+| `doctor --type` filter | Implemented |
+| `clean --dry-run` | Implemented |
+| Branded Rich TUI (`cli/tui.py`) | Implemented |
 | Configuration: `[tool.converge]` and `.converge.toml` | Implemented (`load_converge_settings`) |
 
 ## Scanning and graph

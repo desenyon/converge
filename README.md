@@ -23,22 +23,30 @@ Dependency tools usually answer one narrow question: what is in the manifest, wh
 It reads manifests, parses imports, stores a graph inside the target repo, and uses that graph to explain what is missing, unused, or ready to repair. Every command is scoped to the path you pass in, so running Converge from one directory never silently writes state into another project.
 
 ```text
-repo path -> scan -> .converge/graph.db -> doctor/explain/create/fix/export
+init -> check -> packages -> fix --apply -> audit
+         |                         |
+         v                         v
+   .converge/graph.db         .converge/audit.log
 ```
 
 ## What It Does Today
 
 | Capability | What happens |
 | --- | --- |
-| `scan` | Parses `pyproject.toml`, `requirements*.txt`, Python imports, and service routes into `.converge/graph.db`. |
-| `doctor` | Reports unresolved imports, unused dependencies, version clashes, and lockfile hints. |
+| `init` | Scaffolds a repository-local `.converge.toml`. |
+| `scan` | Parses manifests and Python imports into `.converge/graph.db`. |
+| `check` | Runs `scan` + `doctor` in one step (ideal for CI and local QA). |
+| `doctor` | Reports unresolved imports, unused dependencies, and version clashes. |
+| `packages` | Lists declared, imported, missing, and unused packages. |
 | `explain` | Shows why an entity or conflict exists in the graph. |
 | `create` | Builds a repository-local `.venv` from graph package nodes. |
 | `fix` | Generates repair plans and applies validated dependency additions. |
+| `audit` | Shows the append-only repair log from `fix --apply`. |
+| `status` | Dashboard for graph state, scan fingerprints, and lockfiles. |
 | `export` | Writes graph data to JSON or CSV under `.converge/exports/`. |
 | `clean` | Removes Converge-generated repo-local artifacts. |
 
-Converge is intentionally conservative: repairs are validated in isolation before host manifests are changed, and current repair planning focuses on dependency additions for unresolved imports.
+Converge is intentionally conservative: repairs are validated in isolation before host manifests are changed.
 
 ## Install
 
@@ -79,50 +87,49 @@ dependencies = []
 Run:
 
 ```bash
-converge scan .
-converge doctor .
+converge init .
+converge check .
+converge packages .
 converge fix .
 converge fix . --apply
+converge audit .
 ```
 
 After validation, Converge updates the target repository manifest and records the repair in `.converge/audit.log`.
 
 ## Command Guide
 
+See the full reference in [docs/CLI.md](docs/CLI.md).
+
+### Recommended workflow
+
+```bash
+converge check /path/to/repo          # scan + diagnose
+converge check /path/to/repo --force    # full rescan when needed
+converge packages /path/to/repo       # quick inventory
+converge doctor /path/to/repo --type unresolved_import
+converge fix /path/to/repo --apply
+converge status /path/to/repo
+```
+
 ### Scan
 
 ```bash
 converge scan /path/to/repo
 converge scan /path/to/repo --dry-run
+converge scan /path/to/repo --force     # bypass incremental skip
 ```
 
-`scan` builds the graph from declared dependencies, imports, and detected services. Without `--dry-run`, the graph is persisted to `/path/to/repo/.converge/graph.db`.
+Incremental scan is **on by default**. Unchanged source trees skip re-scan unless `--force` is passed.
 
 ### Doctor
 
 ```bash
 converge doctor /path/to/repo
+converge doctor /path/to/repo --type unused_dependency
 ```
 
-`doctor` exits `0` when no actionable issues are found and `1` when dependency issues are detected. If no graph exists, it exits with an error and tells you to run `scan`.
-
-### Explain
-
-```bash
-converge explain conflict:unresolved_mod:main.py_pkg:requests /path/to/repo
-converge explain pkg:requests /path/to/repo
-```
-
-Use `explain` when you want the graph context behind a conflict or entity.
-
-### Create
-
-```bash
-converge create /path/to/repo --provider uv
-converge create /path/to/repo --provider uv --python 3.12
-```
-
-`create` loads the repository graph, creates `/path/to/repo/.venv`, installs graph package nodes, and prints the activation command.
+Exits `0` when clean, `1` when issues are found, `2` on error (missing graph, invalid path).
 
 ### Fix
 
@@ -131,28 +138,18 @@ converge fix /path/to/repo
 converge fix /path/to/repo --apply
 ```
 
-Dry-run mode prints candidate plans and changes nothing. `--apply` validates a plan in an isolated sandbox, writes the selected manifest repair, and appends an audit event.
-
-### Export
-
-```bash
-converge export /path/to/repo --format json
-converge export /path/to/repo --format csv
-```
-
-JSON export writes `.converge/exports/graph.json`. CSV export writes `.converge/exports/nodes.csv` and `.converge/exports/edges.csv`.
+Dry-run exits `1` when repair plans exist. `--apply` validates in an isolated sandbox before writing manifests.
 
 ### Clean
 
 ```bash
 converge clean /path/to/repo
+converge clean /path/to/repo --dry-run
 ```
 
-Removes generated artifacts such as `.converge/graph.db`, `.converge/exports/`, `.converge/scan_state.json`, `.converge/audit.log`, and `.venv-converge-test`.
+Removes the entire `.converge/` directory and `.venv-converge-test` validation sandboxes.
 
 ## Repository-Local State
-
-Converge writes derived state inside the target repository:
 
 | Artifact | Purpose |
 | --- | --- |
@@ -160,14 +157,16 @@ Converge writes derived state inside the target repository:
 | `.converge/scan_state.json` | Incremental scan fingerprints. |
 | `.converge/exports/` | JSON and CSV graph exports. |
 | `.converge/audit.log` | Append-only fix audit events. |
+| `.converge.toml` | Optional repo configuration. |
 | `.venv` | Default created environment. |
-| `.venv-converge-test` | Temporary validation sandbox name, cleaned after use. |
+| `.venv-converge-test` | Temporary validation sandbox, cleaned after use. |
 
 ## JSON and Exit Codes
 
 Global flags:
 
 ```bash
+converge --version
 converge --json doctor /path/to/repo
 converge --quiet scan /path/to/repo
 converge --verbose doctor /path/to/repo
@@ -178,7 +177,7 @@ converge --verbose doctor /path/to/repo
 ```json
 {
   "schema_version": 1,
-  "tool_version": "0.1.7"
+  "tool_version": "0.2.0"
 }
 ```
 
@@ -187,14 +186,12 @@ Exit codes:
 | Code | Meaning |
 | --- | --- |
 | `0` | Success, or no actionable issues. |
-| `1` | Issues found by `doctor` or `fix` dry-run. |
-| `2` | Command error, such as a missing graph or failed export. |
+| `1` | Issues found by `doctor`, `fix` dry-run, or `packages`. |
+| `2` | Command error, such as a missing graph or failed validation. |
 
 ## Configuration
 
 Settings are read from optional `.converge.toml` and `[tool.converge]` in `pyproject.toml`. When both exist, `pyproject.toml` wins on conflicts.
-
-Useful keys include:
 
 ```toml
 [tool.converge]
@@ -204,7 +201,7 @@ repair_targets = ["pyproject", "requirements"]
 extra_scan_roots = ["src"]
 ```
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the current implementation map and remaining stretch work.
+Run `converge init .` to scaffold a commented `.converge.toml`.
 
 ## Development
 
@@ -221,32 +218,24 @@ Lint and type check:
 .venv/bin/mypy src/converge
 ```
 
-Coverage:
-
-```bash
-PYTHONPATH=src .venv/bin/pytest tests --cov=converge --cov-report=term-missing
-```
-
 Key implementation files:
 
 | Area | File |
 | --- | --- |
 | Project-scoped paths | `src/converge/project_context.py` |
 | Graph persistence | `src/converge/graph/store.py` |
-| Manifest scanning | `src/converge/scanner/project.py` |
-| AST import scanning | `src/converge/scanner/ast_parser.py` |
 | CLI wiring | `src/converge/cli/main.py` |
+| Terminal UI | `src/converge/cli/tui.py` |
 | Manifest repair | `src/converge/repair/manifest.py` |
 | Validation sandbox | `src/converge/validation/sandbox.py` |
 
+See [docs/architecture.md](docs/architecture.md) and [docs/ROADMAP.md](docs/ROADMAP.md) for design notes.
+
 ## Current Limits
 
-Converge is useful now, but it does not overstate what the implementation proves.
-
-- Repair planning is focused on dependency additions, not broad manifest rewrites.
+- Repair planning focuses on dependency additions, not broad manifest rewrites.
 - Validation is smoke-import based, not a full application test harness.
 - Import classification is Python-focused and conservative.
-- Export formats are designed for inspection and automation, not analytics warehousing.
 
 ## License
 

@@ -18,7 +18,7 @@ def test_doctor_uses_target_repo_graph(tmp_path: Path) -> None:
 
     assert scan_result.exit_code == 0
     assert doctor_result.exit_code == 1  # ExitCode.ISSUES_FOUND when conflicts exist
-    assert "Doctor" in doctor_result.stdout
+    assert "Diagnose" in doctor_result.stdout
     assert "Detected" in doctor_result.stdout
     assert "issue" in doctor_result.stdout
     assert "requests" in doctor_result.stdout
