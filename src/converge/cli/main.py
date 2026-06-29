@@ -12,6 +12,7 @@ from rich.table import Table
 from converge.audit import append_audit_event
 from converge.cli.explain import ExplainabilityEngine
 from converge.cli.jsonutil import print_json
+from converge.cli.repo_guard import ensure_target_directory, load_graph_or_exit
 from converge.env_manager import EnvironmentManager
 from converge.exit_codes import ExitCode
 from converge.exporter import ExportError, GraphExporter
@@ -30,6 +31,7 @@ from converge.solver.conflict import Conflict, ConflictDetector, ConflictType
 from converge.solver.planner import RepairPlan, RepairPlanner
 from converge.validation.sandbox import UVSandbox
 from converge.validation.smoke import ValidationRunner
+from converge.version_info import package_version
 
 app = typer.Typer(
     help="Converge: A Python-first repository intelligence and environment convergence platform.",
@@ -94,6 +96,7 @@ def scan(  # noqa: C901
     [bold cyan]Scan[/bold cyan] a codebase to build a graph of repositories, packages, modules, and services.
     """
     context = ProjectContext.from_target(path)
+    ensure_target_directory(context, command="scan", json_mode=_opts(ctx).get("json", False))
     settings = load_converge_settings(context.root_dir)
     oc = _out_console(ctx)
     _print_repo_header("Scan Repository", context, ctx)
@@ -214,17 +217,10 @@ def create(  # noqa: C901
     oc = _out_console(ctx)
     _print_repo_header(f"Create Environment ({provider})", context, ctx)
 
-    try:
-        with GraphStore.for_context(context) as store:
-            G = store.load_networkx()
-    except Exception as e:
-        if _opts(ctx).get("json"):
-            print_json({"command": "create", "error": str(e), "status": "no_graph"})
-        else:
-            oc.print(
-                f"[red]Cannot create an environment without a graph.[/red] Run `converge scan {context.root_dir}` first. ({e})"
-            )
-        raise typer.Exit(ExitCode.ERROR) from None
+    with load_graph_or_exit(
+        context, command="create", json_mode=_opts(ctx).get("json", False), console=oc
+    ) as store:
+        G = store.load_networkx()
 
     env_mgr = EnvironmentManager(context)
     packages = env_mgr.plan_packages(G)
@@ -358,17 +354,10 @@ def fix(  # noqa: C901
     oc = _out_console(ctx)
     _print_repo_header("Repair Dependency Issues", context, ctx)
 
-    try:
-        with GraphStore.for_context(context) as store:
-            G = store.load_networkx()
-    except Exception as e:
-        if _opts(ctx).get("json"):
-            print_json({"command": "fix", "error": str(e), "status": "no_graph"})
-        else:
-            oc.print(
-                f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})"
-            )
-        raise typer.Exit(ExitCode.ERROR) from None
+    with load_graph_or_exit(
+        context, command="fix", json_mode=_opts(ctx).get("json", False), console=oc
+    ) as store:
+        G = store.load_networkx()
 
     detector = ConflictDetector(G, settings=settings)
     conflicts = list(detector.detect_all())
@@ -477,19 +466,10 @@ def doctor(
     oc = _out_console(ctx)
     _print_repo_header("Doctor", context, ctx)
 
-    try:
-        with GraphStore.for_context(context) as store:
-            G = store.load_networkx()
-    except Exception:
-        if _opts(ctx).get("json"):
-            print_json(
-                {"command": "doctor", "status": "no_graph", "repository": str(context.root_dir)}
-            )
-        else:
-            oc.print(
-                f"[red]No graph found for [cyan]{context.root_dir}[/cyan].[/red] Run `converge scan {context.root_dir}` first."
-            )
-        raise typer.Exit(ExitCode.ERROR) from None
+    with load_graph_or_exit(
+        context, command="doctor", json_mode=_opts(ctx).get("json", False), console=oc
+    ) as store:
+        G = store.load_networkx()
 
     detector = ConflictDetector(G, settings=settings)
     conflicts = list(detector.detect_all())
@@ -544,17 +524,10 @@ def explain(
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
     _print_repo_header("Explain", context, ctx)
-    try:
-        with GraphStore.for_context(context) as store:
-            G = store.load_networkx()
-    except Exception as e:
-        if _opts(ctx).get("json"):
-            print_json({"command": "explain", "error": str(e)})
-        else:
-            oc.print(
-                f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})"
-            )
-        raise typer.Exit(ExitCode.ERROR) from None
+    with load_graph_or_exit(
+        context, command="explain", json_mode=_opts(ctx).get("json", False), console=oc
+    ) as store:
+        G = store.load_networkx()
 
     engine = ExplainabilityEngine(G, oc)
     if _opts(ctx).get("json"):
@@ -583,17 +556,10 @@ def export(
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
     _print_repo_header("Export", context, ctx)
-    try:
-        with GraphStore.for_context(context) as store:
-            G = store.load_networkx()
-    except Exception as e:
-        if _opts(ctx).get("json"):
-            print_json({"command": "export", "error": str(e)})
-        else:
-            oc.print(
-                f"[red]No graph found for this repository.[/red] Run `converge scan` first. ({e})"
-            )
-        raise typer.Exit(ExitCode.ERROR) from None
+    with load_graph_or_exit(
+        context, command="export", json_mode=_opts(ctx).get("json", False), console=oc
+    ) as store:
+        G = store.load_networkx()
     try:
         exporter = GraphExporter(context)
         output_paths = exporter.export(G, format)

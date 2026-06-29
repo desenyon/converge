@@ -80,10 +80,11 @@ class GraphStore:
     def __exit__(self, *_exc: object) -> None:
         self.close()
 
-    def __init__(self, db_url: str):
+    def __init__(self, db_url: str, *, create_dirs: bool = True):
         if db_url.startswith("sqlite:///"):
             db_path = Path(db_url.removeprefix("sqlite:///"))
-            db_path.parent.mkdir(parents=True, exist_ok=True)
+            if create_dirs:
+                db_path.parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_engine(db_url)
         SQLModel.metadata.create_all(self.engine)
         type(self)._open_instances.add(self)
@@ -100,8 +101,8 @@ class GraphStore:
             store.close()
 
     @classmethod
-    def for_context(cls, context: ProjectContext) -> GraphStore:
-        return cls(db_url=f"sqlite:///{context.graph_db_path}")
+    def for_context(cls, context: ProjectContext, *, create_dirs: bool = True) -> GraphStore:
+        return cls(db_url=f"sqlite:///{context.graph_db_path}", create_dirs=create_dirs)
 
     def get_session(self) -> Generator[Session, None, None]:
         with Session(self.engine) as session:
