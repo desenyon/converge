@@ -23,7 +23,7 @@ from converge.models import GraphEntity, GraphRelationship
 from converge.project_context import ProjectContext
 from converge.repair.manifest import apply_plan_to_pyproject
 from converge.repair.requirements import apply_plan_to_requirements
-from converge.scanner.incremental import is_tree_unchanged, write_scan_state
+from converge.scanner.incremental import is_tree_unchanged, load_scan_state, write_scan_state
 from converge.scanner.paths import iter_python_files
 from converge.scanner.scanner import Scanner
 from converge.settings import load_converge_settings
@@ -42,6 +42,12 @@ console = Console()
 log = logging.getLogger("converge.cli")
 
 
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"converge {package_version()}")
+        raise typer.Exit(ExitCode.SUCCESS)
+
+
 @app.callback()
 def main(
     ctx: typer.Context,
@@ -50,7 +56,7 @@ def main(
         "--version",
         help="Show the installed Converge version and exit.",
         is_eager=True,
-        callback=lambda v: (_print_version_and_exit() if v else None),
+        callback=_version_callback,
     ),
     json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON on stdout"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal progress output"),
@@ -62,11 +68,6 @@ def main(
     ctx.obj["quiet"] = quiet
     ctx.obj["verbose"] = verbose
     configure_cli_logging(verbose)
-
-
-def _print_version_and_exit() -> None:
-    typer.echo(f"converge {package_version()}")
-    raise typer.Exit(ExitCode.SUCCESS)
 
 
 def _opts(ctx: typer.Context) -> dict[str, Any]:
@@ -161,6 +162,7 @@ def scan(  # noqa: C901
 
     summary_payload = {
         "command": "scan",
+        "status": "completed",
         "entities": len(entities),
         "relationships": len(rels),
         "repository": str(context.root_dir),
@@ -394,7 +396,9 @@ def fix(  # noqa: C901
         print_json(
             {
                 "command": "fix",
+                "status": "dry_run",
                 "apply": apply,
+                "conflict_count": len(conflicts),
                 "conflicts": [c.model_dump() for c in conflicts],
                 "plans": [p.model_dump() for p in plans],
             }
@@ -491,6 +495,8 @@ def doctor(
         print_json(
             {
                 "command": "doctor",
+                "status": "clean" if not conflicts else "issues",
+                "conflict_count": len(conflicts),
                 "repository": str(context.root_dir),
                 "conflicts": [c.model_dump() for c in conflicts],
                 "lockfiles": lock_hints,
@@ -518,10 +524,92 @@ def doctor(
         table.add_row(c.id, c.type.upper(), c.description)
 
     oc.print(table)
+    lockfiles = lock_hints.get("lockfiles", [])
+    if isinstance(lockfiles, list) and lockfiles:
+        oc.print(
+            f"\n[dim]Lockfiles detected: {len(lockfiles)} "
+            f"({', '.join(str(item.get('path', '')) for item in lockfiles if isinstance(item, dict))}).[/dim]"
+        )
     oc.print(
         f"\n[dim]Next: run `converge explain <CONFLICT_ID> {context.root_dir}` for a detailed explanation.[/dim]"
     )
     raise typer.Exit(ExitCode.ISSUES_FOUND)
+
+
+@app.command()
+def status(
+    ctx: typer.Context,
+    path: str = typer.Argument(".", help="Path to the repository to inspect"),
+) -> None:
+    """
+    Show Converge artifact state for a repository (graph, scan fingerprints, lockfiles).
+    """
+    context = ProjectContext.from_target(path)
+    ensure_target_directory(context, command="status", json_mode=_opts(ctx).get("json", False))
+    settings = load_converge_settings(context.root_dir)
+    oc = _out_console(ctx)
+    _print_repo_header("Status", context, ctx)
+
+    py_files = iter_python_files(context.root_dir, settings)
+    scan_state = load_scan_state(context.scan_state_path)
+    tree_unchanged = (
+        settings.incremental_scan
+        and bool(scan_state)
+        and is_tree_unchanged(context.scan_state_path, context.root_dir, py_files)
+    )
+
+    entity_count = 0
+    relationship_count = 0
+    graph_present = context.graph_db_path.is_file()
+    if graph_present:
+        with GraphStore.for_context(context, create_dirs=False) as store:
+            entity_count = len(store.list_entities())
+            relationship_count = len(store.list_relationships())
+
+    lock_hints = summarize_lockfiles(context.root_dir)
+    graph_ready = graph_present and entity_count > 0
+    payload = {
+        "command": "status",
+        "repository": str(context.root_dir),
+        "graph": {
+            "path": str(context.graph_db_path),
+            "present": graph_ready,
+            "entities": entity_count,
+            "relationships": relationship_count,
+        },
+        "scan_state": {
+            "path": str(context.scan_state_path),
+            "tracked_files": len(scan_state),
+            "tree_unchanged": tree_unchanged,
+            "incremental_scan_enabled": settings.incremental_scan,
+        },
+        "lockfiles": lock_hints,
+    }
+
+    if _opts(ctx).get("json"):
+        print_json(payload)
+        raise typer.Exit(ExitCode.SUCCESS)
+
+    table = Table(title="Repository Status", box=None)
+    table.add_column("Field", style="cyan")
+    table.add_column("Value")
+    table.add_row("Graph", "present" if graph_ready else "missing")
+    table.add_row("Entities", str(entity_count))
+    table.add_row("Relationships", str(relationship_count))
+    table.add_row("Tracked source files", str(len(scan_state)))
+    table.add_row(
+        "Incremental scan",
+        "enabled" if settings.incremental_scan else "disabled",
+    )
+    table.add_row(
+        "Tree unchanged since last scan",
+        "yes" if tree_unchanged else "no",
+    )
+    lockfiles = lock_hints.get("lockfiles", [])
+    lockfile_count = len(lockfiles) if isinstance(lockfiles, list) else 0
+    table.add_row("Lockfiles", str(lockfile_count))
+    oc.print(table)
+    raise typer.Exit(ExitCode.SUCCESS)
 
 
 @app.command()
@@ -613,26 +701,11 @@ def clean(
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
     _print_repo_header("Clean", context, ctx)
-    removed = []
+    removed: list[str] = []
 
-    if context.export_dir.exists():
-        shutil.rmtree(context.export_dir)
-        removed.append(context.export_dir.name)
-
-    if context.graph_db_path.exists():
-        context.graph_db_path.unlink()
-        removed.append(context.graph_db_path.name)
-
-    if context.scan_state_path.exists():
-        context.scan_state_path.unlink()
-        removed.append(context.scan_state_path.name)
-
-    if context.audit_log_path.exists():
-        context.audit_log_path.unlink()
-        removed.append(context.audit_log_path.name)
-
-    if context.artifact_dir.exists() and not any(context.artifact_dir.iterdir()):
-        context.artifact_dir.rmdir()
+    if context.artifact_dir.exists():
+        shutil.rmtree(context.artifact_dir)
+        removed.append(".converge")
 
     sandbox_dir = context.root_dir / ".venv-converge-test"
     if sandbox_dir.exists():
