@@ -9,9 +9,11 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from converge.audit import append_audit_event
+from converge.audit import append_audit_event, read_audit_events
 from converge.cli.explain import ExplainabilityEngine
+from converge.cli.init_template import INIT_TEMPLATE
 from converge.cli.jsonutil import print_json
+from converge.cli.packages_report import summarize_packages
 from converge.cli.repo_guard import ensure_target_directory, load_graph_or_exit
 from converge.env_manager import EnvironmentManager
 from converge.exit_codes import ExitCode
@@ -97,12 +99,41 @@ def _activation_command(venv_path: Path) -> str:
     return f"source {venv_path}/bin/activate"
 
 
+def _filter_conflicts(conflicts: list[Conflict], conflict_type: str | None) -> list[Conflict]:
+    if not conflict_type:
+        return conflicts
+    needle = conflict_type.strip().lower()
+    aliases = {
+        "unresolved": ConflictType.UNRESOLVED_IMPORT,
+        "unused": ConflictType.UNUSED_DEPENDENCY,
+        "clash": ConflictType.VERSION_CLASH,
+        "version": ConflictType.VERSION_CLASH,
+    }
+    resolved = aliases.get(needle, needle)
+    return [c for c in conflicts if c.type.lower() == resolved.lower()]
+
+
+def _artifacts_to_remove(context: ProjectContext) -> list[str]:
+    removed: list[str] = []
+    if context.artifact_dir.exists():
+        removed.append(".converge")
+    sandbox_dir = context.root_dir / ".venv-converge-test"
+    if sandbox_dir.exists():
+        removed.append(sandbox_dir.name)
+    return removed
+
+
 @app.command()
 def scan(  # noqa: C901
     ctx: typer.Context,
     path: str = typer.Argument(".", help="Path to the repository to scan"),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Perform a dry run without saving to the database"
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Run a full scan even when incremental fingerprints are unchanged",
     ),
 ) -> None:
     """
@@ -118,6 +149,7 @@ def scan(  # noqa: C901
     if (
         settings.incremental_scan
         and not dry_run
+        and not force
         and is_tree_unchanged(context.scan_state_path, context.root_dir, py_files)
     ):
         payload = {
@@ -290,6 +322,7 @@ def create(  # noqa: C901
 
     result = {
         "command": "create",
+        "status": "completed",
         "venv": str(env_mgr.venv_path),
         "provider": provider,
         "packages": len(packages),
@@ -473,6 +506,11 @@ def fix(  # noqa: C901
 def doctor(
     ctx: typer.Context,
     path: str = typer.Argument(".", help="Path to the repository to inspect"),
+    conflict_type: str | None = typer.Option(
+        None,
+        "--type",
+        help="Filter issues by type (unresolved_import, unused_dependency, version_clash)",
+    ),
 ) -> None:
     """
     [bold yellow]Diagnose[/bold yellow] structural anomalies across the AST dependency mappings.
@@ -488,7 +526,7 @@ def doctor(
         G = store.load_networkx()
 
     detector = ConflictDetector(G, settings=settings)
-    conflicts = list(detector.detect_all())
+    conflicts = _filter_conflicts(list(detector.detect_all()), conflict_type)
     lock_hints = summarize_lockfiles(context.root_dir)
 
     if _opts(ctx).get("json"):
@@ -497,6 +535,7 @@ def doctor(
                 "command": "doctor",
                 "status": "clean" if not conflicts else "issues",
                 "conflict_count": len(conflicts),
+                "filter_type": conflict_type,
                 "repository": str(context.root_dir),
                 "conflicts": [c.model_dump() for c in conflicts],
                 "lockfiles": lock_hints,
@@ -534,6 +573,166 @@ def doctor(
         f"\n[dim]Next: run `converge explain <CONFLICT_ID> {context.root_dir}` for a detailed explanation.[/dim]"
     )
     raise typer.Exit(ExitCode.ISSUES_FOUND)
+
+
+@app.command()
+def check(
+    ctx: typer.Context,
+    path: str = typer.Argument(".", help="Path to the repository to scan and diagnose"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Force a full scan even when incremental fingerprints are unchanged",
+    ),
+    conflict_type: str | None = typer.Option(
+        None,
+        "--type",
+        help="When diagnosing, filter issues by conflict type",
+    ),
+) -> None:
+    """
+    [bold cyan]Check[/bold cyan] a repository by scanning the graph and running doctor in one step.
+    """
+    try:
+        ctx.invoke(scan, ctx=ctx, path=path, dry_run=False, force=force)
+    except typer.Exit as exc:
+        if exc.exit_code != int(ExitCode.SUCCESS):
+            raise typer.Exit(exc.exit_code) from None
+
+    try:
+        ctx.invoke(doctor, ctx=ctx, path=path, conflict_type=conflict_type)
+    except typer.Exit as exc:
+        raise typer.Exit(exc.exit_code) from None
+
+
+@app.command()
+def packages(
+    ctx: typer.Context,
+    path: str = typer.Argument(".", help="Path to the repository to inspect"),
+) -> None:
+    """
+    List declared, imported, missing, and unused packages from the scanned graph.
+    """
+    context = ProjectContext.from_target(path)
+    settings = load_converge_settings(context.root_dir)
+    oc = _out_console(ctx)
+    _print_repo_header("Packages", context, ctx)
+
+    with load_graph_or_exit(
+        context, command="packages", json_mode=_opts(ctx).get("json", False), console=oc
+    ) as store:
+        G = store.load_networkx()
+
+    summary = summarize_packages(G, settings=settings)
+    payload = {"command": "packages", "repository": str(context.root_dir), **summary}
+    exit_code = ExitCode.SUCCESS if not summary["missing_count"] else ExitCode.ISSUES_FOUND
+
+    if _opts(ctx).get("json"):
+        print_json(payload)
+        raise typer.Exit(exit_code)
+
+    table = Table(title="Package Inventory", box=None)
+    table.add_column("Category", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_column("Packages")
+    table.add_row("Declared", str(summary["declared_count"]), ", ".join(summary["declared"]) or "—")
+    table.add_row("Imported", str(summary["imported_count"]), ", ".join(summary["imported"]) or "—")
+    table.add_row(
+        "Missing",
+        str(summary["missing_count"]),
+        ", ".join(summary["missing"]) or "—",
+    )
+    table.add_row(
+        "Unused",
+        str(summary["unused_count"]),
+        ", ".join(summary["unused"]) or "—",
+    )
+    oc.print(table)
+    raise typer.Exit(exit_code)
+
+
+@app.command()
+def audit(
+    ctx: typer.Context,
+    path: str = typer.Argument(".", help="Path to the repository to inspect"),
+    limit: int = typer.Option(20, "--limit", help="Maximum audit events to show (0 = all)"),
+) -> None:
+    """
+    Show the repair audit log written by ``converge fix --apply``.
+    """
+    context = ProjectContext.from_target(path)
+    ensure_target_directory(context, command="audit", json_mode=_opts(ctx).get("json", False))
+    oc = _out_console(ctx)
+    _print_repo_header("Audit Log", context, ctx)
+
+    cap = None if limit == 0 else limit
+    events = read_audit_events(context, limit=cap)
+    payload = {
+        "command": "audit",
+        "repository": str(context.root_dir),
+        "path": str(context.audit_log_path),
+        "event_count": len(events),
+        "events": events,
+    }
+
+    if _opts(ctx).get("json"):
+        print_json(payload)
+        raise typer.Exit(ExitCode.SUCCESS)
+
+    if not events:
+        oc.print(
+            Panel(
+                "[yellow]No audit events recorded yet.[/yellow]\n"
+                "Run [cyan]converge fix . --apply[/cyan] after a successful validation.",
+                border_style="yellow",
+            )
+        )
+        raise typer.Exit(ExitCode.SUCCESS)
+
+    table = Table(title=f"Audit Events ({len(events)})", show_header=True, header_style="bold")
+    table.add_column("Timestamp", style="dim")
+    table.add_column("Event", style="cyan")
+    table.add_column("Details")
+    for event in events:
+        table.add_row(
+            str(event.get("ts", "")),
+            str(event.get("event", "")),
+            str(event.get("plan_id") or event.get("applied") or ""),
+        )
+    oc.print(table)
+    raise typer.Exit(ExitCode.SUCCESS)
+
+
+@app.command()
+def init(
+    ctx: typer.Context,
+    path: str = typer.Argument(".", help="Path to the repository to initialize"),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing .converge.toml"),
+) -> None:
+    """
+    Scaffold a repository-local ``.converge.toml`` configuration file.
+    """
+    context = ProjectContext.from_target(path)
+    ensure_target_directory(context, command="init", json_mode=_opts(ctx).get("json", False))
+    oc = _out_console(ctx)
+    _print_repo_header("Init", context, ctx)
+
+    config_path = context.root_dir / ".converge.toml"
+    if config_path.exists() and not force:
+        message = f".converge.toml already exists at {config_path}. Use --force to overwrite."
+        if _opts(ctx).get("json"):
+            print_json({"command": "init", "status": "exists", "path": str(config_path)})
+        else:
+            oc.print(f"[yellow]{message}[/yellow]")
+        raise typer.Exit(ExitCode.ERROR)
+
+    config_path.write_text(INIT_TEMPLATE, encoding="utf-8")
+    payload = {"command": "init", "status": "created", "path": str(config_path)}
+    if _opts(ctx).get("json"):
+        print_json(payload)
+    else:
+        oc.print(f"[green]Created[/green] [cyan]{config_path}[/cyan]")
+    raise typer.Exit(ExitCode.SUCCESS)
 
 
 @app.command()
@@ -694,6 +893,9 @@ def export(
 def clean(
     ctx: typer.Context,
     path: str = typer.Argument(".", help="Path to the repository to clean"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be removed without deleting anything"
+    ),
 ) -> None:
     """
     Remove Converge database state and cached validation sandboxes.
@@ -701,8 +903,26 @@ def clean(
     context = ProjectContext.from_target(path)
     oc = _out_console(ctx)
     _print_repo_header("Clean", context, ctx)
-    removed: list[str] = []
+    candidates = _artifacts_to_remove(context)
 
+    if dry_run:
+        payload = {
+            "command": "clean",
+            "status": "dry_run",
+            "would_remove": [str(context.root_dir / name) for name in candidates],
+        }
+        if _opts(ctx).get("json"):
+            print_json(payload)
+        elif candidates:
+            oc.print(
+                "[yellow]Dry run:[/yellow] would remove "
+                f"{', '.join(candidates)} from [cyan]{context.root_dir}[/cyan]."
+            )
+        else:
+            oc.print("[yellow]Nothing to remove.[/yellow]")
+        raise typer.Exit(ExitCode.SUCCESS)
+
+    removed: list[str] = []
     if context.artifact_dir.exists():
         shutil.rmtree(context.artifact_dir)
         removed.append(".converge")
@@ -713,7 +933,13 @@ def clean(
         removed.append(sandbox_dir.name)
 
     if _opts(ctx).get("json"):
-        print_json({"command": "clean", "removed": [str(context.root_dir / r) for r in removed]})
+        print_json(
+            {
+                "command": "clean",
+                "status": "completed",
+                "removed": [str(context.root_dir / r) for r in removed],
+            }
+        )
     elif removed:
         oc.print(
             f"[green]Removed[/green] {', '.join(removed)} from [cyan]{context.root_dir}[/cyan]."
