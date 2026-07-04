@@ -12,6 +12,11 @@ class EntityType(StrEnum):
     MODULE = "module"
     ROUTE = "route"
     EXTERNAL_API = "external_api"
+    LOCKFILE = "lockfile"
+    SYSTEM_PACKAGE = "system_package"
+    NPM_PACKAGE = "npm_package"
+    CARGO_CRATE = "cargo_crate"
+    CONDA_PACKAGE = "conda_package"
 
 
 class RelationshipType(StrEnum):
@@ -29,6 +34,8 @@ class RelationshipType(StrEnum):
     REFERENCES_ENV = "references_env"
     USES_INTERPRETER = "uses_interpreter"
     BELONGS_TO = "belongs_to"
+    RESOLVES_TO = "resolves_to"
+    LOCKED_BY = "locked_by"
 
 
 class GraphEntity(BaseModel):
