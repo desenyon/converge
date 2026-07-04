@@ -8,48 +8,58 @@ This document maps the product roadmap to what exists in the codebase today.
 |------------|--------|
 | Machine-readable `--json` on commands | Implemented (global flag) |
 | Stable exit codes (`ExitCode`: 0 / 1 / 2) | Implemented |
-| `--quiet` / `--verbose` | Implemented (quiet suppresses most Rich output) |
-| Configuration: `[tool.converge]` and `.converge.toml` | Implemented (`load_converge_settings`) |
+| `--quiet` / `--verbose` | Implemented |
+| Configuration: `[tool.converge]` and `.converge.toml` | Implemented |
+| `toolchain` command (detect uv / poetry / pip-tools / pip) | Implemented |
+| `lock` command (`uv lock` or `pip-compile`) | Implemented |
 
 ## Scanning and graph
 
 | Capability | Status |
 |------------|--------|
-| Parallel AST parsing (thread pool) | Implemented |
-| Incremental scan (full-tree hash short-circuit) | Implemented (`.converge/scan_state.json`) |
-| Skip imports under `if TYPE_CHECKING:` | Implemented (configurable via `skip_type_checking_imports`) |
-| Test vs. source module classification | Implemented (`metadata.scan_kind` on modules) |
-| Extra scan roots (multi-layout repos) | Implemented (`extra_scan_roots`) |
-| Namespace / editable install nuance | Partial (same heuristics as before; no PEP 420 formalism) |
+| Parallel AST parsing | Implemented |
+| Incremental scan + partial graph merge | Implemented |
+| Skip `TYPE_CHECKING` imports | Implemented |
+| Test vs. source module classification | Implemented |
+| Lockfile entities (`LOCKED_BY`, `RESOLVES_TO`) for uv + poetry | Implemented |
+| `CONFLICTS_WITH` edges for incompatible declared constraints | Implemented |
+| uv workspace members (`BELONGS_TO`) | Implemented |
+| pip-tools `requirements.in` + compiled `requirements.txt` | Implemented |
+| Constraints files (`constraints*.txt`) | Implemented |
+| Editable installs (`CONFIGURED_BY`) | Implemented |
+| npm, Dockerfile, `apt.txt`, `Cargo.toml`, `environment.yml` | Implemented |
+| `[tool.uv.sources]` in doctor JSON | Implemented |
 
 ## Diagnosis and repair
 
 | Capability | Status |
 |------------|--------|
-| Unused deps ignore test-only imports | Implemented |
-| Optional dependency groups in `pyproject` | Already merged into declared deps for the graph |
-| Lockfile hints in `doctor --json` | Implemented (presence/size of `uv.lock`, `poetry.lock`) |
-| Repair `requirements*.txt` | Implemented (`repair_targets` includes `requirements`) |
-| Append-only audit log for `fix --apply` | Implemented (`.converge/audit.log`) |
+| Unused deps ignore test-only imports and dev groups | Implemented |
+| Declared constraint intersection conflicts | Implemented |
+| Lockfile drift (`LOCKFILE_DRIFT`) | Implemented |
+| pip-tools compile drift (`COMPILE_DRIFT`) | Implemented |
+| `doctor --json` package `{declared, locked, imported}` triple | Implemented |
+| Add / pin / remove repair plans | Implemented |
+| Group-aware adds (test imports → dev group) | Implemented |
+| Plan ranking (prefer fewer, non-destructive changes) | Implemented |
+| uv-native `uv add` / `uv remove` / `uv lock` on fix | Implemented |
+| Requirements and pyproject manifest repairs | Implemented |
+| Audit log for `fix --apply` and `lock` | Implemented |
 
-## Tooling and CI
+## Environment and toolchain
 
 | Capability | Status |
 |------------|--------|
-| Coverage reporting (`pytest-cov`, `[tool.coverage]`) | Implemented |
-| Pre-commit (ruff) for this repo | Implemented (`.pre-commit-config.yaml`) |
-| Example pre-commit + GitHub Actions for consumers | Implemented (`docs/examples/`) |
-| PyPI release workflow | Already present (`.github/workflows/release.yml`) |
+| Unified `UvBackend` / `PipBackend` | Implemented |
+| `create --provider auto` | Implemented |
+| `uv sync --frozen` when `uv.lock` exists | Implemented |
+| Constraint-aware install specs from graph | Implemented |
+| Validation sandbox uses toolchain backends | Implemented |
 
-## Stretch (not fully implemented)
+## Stretch (deferred)
 
-- Deeper `typing` / lazy import edge cases beyond module-level `TYPE_CHECKING` and simple `__import__` / `importlib.import_module` calls.
-- Full lockfile-driven resolution (Poetry-style) integrated into the solver; `uv.lock` now lists resolved package names for `doctor --json`.
-- Additional `create` providers beyond `uv` and stdlib `venv`+`pip` (already supported via `--provider pip`).
-
-## Recently completed (from prior roadmap)
-
-- Partial incremental graph merge when only some `.py` files change (`Scanner.scan_incremental`).
-- JSON envelope: `schema_version` + `tool_version` on `--json` output.
-- stderr logging for `--verbose`; SQLite `GraphStore` disposal via context manager / `close()`.
-- CI: Python 3.12 and 3.13 matrix; coverage floor 60%; `mypy src/converge` aligned with AGENTS.
+- Full Poetry-native repair (`poetry add` / `poetry lock`).
+- pnpm / yarn lock parsing for npm.
+- PEP 420 namespace package formalism.
+- `converge test` hook for post-repair test suite validation.
+- graphify MCP / Neo4j export (see `graphify-out/` for local architecture graphs).
