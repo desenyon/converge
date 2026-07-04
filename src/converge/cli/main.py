@@ -21,13 +21,17 @@ from converge.logging_config import configure_cli_logging
 from converge.models import GraphEntity, GraphRelationship
 from converge.project_context import ProjectContext
 from converge.repair.manifest import apply_plan_to_pyproject
+from converge.repair.remove import apply_removals_to_pyproject, apply_removals_to_requirements
 from converge.repair.requirements import apply_plan_to_requirements
 from converge.scanner.incremental import is_tree_unchanged, write_scan_state
 from converge.scanner.paths import iter_python_files
 from converge.scanner.scanner import Scanner
+from converge.scanner.workspace import read_uv_sources
 from converge.settings import load_converge_settings
 from converge.solver.conflict import Conflict, ConflictDetector, ConflictType
-from converge.solver.planner import RepairPlan, RepairPlanner
+from converge.solver.package_summary import build_package_summary
+from converge.solver.planner import RepairActionType, RepairPlan, RepairPlanner
+from converge.toolchain import PipBackend, UvBackend, detect_toolchain
 from converge.validation.sandbox import UVSandbox
 from converge.validation.smoke import ValidationRunner
 
@@ -204,7 +208,7 @@ def scan(  # noqa: C901
 def create(  # noqa: C901
     ctx: typer.Context,
     path: str = typer.Argument(".", help="Path to the repository"),
-    provider: str = typer.Option("uv", "--provider", help="Package manager to use (uv or pip)"),
+    provider: str = typer.Option("auto", "--provider", help="Package manager: auto, uv, or pip"),
     python: str = typer.Option(None, "--python", help="Python version to initialize"),
 ) -> None:
     """
@@ -227,6 +231,7 @@ def create(  # noqa: C901
         raise typer.Exit(ExitCode.ERROR) from None
 
     env_mgr = EnvironmentManager(context)
+    resolved_provider = env_mgr.resolve_provider(provider)
     packages = env_mgr.plan_packages(G)
     if not packages:
         oc.print(
@@ -241,7 +246,7 @@ def create(  # noqa: C901
             console=console,
         ) as progress:
             task_create = progress.add_task(
-                f"[cyan]Creating environment with {provider}...", total=None
+                f"[cyan]Creating environment with {resolved_provider}...", total=None
             )
             try:
                 env_mgr.create_venv(provider=provider, python_version=python)
@@ -281,7 +286,7 @@ def create(  # noqa: C901
     result = {
         "command": "create",
         "venv": str(env_mgr.venv_path),
-        "provider": provider,
+        "provider": resolved_provider,
         "packages": len(packages),
     }
     if _opts(ctx).get("json"):
@@ -315,14 +320,8 @@ def _run_validation(
         console=console,
     ) as progress:
         task = progress.add_task(f"[cyan]Validating {len(plans)} candidate plan(s)...", total=None)
-        scores = runner.score_plans(plans, smoke_targets)
+        best_plan = runner.select_best_plan(plans, smoke_targets)
         progress.update(task, completed=True)
-
-    best_plan = None
-    for plan_id, success in scores.items():
-        if success:
-            best_plan = next(p for p in plans if p.id == plan_id)
-            break
 
     if best_plan:
         oc.print(
@@ -370,7 +369,7 @@ def fix(  # noqa: C901
             )
         raise typer.Exit(ExitCode.ERROR) from None
 
-    detector = ConflictDetector(G, settings=settings)
+    detector = ConflictDetector(G, settings=settings, root_dir=context.root_dir)
     conflicts = list(detector.detect_all())
 
     if not conflicts:
@@ -425,12 +424,40 @@ def fix(  # noqa: C901
         raise typer.Exit(ExitCode.ERROR) from None
 
     pyproject_path = context.root_dir / "pyproject.toml"
-    applied: dict[str, str | None] = {}
+    applied: dict[str, Any] = {}
+    toolchain = detect_toolchain(context.root_dir)
+    uses_uv_pyproject = toolchain == "uv" and pyproject_path.is_file()
 
-    if "pyproject" in settings.repair_targets and pyproject_path.exists():
+    if uses_uv_pyproject:
+        uv_backend = UvBackend()
+        for action in best_plan.actions:
+            if action.action_type == RepairActionType.ADD_DEPENDENCY and action.target_package:
+                try:
+                    uv_backend.add_dependency(
+                        context.root_dir,
+                        action.target_package,
+                        dev=action.dependency_group not in ("main", "requirements"),
+                    )
+                    applied["uv_add"] = action.target_package
+                except Exception as exc:
+                    log.warning("uv add failed, falling back to manifest edit: %s", exc)
+                    uses_uv_pyproject = False
+                    break
+            elif (
+                action.action_type == RepairActionType.REMOVE_DEPENDENCY
+                and action.target_package
+                and best_plan.id == "plan:remove"
+            ):
+                try:
+                    uv_backend.remove_dependency(context.root_dir, action.target_package)
+                    applied.setdefault("uv_remove", []).append(action.target_package)
+                except Exception as exc:
+                    log.warning("uv remove failed, falling back to manifest edit: %s", exc)
+
+    if not uses_uv_pyproject and "pyproject" in settings.repair_targets and pyproject_path.exists():
         apply_plan_to_pyproject(pyproject_path, best_plan)
         applied["pyproject"] = str(pyproject_path)
-    elif "pyproject" in settings.repair_targets:
+    elif "pyproject" in settings.repair_targets and not pyproject_path.exists():
         applied["pyproject"] = None
 
     if "requirements" in settings.repair_targets:
@@ -438,6 +465,25 @@ def fix(  # noqa: C901
             context.root_dir, best_plan, settings.requirements_file
         )
         applied["requirements"] = str(req_path) if req_path else None
+
+    if (
+        best_plan.id == "plan:remove"
+        and "pyproject" in settings.repair_targets
+        and pyproject_path.exists()
+    ):
+        apply_removals_to_pyproject(pyproject_path, best_plan)
+    if best_plan.id == "plan:remove" and "requirements" in settings.repair_targets:
+        removed_reqs = apply_removals_to_requirements(context.root_dir, best_plan)
+        if removed_reqs:
+            applied["requirements_removed"] = [str(p) for p in removed_reqs]
+
+    if toolchain == "uv" and (context.root_dir / "pyproject.toml").is_file():
+        if any(a.action_type == RepairActionType.REGENERATE_LOCKFILE for a in best_plan.actions):
+            try:
+                UvBackend().lock(context.root_dir)
+                applied["uv_lock"] = str(context.root_dir / "uv.lock")
+            except Exception as exc:
+                log.warning("uv lock after fix failed: %s", exc)
 
     append_audit_event(
         context,
@@ -468,6 +514,9 @@ def fix(  # noqa: C901
 def doctor(
     ctx: typer.Context,
     path: str = typer.Argument(".", help="Path to the repository to inspect"),
+    all_ecosystems: bool = typer.Option(
+        False, "--all", help="Include npm and system package scan hints in output"
+    ),
 ) -> None:
     """
     [bold yellow]Diagnose[/bold yellow] structural anomalies across the AST dependency mappings.
@@ -491,17 +540,34 @@ def doctor(
             )
         raise typer.Exit(ExitCode.ERROR) from None
 
-    detector = ConflictDetector(G, settings=settings)
+    detector = ConflictDetector(G, settings=settings, root_dir=context.root_dir)
     conflicts = list(detector.detect_all())
     lock_hints = summarize_lockfiles(context.root_dir)
+    toolchain = detect_toolchain(context.root_dir)
+    package_summary = build_package_summary(G)
+    uv_sources = read_uv_sources(context.root_dir)
+    ecosystem_hint: dict[str, Any] = {}
+    if all_ecosystems or _opts(ctx).get("json"):
+        from converge.scanner.ecosystem import scan_ecosystems
+
+        eco_e, eco_r = scan_ecosystems(context.root_dir)
+        ecosystem_hint = {
+            "npm_packages": sum(1 for e in eco_e if e.type.value == "npm_package"),
+            "system_packages": sum(1 for e in eco_e if e.type.value == "system_package"),
+            "ecosystem_edges": len(eco_r),
+        }
 
     if _opts(ctx).get("json"):
         print_json(
             {
                 "command": "doctor",
                 "repository": str(context.root_dir),
+                "toolchain": toolchain,
                 "conflicts": [c.model_dump() for c in conflicts],
                 "lockfiles": lock_hints,
+                "packages": package_summary,
+                "uv_sources": uv_sources,
+                "ecosystems": ecosystem_hint,
             }
         )
         raise typer.Exit(ExitCode.SUCCESS if not conflicts else ExitCode.ISSUES_FOUND)
@@ -530,6 +596,106 @@ def doctor(
         f"\n[dim]Next: run `converge explain <CONFLICT_ID> {context.root_dir}` for a detailed explanation.[/dim]"
     )
     raise typer.Exit(ExitCode.ISSUES_FOUND)
+
+
+@app.command()
+def toolchain(
+    ctx: typer.Context,
+    path: str = typer.Argument(".", help="Path to the repository"),
+) -> None:
+    """Report the detected Python toolchain and lockfile state."""
+    context = ProjectContext.from_target(path)
+    detected = detect_toolchain(context.root_dir)
+    lock_hints = summarize_lockfiles(context.root_dir)
+    payload = {
+        "command": "toolchain",
+        "repository": str(context.root_dir),
+        "toolchain": detected,
+        "lockfiles": lock_hints,
+        "recommendation": (
+            "uv sync --frozen"
+            if detected == "uv" and any(x.get("kind") == "uv" for x in lock_hints["lockfiles"])
+            else "uv pip install -r requirements.txt"
+            if detected == "pip"
+            else f"use {detected}"
+        ),
+    }
+    if _opts(ctx).get("json"):
+        print_json(payload)
+    else:
+        oc = _out_console(ctx)
+        _print_repo_header("Toolchain", context, ctx)
+        oc.print(
+            Panel(
+                f"Detected: [cyan]{detected}[/cyan]\n"
+                f"Lockfiles: [cyan]{len(lock_hints['lockfiles'])}[/cyan]\n"
+                f"Recommended: [cyan]{payload['recommendation']}[/cyan]",
+                border_style="blue",
+            )
+        )
+    raise typer.Exit(ExitCode.SUCCESS)
+
+
+@app.command()
+def lock(  # noqa: C901
+    ctx: typer.Context,
+    path: str = typer.Argument(".", help="Path to the repository"),
+) -> None:
+    """Regenerate uv.lock or pip-compile requirements.txt."""
+    context = ProjectContext.from_target(path)
+    oc = _out_console(ctx)
+    _print_repo_header("Lock", context, ctx)
+    detected = detect_toolchain(context.root_dir)
+    if detected == "uv":
+        try:
+            UvBackend().lock(context.root_dir)
+        except Exception as e:
+            if _opts(ctx).get("json"):
+                print_json({"command": "lock", "error": str(e)})
+            else:
+                oc.print(f"[red]uv lock failed:[/red] {e}")
+            raise typer.Exit(ExitCode.ERROR) from None
+        lock_path = context.root_dir / "uv.lock"
+        append_audit_event(context, {"event": "lock_regenerate", "path": str(lock_path)})
+        if _opts(ctx).get("json"):
+            print_json({"command": "lock", "status": "ok", "path": str(lock_path), "toolchain": "uv"})
+        else:
+            oc.print(f"[green]Regenerated[/green] [cyan]{lock_path}[/cyan]")
+        raise typer.Exit(ExitCode.SUCCESS)
+
+    if detected == "pip-tools":
+        in_file = "requirements.in"
+        if not (context.root_dir / in_file).is_file():
+            msg = "No requirements.in found for pip-tools lock."
+            if _opts(ctx).get("json"):
+                print_json({"command": "lock", "error": msg})
+            else:
+                oc.print(f"[red]{msg}[/red]")
+            raise typer.Exit(ExitCode.ERROR)
+        try:
+            PipBackend().compile_lock(context.root_dir, in_file)
+        except Exception as e:
+            if _opts(ctx).get("json"):
+                print_json({"command": "lock", "error": str(e)})
+            else:
+                oc.print(f"[red]pip-compile failed:[/red] {e}")
+            raise typer.Exit(ExitCode.ERROR) from None
+        out_path = context.root_dir / "requirements.txt"
+        append_audit_event(context, {"event": "lock_regenerate", "path": str(out_path)})
+        if _opts(ctx).get("json"):
+            print_json(
+                {"command": "lock", "status": "ok", "path": str(out_path), "toolchain": "pip-tools"}
+            )
+        else:
+            oc.print(f"[green]Compiled[/green] [cyan]{out_path}[/cyan]")
+        raise typer.Exit(ExitCode.SUCCESS)
+
+    msg = "No supported lock toolchain detected (uv or pip-tools)."
+    if _opts(ctx).get("json"):
+        print_json({"command": "lock", "error": msg, "toolchain": detected})
+    else:
+        oc.print(f"[red]{msg}[/red]")
+    raise typer.Exit(ExitCode.ERROR)
 
 
 @app.command()
