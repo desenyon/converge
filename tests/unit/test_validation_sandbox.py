@@ -23,10 +23,13 @@ def test_sandbox_applies_manifest_repairs_to_isolated_copy(tmp_path: Path, monke
 
     installed: list[list[str]] = []
 
-    def fake_install(self: UVSandbox, packages: list[str]) -> None:
+    def fake_install(self: UVSandbox, venv_path: Path, packages: list[str]) -> None:
         installed.append(packages)
 
-    monkeypatch.setattr(UVSandbox, "_uv_pip_install", fake_install)
+    from converge.toolchain.base import UvBackend
+
+    monkeypatch.setattr(UvBackend, "install_packages", fake_install)
+    monkeypatch.setattr(UvBackend, "sync_from_lock", lambda self, root, venv: False)
 
     sandbox = UVSandbox(str(repo))
     sandbox.create()
