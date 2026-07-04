@@ -72,6 +72,11 @@ def test_project_parser_reads_optional_and_requirements(tmp_path: Path) -> None:
     assert {"pytest", "ruff", "mypy"} <= pyproject_names
     assert {"fastapi", "uvicorn"} <= req_names
 
+    ruff = next(p for p in pyproject_pkgs if p.name == "ruff")
+    assert ruff.metadata.get("dependency_group") == "dev"
+    pytest_pkg = next(p for p in pyproject_pkgs if p.name == "pytest")
+    assert pytest_pkg.metadata.get("dependency_group") == "main"
+
 
 def test_project_parser_skips_requirements_directives(tmp_path: Path) -> None:
     requirements = tmp_path / "requirements.txt"
