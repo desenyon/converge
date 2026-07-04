@@ -6,6 +6,7 @@ from pathlib import Path
 from converge.repair.manifest import apply_plan_to_pyproject
 from converge.repair.requirements import apply_plan_to_requirements
 from converge.solver.planner import RepairActionType, RepairPlan
+from converge.toolchain import ToolchainError, get_backend
 
 
 class SandboxError(Exception):
@@ -14,11 +15,12 @@ class SandboxError(Exception):
 
 class UVSandbox:
     """
-    Manages isolated Python environments using `uv`.
+    Manages isolated Python environments using the unified toolchain backend.
     """
 
-    def __init__(self, base_dir: str):
+    def __init__(self, base_dir: str, provider: str = "uv"):
         self.source_dir = Path(base_dir)
+        self.provider = provider
         self.work_dir: Path | None = None
         self._temp_dir: tempfile.TemporaryDirectory[str] | None = None
         self.venv_path = self.source_dir / ".venv-converge-test"
@@ -46,13 +48,11 @@ class UVSandbox:
         if self.venv_path.exists():
             shutil.rmtree(self.venv_path)
 
-        cmd = ["uv", "venv", str(self.venv_path)]
-        if python_version:
-            cmd.extend(["--python", python_version])
-
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise SandboxError(f"Failed to create venv: {result.stderr}")
+        backend = get_backend(self.provider)
+        try:
+            backend.create_venv(self.venv_path, python_version)
+        except ToolchainError as e:
+            raise SandboxError(str(e)) from e
 
     def apply_plan(self, plan: RepairPlan) -> None:
         """Installs exactly what the repair plan dictates."""
@@ -77,19 +77,20 @@ class UVSandbox:
                 else:
                     to_install.append(action.target_package)
 
-        if to_install:
-            self._uv_pip_install(to_install)
-
-    def _uv_pip_install(self, packages: list[str]) -> None:
-        python_exec = str(self.venv_path / "bin" / "python")
-        cmd = ["uv", "pip", "install", "--python", python_exec] + packages
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise SandboxError(f"uv install failed: {result.stderr}")
+        backend = get_backend(self.provider)
+        try:
+            if self.provider == "uv" and backend.sync_from_lock(self.work_dir, self.venv_path):
+                return
+            if to_install:
+                backend.install_packages(self.venv_path, to_install)
+        except ToolchainError as e:
+            raise SandboxError(str(e)) from e
 
     def run_python_cmd(self, code: str) -> bool:
         """Runs a snippet of Python code in the sandbox and returns True if successful."""
         python_exec = str(self.venv_path / "bin" / "python")
+        if not Path(python_exec).exists():
+            python_exec = str(self.venv_path / "Scripts" / "python.exe")
         cmd = [python_exec, "-c", code]
         result = subprocess.run(cmd, capture_output=True, text=True)
         return result.returncode == 0
