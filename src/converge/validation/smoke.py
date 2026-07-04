@@ -1,4 +1,4 @@
-from converge.solver.planner import RepairPlan
+from converge.solver.planner import RepairPlan, rank_plans
 from converge.validation.sandbox import UVSandbox
 
 
@@ -18,7 +18,6 @@ class ValidationRunner:
             self.sandbox.create()
             self.sandbox.apply_plan(plan)
 
-            # Smoke tests: ensure we can import the target packages
             success = True
             for imp in smoke_imports:
                 if not self.sandbox.run_python_cmd(f"import {imp}"):
@@ -33,11 +32,18 @@ class ValidationRunner:
 
     def score_plans(self, plans: list[RepairPlan], smoke_imports: list[str]) -> dict[str, bool]:
         """
-        Scores multiple plans by attempting them in isolated sandboxes.
+        Scores plans in ranked order (fewest changes first).
         Returns a dict mapping plan ID to Success (True/False).
         """
-        results = {}
-        for plan in plans:
-            success = self.validate_plan(plan, smoke_imports)
-            results[plan.id] = success
+        results: dict[str, bool] = {}
+        for plan in rank_plans(plans):
+            results[plan.id] = self.validate_plan(plan, smoke_imports)
         return results
+
+    def select_best_plan(
+        self, plans: list[RepairPlan], smoke_imports: list[str]
+    ) -> RepairPlan | None:
+        for plan in rank_plans(plans):
+            if self.validate_plan(plan, smoke_imports):
+                return plan
+        return None
