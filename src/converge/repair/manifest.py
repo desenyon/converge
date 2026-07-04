@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -34,8 +35,24 @@ def _replace_dependencies_assignment(content: str, replacement: str) -> str:
     return "\n".join(replaced) + "\n"
 
 
+def _append_to_toml_array(content: str, section_header: str, array_name: str, value: str) -> str:
+    pattern = rf"({re.escape(section_header)}\s*\n(?:[^\[]*\n)*){re.escape(array_name)}\s*=\s*\[([^\]]*)\]"
+    match = re.search(pattern, content, flags=re.MULTILINE)
+    if match:
+        existing = match.group(2).strip()
+        items = [existing] if existing else []
+        rendered = ", ".join(items + [f'"{value}"'])
+        replacement = f"{match.group(1)}{array_name} = [{rendered}]"
+        return content[: match.start()] + replacement + content[match.end() :]
+    return content.replace(
+        section_header,
+        f'{section_header}\n{array_name} = ["{value}"]',
+        1,
+    )
+
+
 def apply_plan_to_pyproject(pyproject_path: Path, plan: RepairPlan) -> None:
-    content = pyproject_path.read_text()
+    content = pyproject_path.read_text(encoding="utf-8")
     dependencies = _extract_dependencies(pyproject_path)
 
     for action in plan.actions:
@@ -51,21 +68,47 @@ def apply_plan_to_pyproject(pyproject_path: Path, plan: RepairPlan) -> None:
         if action.target_version and action.target_version != "latest":
             dependency = f"{dependency}=={action.target_version}"
 
-        if dependency not in dependencies:
-            dependencies.append(dependency)
+        group = action.dependency_group or "main"
+        if group == "main":
+            if dependency not in dependencies:
+                dependencies.append(dependency)
+            continue
 
-    rendered_dependencies = ", ".join(f'"{dependency}"' for dependency in dependencies)
-    replacement = f"dependencies = [{rendered_dependencies}]"
+        if group == "dev":
+            content = _append_to_toml_array(
+                content, "[tool.uv]", "dependency-groups.dev", dependency
+            )
+            content = _append_to_toml_array(
+                content, "[project.optional-dependencies]", "dev", dependency
+            )
+            continue
 
-    if "dependencies = [" in content:
-        pyproject_path.write_text(_replace_dependencies_assignment(content, replacement))
-        return
-
-    project_header = "[project]"
-    if project_header in content:
-        pyproject_path.write_text(
-            content.replace(project_header, f"{project_header}\n{replacement}", 1)
+        content = _append_to_toml_array(
+            content,
+            "[project.optional-dependencies]",
+            group,
+            dependency,
         )
-        return
 
-    pyproject_path.write_text(f"{content.rstrip()}\n[project]\n{replacement}\n")
+    if any(
+        a.action_type
+        in {
+            RepairActionType.ADD_DEPENDENCY,
+            RepairActionType.PIN_VERSION,
+            RepairActionType.UPGRADE_DEPENDENCY,
+            RepairActionType.DOWNGRADE_DEPENDENCY,
+        }
+        and (a.dependency_group or "main") == "main"
+        for a in plan.actions
+    ):
+        rendered_dependencies = ", ".join(f'"{dependency}"' for dependency in dependencies)
+        replacement = f"dependencies = [{rendered_dependencies}]"
+
+        if "dependencies = [" in content:
+            content = _replace_dependencies_assignment(content, replacement)
+        elif "[project]" in content:
+            content = content.replace("[project]", f"[project]\n{replacement}", 1)
+        else:
+            content = f"{content.rstrip()}\n[project]\n{replacement}\n"
+
+    pyproject_path.write_text(content, encoding="utf-8")
