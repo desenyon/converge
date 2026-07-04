@@ -55,6 +55,8 @@ ANTIGRAVITY.md
 _agents/
 _agent/
 *.log
+graphify-out/
+src/converge/graphify-out/
 
 # IDEs
 .idea/
