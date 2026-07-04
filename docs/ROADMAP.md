@@ -9,9 +9,20 @@ This document maps the product roadmap to what exists in the codebase today.
 | Machine-readable `--json` on commands | Implemented (global flag) |
 | Stable exit codes (`ExitCode`: 0 / 1 / 2) | Implemented |
 | `--quiet` / `--verbose` | Implemented |
-| Configuration: `[tool.converge]` and `.converge.toml` | Implemented |
+| `--version` | Implemented |
+| `converge check` (scan + doctor) | Implemented |
+| `converge packages` inventory | Implemented |
+| `converge status` dashboard | Implemented |
+| `converge audit` log viewer | Implemented |
+| `converge init` config scaffold | Implemented |
 | `toolchain` command (detect uv / poetry / pip-tools / pip) | Implemented |
 | `lock` command (`uv lock` or `pip-compile`) | Implemented |
+| `scan --force` | Implemented |
+| `doctor --type` filter and `doctor --all` ecosystems | Implemented |
+| `clean --dry-run` | Implemented |
+| Branded Rich TUI (`cli/tui.py`) | Implemented |
+| Bash installer (`install.sh`) with PATH setup | Implemented |
+| Configuration: `[tool.converge]` and `.converge.toml` | Implemented |
 
 ## Scanning and graph
 
@@ -55,6 +66,13 @@ This document maps the product roadmap to what exists in the codebase today.
 | `uv sync --frozen` when `uv.lock` exists | Implemented |
 | Constraint-aware install specs from graph | Implemented |
 | Validation sandbox uses toolchain backends | Implemented |
+
+## Distribution
+
+| Capability | Status |
+|------------|--------|
+| PyPI publish | Not used — install via `install.sh` |
+| Manual git tag releases | Documented in `docs/RELEASE.md` |
 
 ## Stretch (deferred)
 

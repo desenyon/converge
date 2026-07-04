@@ -9,7 +9,7 @@ on:
     branches: [main]
 
 jobs:
-  doctor:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,5 +17,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install converge-cli
-      - run: converge scan .
-      - run: converge doctor .
+      - name: Scan and diagnose
+        run: converge check . --json
+      - name: Package inventory
+        run: converge packages . --json

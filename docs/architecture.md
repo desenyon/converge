@@ -27,3 +27,9 @@ Converge is organized around one rule: every operation is scoped to a specific t
 - `EnvironmentManager` provisions the repo-local environment at `.venv`.
 - `create` installs the package set derived from the target repository graph, not from any global database.
 - Validation uses an isolated sandbox and smoke-import checks before manifest mutations are applied to the host repository.
+
+## 6. CLI and Terminal UI
+- `src/converge/cli/main.py` wires Typer commands and global flags (`--json`, `--quiet`, `--verbose`, `--version`).
+- `src/converge/cli/tui.py` centralizes Rich panels, tables, progress bars, and status badges for a consistent interactive experience.
+- `converge check` runs scan + doctor as a single workflow; `converge packages`, `converge status`, and `converge audit` expose graph-derived summaries for developers and CI.
+- See [CLI.md](CLI.md) for the full command reference.

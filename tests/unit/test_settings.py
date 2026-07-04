@@ -43,4 +43,5 @@ incremental_scan = false
 def test_converge_settings_defaults() -> None:
     s = ConvergeSettings()
     assert s.skip_type_checking_imports is True
+    assert s.incremental_scan is True
     assert "pyproject" in s.repair_targets

@@ -39,7 +39,7 @@ class ConvergeSettings:
     )
     extra_scan_roots: tuple[str, ...] = ()
     scan_workers: int | None = None
-    incremental_scan: bool = False
+    incremental_scan: bool = True
     skip_type_checking_imports: bool = True
     repair_targets: tuple[str, ...] = ("pyproject",)
     requirements_file: str | None = None
@@ -81,7 +81,7 @@ class ConvergeSettings:
             ),
             extra_scan_roots=tup("extra_scan_roots", ()),
             scan_workers=scan_workers,
-            incremental_scan=bool(data.get("incremental_scan", False)),
+            incremental_scan=bool(data.get("incremental_scan", True)),
             skip_type_checking_imports=bool(data.get("skip_type_checking_imports", True)),
             repair_targets=tup("repair_targets", ("pyproject",)),
             requirements_file=req_file,

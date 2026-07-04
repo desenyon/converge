@@ -23,6 +23,8 @@
   &nbsp;·&nbsp;
   <a href="#development">Development</a>
   &nbsp;·&nbsp;
+  <a href="docs/CLI.md">CLI reference</a>
+  &nbsp;·&nbsp;
   <a href="docs/ROADMAP.md">Roadmap</a>
 </p>
 
@@ -35,17 +37,10 @@ Most tools answer one question at a time: what is declared, what is locked, or w
 It builds a graph inside the target repo, connects manifests, lockfiles, and source imports, then explains what is missing, unused, or out of sync. Every command is scoped to the path you pass in — running Converge from one directory never writes state into another project.
 
 ```text
-  repo path
-      │
-      ▼
-   scan ──► .converge/graph.db
-      │
-      ├── doctor     unresolved imports · unused deps · lock/compile drift
-      ├── explain    graph paths and conflict context
-      ├── create     uv sync or constraint-aware installs
-      ├── fix        validated add · pin · remove repairs
-      ├── toolchain  detect uv / pip-tools / poetry / pip
-      └── lock       uv lock or pip-compile
+init ──► check ──► packages ──► fix --apply ──► audit
+          │                              │
+          ▼                              ▼
+   .converge/graph.db            .converge/audit.log
 ```
 
 ---
@@ -81,8 +76,6 @@ Maintainers: see [docs/RELEASE.md](docs/RELEASE.md) for manual tagging and relea
 
 ## Quick start
 
-Imagine a repo with an undeclared import:
-
 ```python
 # main.py
 import requests
@@ -95,16 +88,14 @@ name = "demo"
 dependencies = []
 ```
 
-From any directory:
-
 ```bash
-converge scan /path/to/demo
-converge doctor /path/to/demo
-converge fix /path/to/demo          # dry-run: shows repair plans
-converge fix /path/to/demo --apply  # validates in sandbox, then writes manifest
+converge init /path/to/demo
+converge check /path/to/demo
+converge packages /path/to/demo
+converge fix /path/to/demo
+converge fix /path/to/demo --apply
+converge audit /path/to/demo
 ```
-
-Converge records applied repairs in `/path/to/demo/.converge/audit.log`.
 
 ---
 
@@ -119,12 +110,24 @@ Converge records applied repairs in `/path/to/demo/.converge/audit.log`.
   </thead>
   <tbody>
     <tr>
+      <td><code>init</code></td>
+      <td>Scaffold a repository-local <code>.converge.toml</code>.</td>
+    </tr>
+    <tr>
       <td><code>scan</code></td>
       <td>Parse manifests, lockfiles, imports, workspaces, and optional npm/system/cargo/conda hints into <code>.converge/graph.db</code>.</td>
     </tr>
     <tr>
+      <td><code>check</code></td>
+      <td>Run <code>scan</code> + <code>doctor</code> in one step (CI-friendly).</td>
+    </tr>
+    <tr>
       <td><code>doctor</code></td>
       <td>Report unresolved imports, unused deps, version clashes, lockfile/compile drift. JSON includes per-package <code>{declared, locked, imported}</code>.</td>
+    </tr>
+    <tr>
+      <td><code>packages</code></td>
+      <td>List declared, imported, missing, and unused packages.</td>
     </tr>
     <tr>
       <td><code>explain</code></td>
@@ -147,6 +150,14 @@ Converge records applied repairs in `/path/to/demo/.converge/audit.log`.
       <td>Regenerate <code>uv.lock</code> or run <code>pip-compile</code> for pip-tools repos.</td>
     </tr>
     <tr>
+      <td><code>audit</code></td>
+      <td>Show the append-only repair log from <code>fix --apply</code>.</td>
+    </tr>
+    <tr>
+      <td><code>status</code></td>
+      <td>Dashboard for graph state, scan fingerprints, and lockfiles.</td>
+    </tr>
+    <tr>
       <td><code>export</code></td>
       <td>Write graph JSON or CSV under <code>.converge/exports/</code>.</td>
     </tr>
@@ -157,12 +168,25 @@ Converge records applied repairs in `/path/to/demo/.converge/audit.log`.
   </tbody>
 </table>
 
+Full flag reference: [docs/CLI.md](docs/CLI.md)
+
+### Recommended workflow
+
+```bash
+converge check /path/to/repo
+converge packages /path/to/repo
+converge doctor /path/to/repo --type unresolved_import
+converge fix /path/to/repo --apply
+converge status /path/to/repo
+```
+
 ### Global flags
 
 ```bash
-converge --json doctor /path/to/repo    # machine-readable stdout
-converge --quiet scan /path/to/repo     # minimal Rich output
-converge --verbose fix /path/to/repo    # DEBUG logs on stderr
+converge --version
+converge --json doctor /path/to/repo
+converge --quiet scan /path/to/repo
+converge --verbose fix /path/to/repo
 ```
 
 `--json` envelopes include `schema_version` and `tool_version` for stable CI parsing.
@@ -172,14 +196,12 @@ converge --verbose fix /path/to/repo    # DEBUG logs on stderr
 | Code | Meaning |
 | ---: | --- |
 | `0` | Success |
-| `1` | Issues found (`doctor`, `fix` dry-run) |
+| `1` | Issues found (`doctor`, `fix` dry-run, `packages`) |
 | `2` | Command error (missing graph, failed export, etc.) |
 
 ---
 
 ## Repository-local state
-
-All derived artifacts live **inside the target repository**:
 
 | Path | Role |
 | --- | --- |
@@ -187,9 +209,8 @@ All derived artifacts live **inside the target repository**:
 | `.converge/scan_state.json` | Incremental scan fingerprints |
 | `.converge/exports/` | JSON / CSV exports |
 | `.converge/audit.log` | Append-only repair audit trail |
+| `.converge.toml` | Optional repo configuration |
 | `.venv` | Default environment from `create` |
-
-Configure behavior with `.converge.toml` or `[tool.converge]` in `pyproject.toml`:
 
 ```toml
 [tool.converge]
@@ -198,6 +219,8 @@ skip_type_checking_imports = true
 repair_targets = ["pyproject", "requirements"]
 extra_scan_roots = ["src"]
 ```
+
+Run `converge init .` to scaffold a commented `.converge.toml`.
 
 ---
 
@@ -217,8 +240,6 @@ Repairs are conservative: `fix --apply` never mutates the host repo unless sandb
 
 ## Development
 
-Clone and use a local venv:
-
 ```bash
 git clone https://github.com/desenyon/converge.git
 cd converge
@@ -227,15 +248,13 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Verify:
-
 ```bash
 TMPDIR=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src .venv/bin/pytest tests/unit tests/integration -v
 .venv/bin/ruff check src tests
 .venv/bin/mypy src/converge
 ```
 
-Agent and contributor notes: [AGENTS.md](AGENTS.md)
+Contributor notes: [AGENTS.md](AGENTS.md) · Architecture: [docs/architecture.md](docs/architecture.md)
 
 ---
 
