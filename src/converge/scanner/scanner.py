@@ -2,8 +2,11 @@ import logging
 from pathlib import Path
 
 from converge.graph.store import GraphStore
+from converge.lockfile import lockfile_to_graph
 from converge.models import EntityType, GraphEntity, GraphRelationship, RelationshipType
 from converge.scanner.ast_parser import PythonASTParser
+from converge.scanner.constraint_edges import build_constraint_conflict_edges
+from converge.scanner.ecosystem import scan_ecosystems
 from converge.scanner.incremental import (
     classify_file_changes,
     fingerprint_files,
@@ -12,6 +15,7 @@ from converge.scanner.incremental import (
 from converge.scanner.paths import iter_python_files
 from converge.scanner.project import ProjectParser
 from converge.scanner.service_detector import ServiceDetector
+from converge.scanner.workspace import scan_uv_workspace
 from converge.settings import ConvergeSettings
 
 log = logging.getLogger("converge.scanner")
@@ -23,6 +27,44 @@ class Scanner:
     def __init__(self, root_dir: str, settings: ConvergeSettings | None = None):
         self.root_dir = Path(root_dir)
         self.settings = settings or ConvergeSettings()
+
+    def _scan_manifests(self) -> tuple[list[GraphEntity], list[GraphRelationship]]:
+        project_parser = ProjectParser(str(self.root_dir))
+        entities: list[GraphEntity] = []
+        relationships: list[GraphRelationship] = []
+
+        pkgs, rels = project_parser.parse_pyproject()
+        entities.extend(pkgs)
+        relationships.extend(rels)
+
+        pkgs_req, rels_req = project_parser.parse_requirements_txt()
+        entities.extend(pkgs_req)
+        relationships.extend(rels_req)
+
+        pkgs_in, rels_in = project_parser.parse_requirements_in()
+        entities.extend(pkgs_in)
+        relationships.extend(rels_in)
+
+        pkgs_c, rels_c = project_parser.parse_constraint_files()
+        entities.extend(pkgs_c)
+        relationships.extend(rels_c)
+
+        repo_id = f"repo:{self.root_dir.name}"
+        lock_entities, lock_rels = lockfile_to_graph(self.root_dir, repo_id)
+        entities.extend(lock_entities)
+        relationships.extend(lock_rels)
+
+        ws_entities, ws_rels = scan_uv_workspace(self.root_dir)
+        entities.extend(ws_entities)
+        relationships.extend(ws_rels)
+
+        eco_entities, eco_rels = scan_ecosystems(self.root_dir)
+        entities.extend(eco_entities)
+        relationships.extend(eco_rels)
+
+        relationships.extend(build_constraint_conflict_edges(relationships))
+
+        return entities, relationships
 
     def scan_incremental(
         self, store: GraphStore, scan_state_path: Path, py_files: list[Path]
@@ -67,6 +109,12 @@ class Scanner:
         project_parser = ProjectParser(str(self.root_dir))
         pkgs, rels = project_parser.parse_pyproject()
         pkgs_req, rels_req = project_parser.parse_requirements_txt()
+        pkgs_in, rels_in = project_parser.parse_requirements_in()
+        pkgs_c, rels_c = project_parser.parse_constraint_files()
+        repo_id = f"repo:{self.root_dir.name}"
+        lock_entities, lock_rels = lockfile_to_graph(self.root_dir, repo_id)
+        ws_entities, ws_rels = scan_uv_workspace(self.root_dir)
+        eco_entities, eco_rels = scan_ecosystems(self.root_dir)
 
         paths_to_parse = sorted(self.root_dir / rel for rel in to_reparse)
         ast_parser = PythonASTParser(str(self.root_dir), settings=self.settings)
@@ -89,26 +137,35 @@ class Scanner:
             new_route_rels.extend(route_rels)
 
         entities: list[GraphEntity] = (
-            list(pkgs) + list(pkgs_req) + modules_kept + routes_kept + new_mods + new_routes
+            list(pkgs)
+            + list(pkgs_req)
+            + list(pkgs_in)
+            + list(pkgs_c)
+            + list(lock_entities)
+            + list(ws_entities)
+            + list(eco_entities)
+            + modules_kept
+            + routes_kept
+            + new_mods
+            + new_routes
         )
         relationships: list[GraphRelationship] = (
-            list(rels) + list(rels_req) + rels_kept + new_ast_rels + new_route_rels
+            list(rels)
+            + list(rels_req)
+            + list(rels_in)
+            + list(rels_c)
+            + list(lock_rels)
+            + list(ws_rels)
+            + list(eco_rels)
+            + rels_kept
+            + new_ast_rels
+            + new_route_rels
         )
+        relationships.extend(build_constraint_conflict_edges(relationships))
         return entities, relationships
 
     def scan_all(self) -> tuple[list[GraphEntity], list[GraphRelationship]]:
-        project_parser = ProjectParser(str(self.root_dir))
-
-        entities: list[GraphEntity] = []
-        relationships: list[GraphRelationship] = []
-
-        pkgs, rels = project_parser.parse_pyproject()
-        entities.extend(pkgs)
-        relationships.extend(rels)
-
-        pkgs_req, rels_req = project_parser.parse_requirements_txt()
-        entities.extend(pkgs_req)
-        relationships.extend(rels_req)
+        entities, relationships = self._scan_manifests()
 
         ast_parser = PythonASTParser(str(self.root_dir), settings=self.settings)
         mods, mod_rels = ast_parser.scan_directory()
