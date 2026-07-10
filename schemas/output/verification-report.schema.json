@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.concatenate.dev/converge/output/verification-report-1.0.0.schema.json",
+  "title": "VerificationReport",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "planId",
+    "sourceFingerprint",
+    "networkAllowed",
+    "passed",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "verificationReport"
+    },
+    "planId": {},
+    "sourceFingerprint": {},
+    "networkAllowed": {},
+    "passed": {},
+    "checks": {}
+  },
+  "additionalProperties": false
+}
