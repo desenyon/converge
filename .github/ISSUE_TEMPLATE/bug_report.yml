@@ -1,0 +1,15 @@
+name: Bug report
+description: Report incorrect discovery, planning, validation, or mutation behavior
+body:
+  - type: textarea
+    attributes:
+      label: Reproduction
+      description: Include the command, exit code, redacted output, and a minimal repository fixture.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Safety impact
+      description: State whether host files or environments changed.
+    validations:
+      required: true
