@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.concatenate.dev/converge/output/solve-report-1.0.0.schema.json",
+  "title": "SolveReport",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "discovery",
+    "diagnostics",
+    "selectedPlan",
+    "verification",
+    "appliedChanges",
+    "reproduction"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "solveReport"
+    },
+    "discovery": {},
+    "diagnostics": {},
+    "selectedPlan": {},
+    "verification": {},
+    "appliedChanges": {},
+    "reproduction": {}
+  },
+  "additionalProperties": false
+}

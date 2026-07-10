@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.concatenate.dev/converge/output/error-1.0.0.schema.json",
+  "title": "Error",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "message"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "error"
+    },
+    "message": {}
+  },
+  "additionalProperties": false
+}

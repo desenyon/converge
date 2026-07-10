@@ -1,0 +1,24 @@
+[package]
+name = "converge-sandbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+publish.workspace = true
+
+[dependencies]
+converge-core = { version = "=0.1.0", path = "../converge-core" }
+converge-executor = { version = "=0.1.0", path = "../converge-executor" }
+converge-model = { version = "=0.1.0", path = "../converge-model" }
+tempfile.workspace = true
+toml_edit.workspace = true
+walkdir.workspace = true
+
+[dev-dependencies]
+converge-discovery = { version = "=0.1.0", path = "../converge-discovery" }
+converge-planner = { version = "=0.1.0", path = "../converge-planner" }
+
+[lints]
+workspace = true

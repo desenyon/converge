@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.concatenate.dev/converge/output/graph-snapshot-1.0.0.schema.json",
+  "title": "GraphSnapshot",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "sourceFingerprint",
+    "nodes",
+    "edges"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "graphSnapshot"
+    },
+    "sourceFingerprint": {},
+    "nodes": {},
+    "edges": {}
+  },
+  "additionalProperties": false
+}

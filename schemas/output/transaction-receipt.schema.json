@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.concatenate.dev/converge/output/transaction-receipt-1.0.0.schema.json",
+  "title": "TransactionReceipt",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "planId",
+    "sourceFingerprintBefore",
+    "files",
+    "snapshotPath"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "transactionReceipt"
+    },
+    "planId": {},
+    "sourceFingerprintBefore": {},
+    "files": {},
+    "snapshotPath": {}
+  },
+  "additionalProperties": false
+}

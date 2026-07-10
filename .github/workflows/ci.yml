@@ -2,39 +2,56 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+
+permissions:
+  contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  rust:
     strategy:
       matrix:
-        python-version: ["3.12", "3.13"]
-
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-        
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e ".[dev]"
-        
-    - name: Format and lint with Ruff
-      run: |
-        ruff check src tests
-        ruff format --check src tests
-        
-    - name: Type check with mypy
-      run: |
-        mypy src/converge
-        
-    - name: Test with pytest (coverage)
-      run: |
-        pytest --cov=converge --cov-report=term-missing --cov-fail-under=60
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.28"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo test --workspace --all-features
+      - run: sh -n install.sh
+        if: runner.os != 'Windows'
+      - shell: pwsh
+        run: $null = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path install.ps1), [ref]$null, [ref]$null)
+        if: runner.os == 'Windows'
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.28"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+          components: rustfmt, clippy, llvm-tools-preview
+      - run: cargo install --locked cargo-nextest --version 0.9.140
+      - run: cargo install --locked cargo-audit --version 0.22.2
+      - run: cargo install --locked cargo-deny --version 0.20.2
+      - run: cargo install --locked cargo-machete --version 0.9.2
+      - run: cargo install --locked cargo-llvm-cov --version 0.8.7
+      - run: cargo nextest run --workspace --all-features
+      - run: cargo audit
+      - run: cargo deny check
+      - run: cargo machete
+      - run: cargo llvm-cov --workspace --all-features --fail-under-lines 65
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps

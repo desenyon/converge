@@ -1,263 +1,225 @@
-<p align="center">
-  <img src="docs/assets/converge-logo.svg" alt="Converge" width="720">
-</p>
+<div align="center">
 
-<p align="center">
-  <strong>Repository-scoped dependency intelligence for Python teams.</strong><br>
-  Scan manifests and imports, diagnose drift, create environments, and apply validated repairs — without leaving the target repo.
-</p>
+<img src="docs/assets/converge-mark.svg" alt="Converge — evidence to verified environment" width="720" />
 
-<p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-2dd4bf?style=for-the-badge&labelColor=0b1020">
-  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-8b5cf6?style=for-the-badge&logo=python&logoColor=white&labelColor=0b1020">
-  <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-64748b?style=for-the-badge&labelColor=0b1020">
-  <img alt="Install" src="https://img.shields.io/badge/install-bash%20script-f8fafc?style=for-the-badge&labelColor=0b1020">
-</p>
+<br />
 
-<p align="center">
-  <a href="#install">Install</a>
-  &nbsp;·&nbsp;
-  <a href="#quick-start">Quick start</a>
-  &nbsp;·&nbsp;
-  <a href="#commands">Commands</a>
-  &nbsp;·&nbsp;
-  <a href="#development">Development</a>
-  &nbsp;·&nbsp;
-  <a href="docs/CLI.md">CLI reference</a>
-  &nbsp;·&nbsp;
-  <a href="docs/ROADMAP.md">Roadmap</a>
-</p>
+**A local-first dependency intelligence engine that turns an unfamiliar Python repository into a verified, reproducible environment.**
+
+[![CI](https://github.com/desenyon/converge/actions/workflows/ci.yml/badge.svg)](https://github.com/desenyon/converge/actions/workflows/ci.yml)
+[![Rust 1.96](https://img.shields.io/badge/Rust-1.96-DEA584?logo=rust&logoColor=white)](rust-toolchain.toml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-2563EB.svg)](LICENSE)
+[![Schema](https://img.shields.io/badge/Schema-1.0.0-06B6D4)](schemas/)
+[![Security: RustSec](https://img.shields.io/badge/Security-RustSec-7C3AED)](SECURITY.md)
+
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Safety model](#safety-is-the-product) · [Architecture](#architecture) · [Docs](#documentation)
+
+</div>
 
 ---
 
-## Why Converge
+Most environment tools begin after you already understand the project. Converge begins before that.
 
-Most tools answer one question at a time: what is declared, what is locked, or what is imported. **Converge treats the repository as a system.**
-
-It builds a graph inside the target repo, connects manifests, lockfiles, and source imports, then explains what is missing, unused, or out of sync. Every command is scoped to the path you pass in — running Converge from one directory never writes state into another project.
+It reads the repository as evidence—manifests, lockfiles, imports, runtimes, tools, and host constraints—then builds a typed dependency model, explains what is inconsistent, proposes the smallest deterministic repair, proves that repair in isolation, and only then touches the host.
 
 ```text
-init ──► check ──► packages ──► fix --apply ──► audit
-          │                              │
-          ▼                              ▼
-   .converge/graph.db            .converge/audit.log
+unknown repository
+       │
+       ▼
+ discover evidence ──► typed graph ──► diagnostics ──► ranked repair plan
+                                                            │
+                                                            ▼
+                                                isolated uv validation
+                                                            │
+                                          only if every required check passes
+                                                            ▼
+                                              atomic apply + audit + undo
 ```
-
----
-
-## Install
-
-Converge ships via a **bash installer** (no PyPI). The script clones the release into `~/.local/share/converge`, installs into a dedicated venv, links `converge` into `~/.local/bin`, and updates your shell `PATH` when needed.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/desenyon/converge/main/install.sh | bash
-```
-
-**Pin a release tag:**
-
-```bash
-CONVERGE_REF=v0.2.0 curl -fsSL https://raw.githubusercontent.com/desenyon/converge/main/install.sh | bash
-```
-
-**Upgrade later:** run the same command again. The installer updates the clone and reinstalls in place.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `CONVERGE_HOME` | `~/.local/share/converge` | Clone + venv location |
-| `CONVERGE_BIN_DIR` | `~/.local/bin` | Where the `converge` symlink is created |
-| `CONVERGE_REPO_URL` | `https://github.com/desenyon/converge.git` | Source repository |
-| `CONVERGE_REF` | `main` | Branch or tag to install |
-
-After install, open a new terminal (or `export PATH="$HOME/.local/bin:$PATH"`) and run `converge --help`.
-
-Maintainers: see [docs/RELEASE.md](docs/RELEASE.md) for manual tagging and release steps.
-
----
 
 ## Quick start
 
-```python
-# main.py
-import requests
-```
-
-```toml
-# pyproject.toml
-[project]
-name = "demo"
-dependencies = []
-```
+Preview everything without mutation:
 
 ```bash
-converge init /path/to/demo
-converge check /path/to/demo
-converge packages /path/to/demo
-converge fix /path/to/demo
-converge fix /path/to/demo --apply
-converge audit /path/to/demo
+converge solve . --dry-run
 ```
 
----
-
-## Commands
-
-<table>
-  <thead>
-    <tr>
-      <th align="left">Command</th>
-      <th align="left">What it does</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code>init</code></td>
-      <td>Scaffold a repository-local <code>.converge.toml</code>.</td>
-    </tr>
-    <tr>
-      <td><code>scan</code></td>
-      <td>Parse manifests, lockfiles, imports, workspaces, and optional npm/system/cargo/conda hints into <code>.converge/graph.db</code>.</td>
-    </tr>
-    <tr>
-      <td><code>check</code></td>
-      <td>Run <code>scan</code> + <code>doctor</code> in one step (CI-friendly).</td>
-    </tr>
-    <tr>
-      <td><code>doctor</code></td>
-      <td>Report unresolved imports, unused deps, version clashes, lockfile/compile drift. JSON includes per-package <code>{declared, locked, imported}</code>.</td>
-    </tr>
-    <tr>
-      <td><code>packages</code></td>
-      <td>List declared, imported, missing, and unused packages.</td>
-    </tr>
-    <tr>
-      <td><code>explain</code></td>
-      <td>Trace a conflict ID or package node through the graph.</td>
-    </tr>
-    <tr>
-      <td><code>create</code></td>
-      <td>Build <code>.venv</code> with <code>uv sync --frozen</code> when locked, else constraint-aware installs (<code>--provider auto</code>).</td>
-    </tr>
-    <tr>
-      <td><code>fix</code></td>
-      <td>Ranked repair plans (add / pin / remove). <code>--apply</code> validates in an isolated sandbox before touching the host repo.</td>
-    </tr>
-    <tr>
-      <td><code>toolchain</code></td>
-      <td>Detect uv, poetry, pip-tools, or pip and recommend the right install command.</td>
-    </tr>
-    <tr>
-      <td><code>lock</code></td>
-      <td>Regenerate <code>uv.lock</code> or run <code>pip-compile</code> for pip-tools repos.</td>
-    </tr>
-    <tr>
-      <td><code>audit</code></td>
-      <td>Show the append-only repair log from <code>fix --apply</code>.</td>
-    </tr>
-    <tr>
-      <td><code>status</code></td>
-      <td>Dashboard for graph state, scan fingerprints, and lockfiles.</td>
-    </tr>
-    <tr>
-      <td><code>export</code></td>
-      <td>Write graph JSON or CSV under <code>.converge/exports/</code>.</td>
-    </tr>
-    <tr>
-      <td><code>clean</code></td>
-      <td>Remove Converge artifacts from the target repository.</td>
-    </tr>
-  </tbody>
-</table>
-
-Full flag reference: [docs/CLI.md](docs/CLI.md)
-
-### Recommended workflow
+Validate and apply the selected plan:
 
 ```bash
-converge check /path/to/repo
-converge packages /path/to/repo
-converge doctor /path/to/repo --type unresolved_import
-converge fix /path/to/repo --apply
-converge status /path/to/repo
+converge solve . --yes
 ```
 
-### Global flags
+Restore the exact prior files and environment:
 
 ```bash
-converge --version
-converge --json doctor /path/to/repo
-converge --quiet scan /path/to/repo
-converge --verbose fix /path/to/repo
+converge undo .
 ```
 
-`--json` envelopes include `schema_version` and `tool_version` for stable CI parsing.
+Install from source today:
 
-### Exit codes
-
-| Code | Meaning |
-| ---: | --- |
-| `0` | Success |
-| `1` | Issues found (`doctor`, `fix` dry-run, `packages`) |
-| `2` | Command error (missing graph, failed export, etc.) |
-
----
-
-## Repository-local state
-
-| Path | Role |
-| --- | --- |
-| `.converge/graph.db` | SQLite dependency graph |
-| `.converge/scan_state.json` | Incremental scan fingerprints |
-| `.converge/exports/` | JSON / CSV exports |
-| `.converge/audit.log` | Append-only repair audit trail |
-| `.converge.toml` | Optional repo configuration |
-| `.venv` | Default environment from `create` |
-
-```toml
-[tool.converge]
-incremental_scan = true
-skip_type_checking_imports = true
-repair_targets = ["pyproject", "requirements"]
-extra_scan_roots = ["src"]
+```bash
+cargo install --path crates/converge-cli
 ```
 
-Run `converge init .` to scaffold a commented `.converge.toml`.
+Release installers are configured for Linux, macOS, and Windows. See the [installation guide](docs/installation.md).
 
----
+## The one-command contract
 
-## What Converge understands
+`converge solve .` coordinates the entire correctness path:
 
-| Layer | Sources |
-| --- | --- |
-| **Python manifests** | `pyproject.toml`, `requirements*.txt`, `requirements*.in`, `constraints*.txt` |
-| **Lockfiles** | `uv.lock`, `poetry.lock`, pip-tools compile output |
-| **Source** | AST imports (incl. `TYPE_CHECKING`, dynamic imports), service routes |
-| **Toolchains** | uv workspaces, dependency groups, `[tool.uv.sources]` |
-| **Other ecosystems** | `package.json`, `Dockerfile` / `apt.txt`, `Cargo.toml`, `environment.yml` |
+1. Canonicalize the explicit repository target.
+2. Fingerprint relevant source evidence.
+3. Parse Python metadata and imports.
+4. Build the typed property graph.
+5. Emit evidence-backed diagnostics.
+6. Generate a content-addressed repair plan.
+7. Apply the candidate only inside a temporary repository copy.
+8. Ask uv to resolve, check, and dry-run the frozen environment.
+9. Recheck the host fingerprint under an exclusive repository lock.
+10. Snapshot affected files and any previous `.venv`.
+11. Atomically install the exact validated candidate.
+12. Persist graph and append-only audit state.
+13. Print exact reproduction and undo instructions.
 
-Repairs are conservative: `fix --apply` never mutates the host repo unless sandbox validation passes first.
+## Safety is the product
 
----
+| Guarantee | How Converge enforces it |
+|---|---|
+| Read-only by default | Discovery, graphing, diagnosis, and planning never mutate the target |
+| No mutation before proof | Host application is unreachable until isolated validation passes |
+| Typed changes only | Every edit is a `RepairAction`, never free-form shell text |
+| No shell interpolation | External tools receive individual allowlisted process arguments |
+| Deterministic planning | Stable evidence, action ordering, and content-addressed plan IDs |
+| Stale-plan rejection | The repository fingerprint is checked again under a lock |
+| Atomic application | Cross-platform atomic file replacement prevents partial writes |
+| Real rollback | Files and the previous environment remain in a recoverable snapshot |
+| Honest uncertainty | Unknown import mappings and incomplete evidence are surfaced |
+| Local by default | State, plans, logs, snapshots, graph data, and audit events stay local |
+| Machine-readable | Versioned JSON and SARIF 2.1.0 are first-class interfaces |
+| Model-independent | No correctness decision depends on an LLM |
+
+Mutation safety is tested by injecting a failure after every transaction phase and proving that host files remain unchanged.
+
+## How it works
+
+### Discover
+
+```bash
+converge discover . --json
+```
+
+Converge currently extracts PEP 621 metadata, uv lock state, requirements evidence, Python imports through Tree-sitter, host/runtime facts, and stable content fingerprints.
+
+### Diagnose
+
+```bash
+converge check .
+converge check . --sarif
+```
+
+Findings carry stable IDs, severity, affected graph entities, raw evidence locations, confidence, consequences, candidate repair actions, and whether environment creation is blocked.
+
+### Plan
+
+```bash
+converge plan . --json
+```
+
+Plans include typed actions, dependency ordering, risk, reversibility, network requirements, a file-diff preview, required verification checks, ranking rationale, and rejected alternatives.
+
+### Verify
+
+```bash
+converge verify . --json
+```
+
+The filesystem-copy backend applies the candidate away from the host, then uses the installed uv binary as the authoritative Python resolver and environment backend.
+
+### Audit and undo
+
+```bash
+converge audit . --json
+converge undo .
+```
+
+SQLite stores a derived graph and append-only audit record under `.converge/`. Original repository files remain canonical.
+
+## Architecture
+
+Converge is one Rust 2024 native binary assembled from narrow, replaceable crates.
+
+| Crate | Responsibility |
+|---|---|
+| `converge-model` | Stable domain contracts; no filesystem, database, network, CLI, or process code |
+| `converge-core` | Use-case policy, configuration precedence, and stable errors |
+| `converge-discovery` | Repository, host, manifest, lockfile, and syntax evidence |
+| `converge-graph` | Deterministic typed property graph construction |
+| `converge-planner` | Diagnostics, repair candidates, ranking, and explanations |
+| `converge-sandbox` | Isolated candidate preparation and validation |
+| `converge-executor` | Typed tool adapters, atomic transactions, environment sync, and undo |
+| `converge-store` | SQLite migrations, graph persistence, and append-only audit |
+| `converge-report` | Terminal, JSON, and SARIF output |
+| `converge-telemetry` | Local structured traces; export disabled by default |
+
+See the [architecture overview](docs/architecture/overview.md), [data model](docs/architecture/data-model.md), and [repair and sandbox design](docs/architecture/repair-and-sandbox.md).
+
+## Machine interfaces
+
+Every JSON document declares `schemaVersion: "1.0.0"`. Schemas live in [`schemas/`](schemas/) and have compatibility tests.
+
+```bash
+converge discover . --json
+converge graph . --json
+converge diagnose . --json
+converge plan . --json
+converge verify . --json
+converge solve . --dry-run --json
+```
+
+SARIF output includes source locations and works with code-scanning systems:
+
+```bash
+converge diagnose . --sarif > converge.sarif
+```
 
 ## Development
 
 ```bash
-git clone https://github.com/desenyon/converge.git
-cd converge
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-features
+cargo audit
+cargo deny check
+cargo machete
 ```
 
-```bash
-TMPDIR=/tmp PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src .venv/bin/pytest tests/unit tests/integration -v
-.venv/bin/ruff check src tests
-.venv/bin/mypy src/converge
-```
+The suite covers schema compatibility, configuration precedence, discovery, graph persistence, deterministic diagnostics and plans, real uv validation, offline failure safety, every transaction failure point, full solve, audit, and undo.
 
-Contributor notes: [AGENTS.md](AGENTS.md) · Architecture: [docs/architecture.md](docs/architecture.md)
+## Current scope
+
+The release-proven path is a PEP 621 Python project using uv. Converge deliberately does not claim support before an acceptance fixture proves it.
+
+Poetry, Conda, Python workspaces, local and Git dependency repair, native extensions, container isolation, polyglot plugins, security/SBOM adapters, and MCP transport are tracked transparently in [current limitations](docs/limitations.md) and the [roadmap](docs/ROADMAP.md).
+
+## Documentation
+
+- [CLI reference](docs/commands/cli.md)
+- [Installation](docs/installation.md)
+- [Threat model](docs/architecture/threat-model.md)
+- [JSON and SARIF](docs/formats/json.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Privacy](docs/privacy.md)
+- [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
+- [Current implementation state](docs/CURRENT_STATE.md)
 
 ---
 
-## License
+<div align="center">
 
-MIT — see [LICENSE](LICENSE).
+**Converge is part of Concatenate.**
+
+*One repository. One plan. One verified environment.*
+
+</div>
