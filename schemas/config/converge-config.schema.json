@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.concatenate.dev/converge/config/converge-config-1.0.0.schema.json",
+  "title": "ConvergeConfig",
+  "type": "object",
+  "properties": {
+    "network": { "enum": ["deny", "allow"] },
+    "autoApply": { "type": "boolean" },
+    "telemetry": { "type": "boolean" },
+    "commandTimeoutSeconds": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}
