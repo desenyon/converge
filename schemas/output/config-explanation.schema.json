@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.concatenate.dev/converge/output/config-explanation-1.0.0.schema.json",
+  "title": "ConfigExplanation",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "config", "settings"],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "kind": { "const": "configExplanation" },
+    "config": { "type": "object" },
+    "settings": { "type": "array" }
+  },
+  "additionalProperties": false
+}
