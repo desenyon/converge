@@ -1,0 +1,15 @@
+name: Feature request
+description: Propose a repository-evidence or convergence capability
+body:
+  - type: textarea
+    attributes:
+      label: Evidence and user outcome
+      description: Describe the repository evidence, expected diagnosis, repair, and verification contract.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Acceptance fixture
+      description: Describe the hermetic fixture that would prove the capability.
+    validations:
+      required: true
