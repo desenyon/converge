@@ -1,83 +1,22 @@
-# Converge feature roadmap (implemented vs. stretch)
+# Roadmap
 
-This document maps the product roadmap to what exists in the codebase today.
+## Verified
 
-## CLI and automation
+- Phase 0: contracts and bootstrap
+- Phase 1: PEP 621 and uv discovery
+- Phase 2: evidence-backed diagnosis and SARIF
+- Phase 3: typed deterministic repair planning
+- Phase 4: temporary-copy uv validation
+- Phase 5: transactional apply, environment replacement, audit, and undo
+- Phase 6: one-command solve
 
-| Capability | Status |
-|------------|--------|
-| Machine-readable `--json` on commands | Implemented (global flag) |
-| Stable exit codes (`ExitCode`: 0 / 1 / 2) | Implemented |
-| `--quiet` / `--verbose` | Implemented |
-| `--version` | Implemented |
-| `converge check` (scan + doctor) | Implemented |
-| `converge packages` inventory | Implemented |
-| `converge status` dashboard | Implemented |
-| `converge audit` log viewer | Implemented |
-| `converge init` config scaffold | Implemented |
-| `toolchain` command (detect uv / poetry / pip-tools / pip) | Implemented |
-| `lock` command (`uv lock` or `pip-compile`) | Implemented |
-| `scan --force` | Implemented |
-| `doctor --type` filter and `doctor --all` ecosystems | Implemented |
-| `clean --dry-run` | Implemented |
-| Branded Rich TUI (`cli/tui.py`) | Implemented |
-| Bash installer (`install.sh`) with PATH setup | Implemented |
-| Configuration: `[tool.converge]` and `.converge.toml` | Implemented |
+## Before public 0.1 readiness
 
-## Scanning and graph
+- Poetry, Conda, pip-tools, local path, Git dependency, workspace, native extension, contradictory manifest, malformed manifest, no-tests, and offline acceptance fixtures
+- hosted Linux, macOS, and Windows CI evidence
+- generated cargo-dist release workflow and installer smoke tests
 
-| Capability | Status |
-|------------|--------|
-| Parallel AST parsing | Implemented |
-| Incremental scan + partial graph merge | Implemented |
-| Skip `TYPE_CHECKING` imports | Implemented |
-| Test vs. source module classification | Implemented |
-| Lockfile entities (`LOCKED_BY`, `RESOLVES_TO`) for uv + poetry | Implemented |
-| `CONFLICTS_WITH` edges for incompatible declared constraints | Implemented |
-| uv workspace members (`BELONGS_TO`) | Implemented |
-| pip-tools `requirements.in` + compiled `requirements.txt` | Implemented |
-| Constraints files (`constraints*.txt`) | Implemented |
-| Editable installs (`CONFIGURED_BY`) | Implemented |
-| npm, Dockerfile, `apt.txt`, `Cargo.toml`, `environment.yml` | Implemented |
-| `[tool.uv.sources]` in doctor JSON | Implemented |
+## After the Python path is reliable
 
-## Diagnosis and repair
-
-| Capability | Status |
-|------------|--------|
-| Unused deps ignore test-only imports and dev groups | Implemented |
-| Declared constraint intersection conflicts | Implemented |
-| Lockfile drift (`LOCKFILE_DRIFT`) | Implemented |
-| pip-tools compile drift (`COMPILE_DRIFT`) | Implemented |
-| `doctor --json` package `{declared, locked, imported}` triple | Implemented |
-| Add / pin / remove repair plans | Implemented |
-| Group-aware adds (test imports → dev group) | Implemented |
-| Plan ranking (prefer fewer, non-destructive changes) | Implemented |
-| uv-native `uv add` / `uv remove` / `uv lock` on fix | Implemented |
-| Requirements and pyproject manifest repairs | Implemented |
-| Audit log for `fix --apply` and `lock` | Implemented |
-
-## Environment and toolchain
-
-| Capability | Status |
-|------------|--------|
-| Unified `UvBackend` / `PipBackend` | Implemented |
-| `create --provider auto` | Implemented |
-| `uv sync --frozen` when `uv.lock` exists | Implemented |
-| Constraint-aware install specs from graph | Implemented |
-| Validation sandbox uses toolchain backends | Implemented |
-
-## Distribution
-
-| Capability | Status |
-|------------|--------|
-| PyPI publish | Not used — install via `install.sh` |
-| Manual git tag releases | Documented in `docs/RELEASE.md` |
-
-## Stretch (deferred)
-
-- Full Poetry-native repair (`poetry add` / `poetry lock`).
-- pnpm / yarn lock parsing for npm.
-- PEP 420 namespace package formalism.
-- `converge test` hook for post-repair test suite validation.
-- graphify MCP / Neo4j export (see `graphify-out/` for local architecture graphs).
+- Phase 7: Node, Rust, container, and system evidence adapters
+- Phase 8: MCP transport, impact analysis, and test selection
