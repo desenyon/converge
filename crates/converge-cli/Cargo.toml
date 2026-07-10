@@ -1,0 +1,39 @@
+[package]
+name = "converge-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+publish.workspace = true
+default-run = "converge"
+
+[[bin]]
+name = "converge"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+converge-core = { version = "=0.1.0", path = "../converge-core" }
+converge-discovery = { version = "=0.1.0", path = "../converge-discovery" }
+converge-executor = { version = "=0.1.0", path = "../converge-executor" }
+converge-graph = { version = "=0.1.0", path = "../converge-graph" }
+converge-model = { version = "=0.1.0", path = "../converge-model" }
+converge-planner = { version = "=0.1.0", path = "../converge-planner" }
+converge-report = { version = "=0.1.0", path = "../converge-report" }
+converge-sandbox = { version = "=0.1.0", path = "../converge-sandbox" }
+converge-store = { version = "=0.1.0", path = "../converge-store" }
+converge-telemetry = { version = "=0.1.0", path = "../converge-telemetry" }
+serde_json.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+walkdir.workspace = true
+
+[lints]
+workspace = true
+
+[package.metadata.dist]
+dist = true
