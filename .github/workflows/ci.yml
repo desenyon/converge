@@ -26,7 +26,9 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
-      - run: sh -n install.sh
+      - run: bash -n install.sh tests/installer.bash
+        if: runner.os != 'Windows'
+      - run: bash tests/installer.bash
         if: runner.os != 'Windows'
       - shell: pwsh
         run: $null = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path install.ps1), [ref]$null, [ref]$null)
