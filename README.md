@@ -56,13 +56,13 @@ Restore the exact prior files and environment:
 converge undo .
 ```
 
-Install from source today:
+Install everything with one command on macOS or Linux:
 
 ```bash
-cargo install --path crates/converge-cli
+curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/desenyon/converge/codex/converge-rust-rebuild/install.sh | bash
 ```
 
-Release installers are configured for Linux, macOS, and Windows. See the [installation guide](docs/installation.md).
+The installer checks system build tools, installs missing prerequisites, provisions Rust 1.96 and uv, builds Converge, adds it to your PATH, and verifies the result. Open a new terminal afterward—or run the activation command it prints. Windows and advanced options are covered in the [installation guide](docs/installation.md).
 
 ## The one-command contract
 
