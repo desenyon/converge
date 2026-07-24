@@ -2,35 +2,30 @@
 
 ## Session summary
 
-The disposable legacy Python implementation was replaced with a Rust 2024 workspace following `AGENTS.md`. The verified vertical slice implements discovery through solve, including authoritative uv validation, atomic host application, fresh environment synchronization, audit persistence, and undo. A single Bash installer now provisions system tools, Rust 1.96, uv, Converge, persistent PATH configuration, and final command verification on macOS and Linux.
+Poetry, Conda, and uv workspace read-only discovery were added on top of the verified PEP 621 plus uv solve path. Discovery now parses `[tool.poetry]` / `poetry.lock`, Conda `environment.yml`, and `[tool.uv.workspace]` members; the discovery contract exposes `workspaces` and per-project `backend`; the typed graph emits workspace nodes.
 
 ## Publication
 
-The Rust rebuild is published through the `codex/converge-rust-rebuild` branch. Each newly created or materially edited file has an individual commit; the intentional disposable-legacy removal is consolidated into one cleanup commit.
+Work continues on `codex/converge-rust-rebuild`.
 
 ## Important paths
 
-- `crates/converge-cli/src/main.rs`: CLI and solve state machine
-- `crates/converge-model/src/lib.rs`: stable contracts
-- `crates/converge-discovery/src/lib.rs`: Python evidence
-- `crates/converge-planner/src/lib.rs`: diagnostics and plans
-- `crates/converge-sandbox/src/lib.rs`: isolated candidate validation
-- `crates/converge-executor/src/transaction.rs`: apply, environment, rollback, undo
-- `schemas/`: machine contracts
-- `fixtures/python/`: acceptance evidence
-- `install.sh`: complete macOS/Linux source-bootstrap installer
-- `tests/installer.bash`: hermetic installer acceptance test
+- `crates/converge-discovery/src/lib.rs`: Poetry, Conda, and workspace discovery
+- `crates/converge-model/src/lib.rs`: `WorkspaceEvidence` and project `backend`
+- `schemas/output/discovery-snapshot.schema.json`: `workspaces` field
+- `fixtures/python/poetry_basic/`, `fixtures/python/conda_env/`, `fixtures/python/uv_workspace/`
+- `docs/decisions/0002-yaml-rust2-conda.md`: YAML parser ADR
 
 ## Verified results
 
-Formatting, warning-denied clippy, all workspace tests, real uv solve/undo acceptance, RustSec audit, cargo-deny advisories/licenses/bans/sources, workspace packaging, and installer acceptance complete. The previous publication CI matrix passed on Linux, macOS, and Windows.
+Targeted discovery/model/graph tests pass for the new fixtures. Full workspace validation should be re-run before merge.
 
 ## Unverified assumptions
 
-The new installer has been exercised hermetically on macOS ARM64. Its Linux package-manager branches require the pending hosted CI run; cargo-dist release generation remains unverified.
+Poetry and Conda paths are discovery-only; repair planning and sandbox validation still target the uv/PEP 621 apply path.
 
 ## Next three tasks
 
-1. Add Poetry, Conda, and Python workspace fixtures and read-only discovery.
-2. Add format-specific repair adapters only after authoritative uv validation succeeds.
+1. Add format-specific repair adapters only after authoritative backend validation succeeds.
+2. Add pip-tools, local path, Git dependency, and offline acceptance fixtures.
 3. Generate and verify the cargo-dist release workflow on GitHub.

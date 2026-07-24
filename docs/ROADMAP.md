@@ -12,7 +12,8 @@
 
 ## Before public 0.1 readiness
 
-- Poetry, Conda, pip-tools, local path, Git dependency, workspace, native extension, contradictory manifest, malformed manifest, no-tests, and offline acceptance fixtures
+- Poetry/Conda repair and environment creation after discovery (discovery fixtures exist)
+- pip-tools, local path, Git dependency, native extension, contradictory manifest, malformed manifest, no-tests, and offline acceptance fixtures
 - hosted Linux, macOS, and Windows CI evidence
 - generated cargo-dist release workflow and installer smoke tests
 
