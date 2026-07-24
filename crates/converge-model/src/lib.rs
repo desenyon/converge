@@ -149,8 +149,22 @@ pub struct PythonProject {
     pub name: Option<String>,
     /// Declared Python compatibility range.
     pub requires_python: Option<String>,
+    /// Manifest backend that produced this project evidence.
+    pub backend: String,
     /// Normalized dependency declarations.
     pub dependencies: Vec<PythonRequirement>,
+}
+
+/// A detected Python workspace boundary and its members.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceEvidence {
+    /// Workspace tooling kind such as `uv`, `poetry`, or `multiProject`.
+    pub kind: String,
+    /// Repository-relative workspace root manifest or definition path.
+    pub root: String,
+    /// Repository-relative member project directories or manifests.
+    pub members: Vec<String>,
 }
 
 /// A Python package resolved by a lockfile.
@@ -723,6 +737,8 @@ pub struct DiscoverySnapshot {
     pub manifests: Vec<DependencyFile>,
     /// Dependency lockfiles.
     pub lockfiles: Vec<DependencyFile>,
+    /// Detected Python workspaces.
+    pub workspaces: Vec<WorkspaceEvidence>,
     /// Detected Python projects.
     pub projects: Vec<PythonProject>,
     /// Python source imports.
@@ -756,6 +772,7 @@ impl DiscoverySnapshot {
             package_managers: Vec::new(),
             manifests: Vec::new(),
             lockfiles: Vec::new(),
+            workspaces: Vec::new(),
             projects: Vec::new(),
             imports: Vec::new(),
             locked_packages: Vec::new(),

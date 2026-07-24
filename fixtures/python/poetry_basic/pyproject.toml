@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "poetry-app"
+version = "0.1.0"
+description = "Poetry discovery fixture"
+authors = ["Converge <converge@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+httpx = "^0.28.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"

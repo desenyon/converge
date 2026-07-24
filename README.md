@@ -198,9 +198,9 @@ The suite covers schema compatibility, configuration precedence, discovery, grap
 
 ## Current scope
 
-The release-proven path is a PEP 621 Python project using uv. Converge deliberately does not claim support before an acceptance fixture proves it.
+The release-proven mutation path is a PEP 621 Python project using uv. Read-only discovery also covers Poetry, Conda environment files, and uv workspaces. Converge deliberately does not claim repair support before an acceptance fixture proves it.
 
-Poetry, Conda, Python workspaces, local and Git dependency repair, native extensions, container isolation, polyglot plugins, security/SBOM adapters, and MCP transport are tracked transparently in [current limitations](docs/limitations.md) and the [roadmap](docs/ROADMAP.md).
+Poetry/Conda repair, local and Git dependency repair, native extensions, container isolation, polyglot plugins, security/SBOM adapters, and MCP transport are tracked transparently in [current limitations](docs/limitations.md) and the [roadmap](docs/ROADMAP.md).
 
 ## Documentation
 

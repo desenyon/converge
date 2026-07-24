@@ -8,13 +8,14 @@ use std::str::FromStr;
 use converge_core::ConvergeError;
 use converge_model::{
     Confidence, DependencyFile, DiscoverySnapshot, Evidence, ImportEvidence, LockedPackage,
-    PythonProject, PythonRequirement, ToolEvidence,
+    PythonProject, PythonRequirement, ToolEvidence, WorkspaceEvidence,
 };
 use pep508_rs::Requirement;
 use time::OffsetDateTime;
 use tree_sitter::{Node, Parser};
 use uuid::Uuid;
 use walkdir::WalkDir;
+use yaml_rust2::{Yaml, YamlLoader};
 
 /// Resolve and validate the explicit repository target.
 ///
@@ -57,66 +58,116 @@ pub fn discover(path: impl AsRef<Path>) -> Result<DiscoverySnapshot, ConvergeErr
     });
 
     for path in &files {
-        let relative = relative_path(&target, path);
-        let content = std::fs::read_to_string(path).map_err(|error| {
-            ConvergeError::Discovery(format!("cannot read {}: {error}", path.display()))
-        })?;
-        let content_fingerprint = blake3::hash(content.as_bytes()).to_hex().to_string();
-
-        match path.file_name().and_then(|name| name.to_str()) {
-            Some("pyproject.toml") => {
-                snapshot.manifests.push(DependencyFile {
-                    path: relative.clone(),
-                    format: "pyproject.toml".to_owned(),
-                    fingerprint: content_fingerprint,
-                });
-                match parse_pyproject(&relative, &content) {
-                    Ok(project) => snapshot.projects.push(project),
-                    Err(error) => snapshot.warnings.push(format!("{relative}: {error}")),
-                }
-            }
-            Some("uv.lock") => {
-                snapshot.lockfiles.push(DependencyFile {
-                    path: relative.clone(),
-                    format: "uv.lock".to_owned(),
-                    fingerprint: content_fingerprint,
-                });
-                match parse_uv_lock(&relative, &content) {
-                    Ok(packages) => snapshot.locked_packages.extend(packages),
-                    Err(error) => snapshot.warnings.push(format!("{relative}: {error}")),
-                }
-            }
-            Some(name) if is_requirements_file(name) => {
-                snapshot.manifests.push(DependencyFile {
-                    path: relative.clone(),
-                    format: "requirements".to_owned(),
-                    fingerprint: content_fingerprint,
-                });
-                let requirements = parse_requirements(&relative, &content, &mut snapshot.warnings);
-                if let Some(project) = snapshot.projects.first_mut() {
-                    project.dependencies.extend(requirements);
-                } else {
-                    snapshot.projects.push(PythonProject {
-                        manifest_path: relative,
-                        name: None,
-                        requires_python: None,
-                        dependencies: requirements,
-                    });
-                }
-            }
-            Some(_) if has_extension(path, "py") => {
-                match parse_python_imports(&relative, &content) {
-                    Ok(imports) => snapshot.imports.extend(imports),
-                    Err(error) => snapshot.warnings.push(format!("{relative}: {error}")),
-                }
-            }
-            _ => {}
-        }
+        ingest_file(&target, path, &mut snapshot)?;
     }
 
+    record_multi_project_workspace(&mut snapshot);
     sort_and_deduplicate(&mut snapshot);
     detect_python_tools(&mut snapshot);
     Ok(snapshot)
+}
+
+fn ingest_file(
+    target: &Path,
+    path: &Path,
+    snapshot: &mut DiscoverySnapshot,
+) -> Result<(), ConvergeError> {
+    let relative = relative_path(target, path);
+    let content = std::fs::read_to_string(path).map_err(|error| {
+        ConvergeError::Discovery(format!("cannot read {}: {error}", path.display()))
+    })?;
+    let content_fingerprint = blake3::hash(content.as_bytes()).to_hex().to_string();
+
+    match path.file_name().and_then(|name| name.to_str()) {
+        Some("pyproject.toml") => {
+            snapshot.manifests.push(DependencyFile {
+                path: relative.clone(),
+                format: "pyproject.toml".to_owned(),
+                fingerprint: content_fingerprint,
+            });
+            match parse_pyproject(target, &relative, &content) {
+                Ok((project, workspace)) => {
+                    snapshot.projects.push(project);
+                    if let Some(workspace) = workspace {
+                        snapshot.workspaces.push(workspace);
+                    }
+                }
+                Err(error) => snapshot.warnings.push(format!("{relative}: {error}")),
+            }
+        }
+        Some("uv.lock") => {
+            ingest_toml_lock(
+                snapshot,
+                &relative,
+                "uv.lock",
+                content_fingerprint,
+                &content,
+            );
+        }
+        Some("poetry.lock") => {
+            ingest_toml_lock(
+                snapshot,
+                &relative,
+                "poetry.lock",
+                content_fingerprint,
+                &content,
+            );
+        }
+        Some(name) if is_conda_environment_file(name) => {
+            snapshot.manifests.push(DependencyFile {
+                path: relative.clone(),
+                format: "conda.environment".to_owned(),
+                fingerprint: content_fingerprint,
+            });
+            match parse_conda_environment(&relative, &content) {
+                Ok(project) => snapshot.projects.push(project),
+                Err(error) => snapshot.warnings.push(format!("{relative}: {error}")),
+            }
+        }
+        Some(name) if is_requirements_file(name) => {
+            snapshot.manifests.push(DependencyFile {
+                path: relative.clone(),
+                format: "requirements".to_owned(),
+                fingerprint: content_fingerprint,
+            });
+            let requirements = parse_requirements(&relative, &content, &mut snapshot.warnings);
+            if let Some(project) = snapshot.projects.first_mut() {
+                project.dependencies.extend(requirements);
+            } else {
+                snapshot.projects.push(PythonProject {
+                    manifest_path: relative,
+                    name: None,
+                    requires_python: None,
+                    backend: "requirements".to_owned(),
+                    dependencies: requirements,
+                });
+            }
+        }
+        Some(_) if has_extension(path, "py") => match parse_python_imports(&relative, &content) {
+            Ok(imports) => snapshot.imports.extend(imports),
+            Err(error) => snapshot.warnings.push(format!("{relative}: {error}")),
+        },
+        _ => {}
+    }
+    Ok(())
+}
+
+fn ingest_toml_lock(
+    snapshot: &mut DiscoverySnapshot,
+    relative: &str,
+    format: &str,
+    fingerprint: String,
+    content: &str,
+) {
+    snapshot.lockfiles.push(DependencyFile {
+        path: relative.to_owned(),
+        format: format.to_owned(),
+        fingerprint,
+    });
+    match parse_toml_package_lock(relative, content) {
+        Ok(packages) => snapshot.locked_packages.extend(packages),
+        Err(error) => snapshot.warnings.push(format!("{relative}: {error}")),
+    }
 }
 
 fn relevant_files(target: &Path) -> Result<Vec<PathBuf>, ConvergeError> {
@@ -152,8 +203,10 @@ fn is_relevant_file(path: &Path) -> bool {
     };
     name == "pyproject.toml"
         || name == "uv.lock"
+        || name == "poetry.lock"
         || has_extension(path, "py")
         || is_requirements_file(name)
+        || is_conda_environment_file(name)
 }
 
 fn is_requirements_file(name: &str) -> bool {
@@ -163,6 +216,10 @@ fn is_requirements_file(name: &str) -> bool {
             value.eq_ignore_ascii_case("txt") || value.eq_ignore_ascii_case("in")
         }))
         || name == "constraints.txt"
+}
+
+fn is_conda_environment_file(name: &str) -> bool {
+    name.eq_ignore_ascii_case("environment.yml") || name.eq_ignore_ascii_case("environment.yaml")
 }
 
 fn has_extension(path: &Path, expected: &str) -> bool {
@@ -191,20 +248,32 @@ fn relative_path(target: &Path, path: &Path) -> String {
         .replace('\\', "/")
 }
 
-fn parse_pyproject(path: &str, content: &str) -> Result<PythonProject, String> {
+fn parse_pyproject(
+    target: &Path,
+    path: &str,
+    content: &str,
+) -> Result<(PythonProject, Option<WorkspaceEvidence>), String> {
     let value: toml::Value = toml::from_str(content).map_err(|error| error.to_string())?;
-    let project = value.get("project").and_then(toml::Value::as_table);
-    let name = project
+    let project_table = value.get("project").and_then(toml::Value::as_table);
+    let poetry = value
+        .get("tool")
+        .and_then(toml::Value::as_table)
+        .and_then(|tool| tool.get("poetry"))
+        .and_then(toml::Value::as_table);
+
+    let mut name = project_table
         .and_then(|table| table.get("name"))
         .and_then(toml::Value::as_str)
         .map(ToOwned::to_owned);
-    let requires_python = project
+    let mut requires_python = project_table
         .and_then(|table| table.get("requires-python"))
         .and_then(toml::Value::as_str)
         .map(ToOwned::to_owned);
 
     let mut dependencies = Vec::new();
-    if let Some(items) = project
+    let mut backend = "pep621".to_owned();
+
+    if let Some(items) = project_table
         .and_then(|table| table.get("dependencies"))
         .and_then(toml::Value::as_array)
     {
@@ -221,6 +290,52 @@ fn parse_pyproject(path: &str, content: &str) -> Result<PythonProject, String> {
         }
     }
 
+    if let Some(poetry) = poetry {
+        backend = if project_table.is_some() {
+            "pep621+poetry".to_owned()
+        } else {
+            "poetry".to_owned()
+        };
+        if name.is_none() {
+            name = poetry
+                .get("name")
+                .and_then(toml::Value::as_str)
+                .map(ToOwned::to_owned);
+        }
+        if requires_python.is_none() {
+            requires_python = poetry
+                .get("dependencies")
+                .and_then(toml::Value::as_table)
+                .and_then(|deps| deps.get("python"))
+                .and_then(poetry_python_constraint);
+        }
+        if let Some(deps) = poetry.get("dependencies").and_then(toml::Value::as_table) {
+            dependencies.extend(parse_poetry_dependency_table(path, "default", deps)?);
+        }
+        if let Some(groups) = poetry.get("group").and_then(toml::Value::as_table) {
+            for (group, body) in groups {
+                if let Some(deps) = body
+                    .as_table()
+                    .and_then(|table| table.get("dependencies"))
+                    .and_then(toml::Value::as_table)
+                {
+                    dependencies.extend(parse_poetry_dependency_table(path, group, deps)?);
+                }
+            }
+        }
+        if let Some(dev) = poetry
+            .get("dev-dependencies")
+            .and_then(toml::Value::as_table)
+        {
+            dependencies.extend(parse_poetry_dependency_table(path, "dev", dev)?);
+        }
+    }
+
+    if project_table.is_none() && poetry.is_none() {
+        "pyproject".clone_into(&mut backend);
+    }
+
+    dedupe_requirements(&mut dependencies);
     dependencies.sort_by(|left, right| {
         (&left.group, &left.normalized_name, &left.raw).cmp(&(
             &right.group,
@@ -228,12 +343,159 @@ fn parse_pyproject(path: &str, content: &str) -> Result<PythonProject, String> {
             &right.raw,
         ))
     });
-    Ok(PythonProject {
-        manifest_path: path.to_owned(),
-        name,
-        requires_python,
-        dependencies,
-    })
+
+    let workspace = parse_uv_workspace(target, path, &value)?;
+    Ok((
+        PythonProject {
+            manifest_path: path.to_owned(),
+            name,
+            requires_python,
+            backend,
+            dependencies,
+        },
+        workspace,
+    ))
+}
+
+fn parse_uv_workspace(
+    target: &Path,
+    path: &str,
+    value: &toml::Value,
+) -> Result<Option<WorkspaceEvidence>, String> {
+    let Some(members) = value
+        .get("tool")
+        .and_then(toml::Value::as_table)
+        .and_then(|tool| tool.get("uv"))
+        .and_then(toml::Value::as_table)
+        .and_then(|uv| uv.get("workspace"))
+        .and_then(toml::Value::as_table)
+        .and_then(|workspace| workspace.get("members"))
+        .and_then(toml::Value::as_array)
+    else {
+        return Ok(None);
+    };
+
+    let patterns = members
+        .iter()
+        .filter_map(toml::Value::as_str)
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    let mut resolved = expand_workspace_members(target, path, &patterns)?;
+    resolved.sort();
+    resolved.dedup();
+    Ok(Some(WorkspaceEvidence {
+        kind: "uv".to_owned(),
+        root: path.to_owned(),
+        members: resolved,
+    }))
+}
+
+fn expand_workspace_members(
+    target: &Path,
+    root_manifest: &str,
+    patterns: &[String],
+) -> Result<Vec<String>, String> {
+    let root_dir = Path::new(root_manifest)
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut members = Vec::new();
+    for pattern in patterns {
+        let absolute_pattern = target.join(root_dir).join(pattern);
+        if pattern.contains('*') {
+            let Some(parent) = absolute_pattern.parent() else {
+                continue;
+            };
+            let Some(file_name) = absolute_pattern.file_name().and_then(|name| name.to_str())
+            else {
+                continue;
+            };
+            let entries = std::fs::read_dir(parent).map_err(|error| {
+                format!("cannot expand workspace member pattern {pattern}: {error}")
+            })?;
+            for entry in entries {
+                let entry = entry.map_err(|error| error.to_string())?;
+                if !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+                    continue;
+                }
+                let name = entry.file_name();
+                let Some(name) = name.to_str() else {
+                    continue;
+                };
+                if !glob_match(file_name, name) {
+                    continue;
+                }
+                let member_manifest = entry.path().join("pyproject.toml");
+                if member_manifest.is_file() {
+                    members.push(relative_path(target, &member_manifest));
+                }
+            }
+        } else {
+            let member_manifest = if absolute_pattern.file_name().and_then(|name| name.to_str())
+                == Some("pyproject.toml")
+            {
+                absolute_pattern
+            } else {
+                absolute_pattern.join("pyproject.toml")
+            };
+            if member_manifest.is_file() {
+                members.push(relative_path(target, &member_manifest));
+            }
+        }
+    }
+    Ok(members)
+}
+
+fn glob_match(pattern: &str, value: &str) -> bool {
+    if let Some((prefix, suffix)) = pattern.split_once('*') {
+        return value.starts_with(prefix)
+            && value.ends_with(suffix)
+            && value.len() >= prefix.len() + suffix.len();
+    }
+    pattern == value
+}
+
+fn poetry_python_constraint(value: &toml::Value) -> Option<String> {
+    match value {
+        toml::Value::String(raw) => Some(raw.clone()),
+        toml::Value::Table(table) => table
+            .get("version")
+            .and_then(toml::Value::as_str)
+            .map(ToOwned::to_owned),
+        _ => None,
+    }
+}
+
+fn parse_poetry_dependency_table(
+    path: &str,
+    group: &str,
+    table: &toml::Table,
+) -> Result<Vec<PythonRequirement>, String> {
+    let mut requirements = Vec::new();
+    for (name, value) in table {
+        if name == "python" {
+            continue;
+        }
+        let normalized = pep508_rs::PackageName::from_str(name)
+            .map_err(|error| format!("invalid poetry package name {name}: {error}"))?
+            .to_string();
+        let constraint = match value {
+            toml::Value::String(raw) => Some(raw.as_str()),
+            toml::Value::Table(table) => table.get("version").and_then(toml::Value::as_str),
+            _ => None,
+        };
+        let raw = match constraint {
+            Some(constraint) => format!("{name} ({constraint})"),
+            None => name.clone(),
+        };
+        requirements.push(PythonRequirement {
+            raw,
+            normalized_name: normalized,
+            group: group.to_owned(),
+            source: path.to_owned(),
+        });
+    }
+    Ok(requirements)
 }
 
 fn parse_requirement_array(
@@ -288,7 +550,7 @@ fn parse_requirements(
     requirements
 }
 
-fn parse_uv_lock(path: &str, content: &str) -> Result<Vec<LockedPackage>, String> {
+fn parse_toml_package_lock(path: &str, content: &str) -> Result<Vec<LockedPackage>, String> {
     let value: toml::Value = toml::from_str(content).map_err(|error| error.to_string())?;
     let packages = value
         .get("package")
@@ -319,6 +581,103 @@ fn parse_uv_lock(path: &str, content: &str) -> Result<Vec<LockedPackage>, String
     }
     locked.sort_by(|left, right| (&left.name, &left.version).cmp(&(&right.name, &right.version)));
     Ok(locked)
+}
+
+fn parse_conda_environment(path: &str, content: &str) -> Result<PythonProject, String> {
+    let documents = YamlLoader::load_from_str(content).map_err(|error| error.to_string())?;
+    let document = documents
+        .first()
+        .ok_or_else(|| "conda environment file is empty".to_owned())?;
+    let name = document["name"].as_str().map(ToOwned::to_owned);
+
+    let mut dependencies = Vec::new();
+    let mut requires_python = None;
+    if let Some(items) = document["dependencies"].as_vec() {
+        for item in items {
+            match item {
+                Yaml::String(raw) => {
+                    if let Some(python) = conda_python_constraint(raw) {
+                        requires_python = Some(python);
+                        continue;
+                    }
+                    if let Some(requirement) = conda_spec_requirement(path, "default", raw) {
+                        dependencies.push(requirement);
+                    }
+                }
+                Yaml::Hash(map) => {
+                    for (key, value) in map {
+                        if key.as_str() != Some("pip") {
+                            continue;
+                        }
+                        let Some(pip_items) = value.as_vec() else {
+                            continue;
+                        };
+                        for pip_item in pip_items {
+                            let Some(raw) = pip_item.as_str() else {
+                                continue;
+                            };
+                            match parse_requirement(path, "pip", raw) {
+                                Ok(requirement) => dependencies.push(requirement),
+                                Err(error) => {
+                                    return Err(format!("pip dependency {raw}: {error}"));
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    dedupe_requirements(&mut dependencies);
+    dependencies.sort_by(|left, right| {
+        (&left.group, &left.normalized_name, &left.raw).cmp(&(
+            &right.group,
+            &right.normalized_name,
+            &right.raw,
+        ))
+    });
+
+    Ok(PythonProject {
+        manifest_path: path.to_owned(),
+        name,
+        requires_python,
+        backend: "conda".to_owned(),
+        dependencies,
+    })
+}
+
+fn conda_python_constraint(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    let rest = trimmed.strip_prefix("python")?;
+    if rest.is_empty() {
+        return Some("*".to_owned());
+    }
+    match rest.as_bytes().first() {
+        Some(b'=') if rest.starts_with("==") => Some(rest.to_owned()),
+        Some(b'=') => Some(format!("=={}", rest.trim_start_matches('='))),
+        Some(b'<' | b'>' | b'!') => Some(rest.to_owned()),
+        _ => None,
+    }
+}
+
+fn conda_spec_requirement(path: &str, group: &str, raw: &str) -> Option<PythonRequirement> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.starts_with('#') {
+        return None;
+    }
+    let name = trimmed.split(['=', '<', '>', '!', ' ', '|']).next()?.trim();
+    if name.is_empty() || name == "python" {
+        return None;
+    }
+    let normalized = pep508_rs::PackageName::from_str(name).ok()?.to_string();
+    Some(PythonRequirement {
+        raw: trimmed.to_owned(),
+        normalized_name: normalized,
+        group: group.to_owned(),
+        source: path.to_owned(),
+    })
 }
 
 fn parse_python_imports(path: &str, content: &str) -> Result<Vec<ImportEvidence>, String> {
@@ -391,6 +750,41 @@ fn modules_from_import(kind: &str, text: &str) -> Vec<String> {
         .collect()
 }
 
+fn record_multi_project_workspace(snapshot: &mut DiscoverySnapshot) {
+    let manifests = snapshot
+        .projects
+        .iter()
+        .filter(|project| project.manifest_path.ends_with("pyproject.toml"))
+        .map(|project| project.manifest_path.clone())
+        .collect::<Vec<_>>();
+    if manifests.len() < 2 {
+        return;
+    }
+    if snapshot
+        .workspaces
+        .iter()
+        .any(|workspace| workspace.kind == "uv" || workspace.kind == "multiProject")
+    {
+        return;
+    }
+    snapshot.workspaces.push(WorkspaceEvidence {
+        kind: "multiProject".to_owned(),
+        root: manifests[0].clone(),
+        members: manifests,
+    });
+}
+
+fn dedupe_requirements(requirements: &mut Vec<PythonRequirement>) {
+    let mut seen = BTreeSet::new();
+    requirements.retain(|item| {
+        seen.insert((
+            item.group.clone(),
+            item.normalized_name.clone(),
+            item.raw.clone(),
+        ))
+    });
+}
+
 fn sort_and_deduplicate(snapshot: &mut DiscoverySnapshot) {
     snapshot
         .manifests
@@ -398,6 +792,9 @@ fn sort_and_deduplicate(snapshot: &mut DiscoverySnapshot) {
     snapshot
         .lockfiles
         .sort_by(|left, right| left.path.cmp(&right.path));
+    snapshot.workspaces.sort_by(|left, right| {
+        (&left.kind, &left.root, &left.members).cmp(&(&right.kind, &right.root, &right.members))
+    });
     snapshot
         .projects
         .sort_by(|left, right| left.manifest_path.cmp(&right.manifest_path));
@@ -422,10 +819,40 @@ fn detect_python_tools(snapshot: &mut DiscoverySnapshot) {
         .lockfiles
         .iter()
         .any(|file| file.format == "uv.lock")
+        || snapshot
+            .workspaces
+            .iter()
+            .any(|workspace| workspace.kind == "uv")
     {
         snapshot
             .package_managers
             .push(tool_version("uv", "--version"));
+    }
+    if snapshot
+        .lockfiles
+        .iter()
+        .any(|file| file.format == "poetry.lock")
+        || snapshot
+            .projects
+            .iter()
+            .any(|project| project.backend.contains("poetry"))
+    {
+        snapshot
+            .package_managers
+            .push(tool_version("poetry", "--version"));
+    }
+    if snapshot
+        .projects
+        .iter()
+        .any(|project| project.backend == "conda")
+        || snapshot
+            .manifests
+            .iter()
+            .any(|file| file.format == "conda.environment")
+    {
+        snapshot
+            .package_managers
+            .push(tool_version("conda", "--version"));
     }
 }
 

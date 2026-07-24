@@ -1,16 +1,16 @@
 # Limitations
 
-The verified 0.1 path is PEP 621 `pyproject.toml` plus uv, standard requirements files for discovery, and static Python imports.
+The verified 0.1 path is PEP 621 `pyproject.toml` plus uv, with read-only discovery for Poetry, Conda environment files, requirements files, uv workspaces, and static Python imports.
 
 Not yet release-proven:
 
-- Poetry, Conda, setup.py/setup.cfg mutation, and PEP 723 repair;
+- Poetry, Conda, setup.py/setup.cfg, and PEP 723 repair or environment creation;
 - dynamic-import and type-checking-only classification;
-- Python workspaces and local/Git dependency repair;
+- local/Git dependency repair beyond discovery evidence;
 - container, Node, Rust, and system-package plugins;
 - OS namespace or macOS sandbox hardening;
 - automatic project test-command execution;
 - vulnerability, SBOM, and secret-scanner adapters;
 - MCP transport serving and impact analysis.
 
-These formats are not claimed as supported until acceptance fixtures pass.
+Poetry/Conda/workspace formats are discoverable and modeled; repair and authoritative environment creation for those backends are not claimed until acceptance fixtures pass validation and apply stages.

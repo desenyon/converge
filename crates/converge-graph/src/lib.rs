@@ -37,6 +37,23 @@ pub fn build_graph(snapshot: &DiscoverySnapshot) -> GraphSnapshot {
         }
     }
 
+    for workspace in &snapshot.workspaces {
+        let workspace_id = format!("workspace:{}:{}", workspace.kind, workspace.root);
+        insert_node(&mut nodes, &workspace_id, NodeType::Workspace, fingerprint);
+        insert_edge(
+            &mut edges,
+            &repository_id,
+            &workspace_id,
+            EdgeType::Contains,
+        );
+        for member in &workspace.members {
+            let project_id = format!("project:{member}");
+            if nodes.contains_key(&project_id) {
+                insert_edge(&mut edges, &workspace_id, &project_id, EdgeType::Contains);
+            }
+        }
+    }
+
     for locked in &snapshot.locked_packages {
         let lock_id = format!("lockfile:{}", locked.source);
         let package_id = format!("package:{}", locked.name);
