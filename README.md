@@ -223,3 +223,85 @@ Poetry/Conda repair, local and Git dependency repair, native extensions, contain
 *One repository. One plan. One verified environment.*
 
 </div>
+
+<!-- architecture-atlas-v5:start -->
+## Architecture Atlas v5
+
+These editable Mermaid diagrams mirror the [Notion architecture dossier](https://app.notion.com/p/3b467342e8c1810e81a2f074dcc61660?pvs=204).
+
+### 1. System anatomy
+
+```mermaid
+flowchart LR
+  CLI["CLI: discover / check / plan / verify / solve / undo"] --> CORE["converge-core<br>policy, configuration, stable errors"]
+  CORE --> DISC["converge-discovery<br>manifests, lockfiles, Tree-sitter imports, host facts"]
+  DISC --> MODEL["converge-model<br>typed evidence and RepairAction contracts"]
+  MODEL --> GRAPH["converge-graph<br>deterministic property graph"]
+  GRAPH --> PLAN["converge-planner<br>findings, candidates, ranking, explanations"]
+  PLAN --> SANDBOX["converge-sandbox<br>isolated repository copy + uv proof"]
+  SANDBOX --> EXEC["converge-executor<br>lock, stale check, snapshot, atomic apply, undo"]
+  EXEC --> STORE["converge-store<br>SQLite graph + append-only audit"]
+  EXEC --> REPORT["converge-report<br>terminal, JSON 1.0.0, SARIF"]
+  EXEC --> TRACE["converge-telemetry<br>local structured traces"]
+  REPO[("Canonical repository")] -. evidence .-> DISC
+  PLANDB[("Content-addressed plan")] -. proof identity .-> SANDBOX
+  SNAP[("Files + previous .venv snapshot")] -. rollback .-> EXEC
+```
+
+### 2. Transaction wiring
+
+```mermaid
+flowchart TB
+  E["Fingerprint source evidence"] --> G["Build typed graph"] --> D["Emit evidence-backed diagnostics"] --> P["Rank smallest deterministic repair"]
+  P --> C["Copy candidate into isolated repository"] --> UV["uv resolve + check + frozen dry-run"]
+  UV -->|all required checks pass| L["Acquire exclusive repository lock"]
+  UV -->|failure| STOP["Return proof failure; host remains unchanged"]
+  L --> F{"Fingerprint still equals plan fingerprint?"}
+  F -->|no| STALE["Reject stale plan"]
+  F -->|yes| S["Snapshot affected files and existing environment"] --> A["Atomic file replacement + exact environment sync"] --> AUDIT["Persist graph, plan, phases, reproduction, undo"]
+  A -. injected failure .-> R["Restore snapshot"]
+```
+
+### 3. Runtime narrative
+
+```mermaid
+sequenceDiagram
+  actor Dev as Developer
+  participant D as Discovery
+  participant P as Graph + Planner
+  participant V as Sandbox Validator
+  participant T as Host Transaction
+  participant S as Store + Report
+  Dev->>D: converge solve .
+  D->>P: typed repository and host evidence
+  P->>V: content-addressed RepairAction plan
+  V->>V: apply candidate away from host; run uv proof
+  alt proof fails
+    V-->>Dev: diagnostics and rejected candidate
+  else proof succeeds
+    V->>T: validated plan ID
+    T->>T: lock + stale fingerprint check + snapshot
+    T->>T: atomic apply and environment sync
+    T->>S: graph, audit event, undo metadata
+    S-->>Dev: reproduction and exact undo instructions
+  end
+```
+
+### 4. Reliability model
+
+```mermaid
+stateDiagram-v2
+  [*] --> DISCOVERED
+  DISCOVERED --> GRAPHED --> DIAGNOSED --> PLANNED --> SANDBOXED --> VERIFIED
+  VERIFIED --> LOCKED --> SNAPSHOTTED --> APPLIED --> AUDITED
+  PLANNED --> REJECTED: candidate cannot be proven
+  LOCKED --> STALE: repository changed
+  SNAPSHOTTED --> ROLLED_BACK: phase failure
+  AUDITED --> UNDONE: explicit undo
+  REJECTED --> [*]
+  STALE --> [*]
+  ROLLED_BACK --> [*]
+  UNDONE --> [*]
+```
+
+<!-- architecture-atlas-v5:end -->
