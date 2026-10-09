@@ -16,7 +16,7 @@ fn discover_emits_only_versioned_json() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(output.stderr.is_empty(), "JSON mode must keep stderr quiet");
+    assert_eq!(output.stderr.len(), 0, "JSON mode must keep stderr quiet");
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("valid JSON");
     assert_eq!(value["schemaVersion"], "1.0.0");
     assert_eq!(value["kind"], "discoverySnapshot");

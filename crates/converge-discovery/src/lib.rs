@@ -1,9 +1,11 @@
 //! Read-only repository and host discovery.
 
 use std::collections::BTreeSet;
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::str::FromStr;
+use std::time::{Duration, Instant};
 
 use converge_core::ConvergeError;
 use converge_model::{
@@ -131,17 +133,13 @@ fn ingest_file(
                 fingerprint: content_fingerprint,
             });
             let requirements = parse_requirements(&relative, &content, &mut snapshot.warnings);
-            if let Some(project) = snapshot.projects.first_mut() {
-                project.dependencies.extend(requirements);
-            } else {
-                snapshot.projects.push(PythonProject {
-                    manifest_path: relative,
-                    name: None,
-                    requires_python: None,
-                    backend: "requirements".to_owned(),
-                    dependencies: requirements,
-                });
-            }
+            snapshot.projects.push(PythonProject {
+                manifest_path: relative,
+                name: None,
+                requires_python: None,
+                backend: "requirements".to_owned(),
+                dependencies: requirements,
+            });
         }
         Some(_) if has_extension(path, "py") => match parse_python_imports(&relative, &content) {
             Ok(imports) => snapshot.imports.extend(imports),
@@ -201,7 +199,10 @@ fn is_relevant_file(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
         return false;
     };
-    name == "pyproject.toml"
+    name == ".converge.toml"
+        || name == "uv.toml"
+        || name == ".python-version"
+        || name == "pyproject.toml"
         || name == "uv.lock"
         || name == "poetry.lock"
         || has_extension(path, "py")
@@ -857,25 +858,68 @@ fn detect_python_tools(snapshot: &mut DiscoverySnapshot) {
 }
 
 fn tool_version(name: &str, argument: &str) -> ToolEvidence {
-    let version = Command::new(name)
-        .arg(argument)
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            if stdout.trim().is_empty() {
-                stderr.trim().to_owned()
-            } else {
-                stdout.trim().to_owned()
-            }
-        })
-        .filter(|value| !value.is_empty());
+    let version = probe_tool_version(name, argument);
 
     ToolEvidence {
         name: name.trim_end_matches('3').to_owned(),
         version,
         source: "hostPath".to_owned(),
     }
+}
+
+/// Probe a tool version with a two-second deadline and 8 KiB per-stream cap.
+/// Unavailable, stalled, or unsuccessful tools have no detected version.
+#[must_use]
+pub fn probe_tool_version(name: &str, argument: &str) -> Option<String> {
+    let mut child = Command::new(name)
+        .arg(argument)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .ok()?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let stdout = child.stdout.take()?;
+    let stderr = child.stderr.take()?;
+    for (index, mut reader) in [
+        (0, Box::new(stdout) as Box<dyn Read + Send>),
+        (1, Box::new(stderr) as Box<dyn Read + Send>),
+    ] {
+        let sender = sender.clone();
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = reader.by_ref().take(8192).read_to_end(&mut bytes);
+            let _ = sender.send((index, bytes));
+        });
+    }
+    let success = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.success(),
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(10)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    };
+    if !success {
+        return None;
+    }
+    let mut outputs = [Vec::new(), Vec::new()];
+    for _ in 0..2 {
+        let (index, bytes) = receiver
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            .ok()?;
+        outputs[index] = bytes;
+    }
+    let stdout = String::from_utf8_lossy(&outputs[0]);
+    let stderr = String::from_utf8_lossy(&outputs[1]);
+    let version = if stdout.trim().is_empty() {
+        stderr.trim()
+    } else {
+        stdout.trim()
+    };
+    (!version.is_empty()).then(|| version.to_owned())
 }

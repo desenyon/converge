@@ -39,3 +39,40 @@ fn resolves_field_level_precedence_and_sources() {
     assert_eq!(explanation.settings[0].source, "cli");
     assert_eq!(explanation.settings[1].source, "environment");
 }
+
+#[test]
+fn malformed_field_types_and_zero_cli_timeout_are_rejected() {
+    let target = tempfile::tempdir().expect("target");
+    for content in [
+        "network = true",
+        "autoApply = 'yes'",
+        "commandTimeoutSeconds = '300'",
+        "typo = true",
+    ] {
+        std::fs::write(target.path().join(".converge.toml"), content).unwrap();
+        assert!(
+            converge_core::resolve_config(
+                target.path(),
+                None,
+                &std::collections::BTreeMap::new(),
+                &converge_core::ConfigOverrides::default()
+            )
+            .is_err(),
+            "{content}"
+        );
+    }
+    std::fs::remove_file(target.path().join(".converge.toml")).unwrap();
+    let overrides = converge_core::ConfigOverrides {
+        command_timeout_seconds: Some(0),
+        ..Default::default()
+    };
+    assert!(
+        converge_core::resolve_config(
+            target.path(),
+            None,
+            &std::collections::BTreeMap::new(),
+            &overrides
+        )
+        .is_err()
+    );
+}

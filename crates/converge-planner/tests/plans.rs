@@ -34,5 +34,5 @@ fn creates_minimal_deterministic_plan_for_missing_dependencies() {
         Some(RepairAction::GenerateLockfile { .. })
     ));
     assert!(first.network_required);
-    assert!(!first.file_diff_preview.is_empty());
+    assert_ne!(first.file_diff_preview.len(), 0);
 }

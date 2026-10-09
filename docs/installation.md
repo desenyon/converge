@@ -1,42 +1,28 @@
 # Installation
 
-## One-command macOS and Linux install
-
-Run:
+The reliable development path is a reviewed source checkout with Rust 1.96+, native build tools, uv on PATH, and an already installed compatible Python interpreter:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://raw.githubusercontent.com/desenyon/converge/codex/converge-rust-rebuild/install.sh | bash
+git clone https://github.com/desenyon/converge.git
+cd converge
+cargo build --release --locked -p converge-cli -j 2
+./target/release/converge doctor
 ```
 
-The installer:
+Windows uses `target\release\converge.exe` and requires the C/C++ tools for the selected Rust target. CI builds/tests Windows separately; the Bash bootstrap applies to macOS/Linux only.
 
-1. Detects missing system build tools.
-2. Installs them with `apt`, `dnf`, `yum`, `pacman`, `zypper`, or `apk` on Linux.
-3. Checks for Xcode Command Line Tools on macOS and opens Apple's installer when required.
-4. Installs rustup and the pinned Rust 1.96 toolchain when missing.
-5. Installs the pinned uv 0.11.28 release when missing or different.
-6. Builds the locked Converge source and installs it to `~/.local/bin/converge`.
-7. Adds that directory to the active shell's startup file without duplicating entries.
-8. Runs `converge --version` and `uv --version` before reporting success.
-
-Administrator authentication may be requested when the operating system needs to install packages. Apple's Command Line Tools dialog must finish before the script can be rerun. A child installer cannot alter its parent shell, so use the activation command printed at the end or open a new terminal window.
-
-Optional overrides:
+Review `install.sh` before running it. It may install system packages, install rustup/Rust 1.96.0 and uv 0.11.28, build Converge, copy it to `~/.local/bin`, and append PATH initialization to shell startup files. System package installation may require administrator authentication. On macOS, Apple's Command Line Tools installation must complete before retrying the script.
 
 ```bash
-CONVERGE_INSTALL_DIR="$HOME/bin" \
-CONVERGE_REF="codex/converge-rust-rebuild" \
-  bash install.sh
+# Use the current reviewed checkout, including an unmerged branch:
+CONVERGE_SOURCE_DIR="$PWD" bash install.sh
+
+# Or select a remote branch/tag explicitly:
+CONVERGE_REF=main CONVERGE_INSTALL_DIR="$HOME/bin" bash install.sh
 ```
 
-For a local checkout, skip the download with `CONVERGE_SOURCE_DIR="$PWD" bash install.sh`.
+The default remote source is desenyon/converge at main. New shell startup settings do not modify the parent shell; open a new terminal or use the activation instructions printed by the installer. Shell installer acceptance tests use mock tools and do not install system packages.
 
-## Windows
+`install.ps1` is a release-asset downloader, not a source bootstrap. It requires a separately published versioned asset from desenyon/converge; do not infer asset availability from the script's presence. Release publishing is outside this upgrade.
 
-The current PowerShell release installer is:
-
-```powershell
-irm https://raw.githubusercontent.com/desenyon/converge/codex/converge-rust-rebuild/install.ps1 | iex
-```
-
-The fully bootstrapping workflow added in this change is Bash-only and targets macOS and Linux.
+Converge disables Python downloads when executing uv. Install a compatible interpreter before solving a project. A writable `UV_CACHE_DIR` is useful when the default uv cache is inaccessible.

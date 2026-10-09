@@ -264,6 +264,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "uuid",
  "walkdir",
 ]
 
@@ -318,6 +319,7 @@ dependencies = [
  "converge-model",
  "converge-planner",
  "tempfile",
+ "tokio",
  "toml_edit",
  "walkdir",
 ]

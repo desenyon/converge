@@ -1,6 +1,8 @@
 //! Deterministic diagnosis, repair planning, and solver adapters.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write;
+use std::path::Path;
 
 use converge_model::{
     AlternativePlan, Confidence, Diagnostic, DiagnosticReport, DiagnosticType, DiscoverySnapshot,
@@ -10,6 +12,52 @@ use converge_model::{
 /// Produce stable, evidence-backed diagnostics from normalized discovery evidence.
 #[must_use]
 pub fn diagnose(snapshot: &DiscoverySnapshot) -> DiagnosticReport {
+    if snapshot.projects.is_empty() {
+        return diagnose_project(snapshot);
+    }
+    let mut diagnostics = Vec::new();
+    for project in &snapshot.projects {
+        let directory = Path::new(&project.manifest_path)
+            .parent()
+            .unwrap_or(Path::new(""));
+        let mut scoped = snapshot.clone();
+        scoped.projects = vec![project.clone()];
+        scoped.imports.retain(|import| {
+            let source = Path::new(&import.source_path);
+            source.starts_with(directory)
+                && !snapshot.projects.iter().any(|other| {
+                    let other_dir = Path::new(&other.manifest_path)
+                        .parent()
+                        .unwrap_or(Path::new(""));
+                    other_dir != directory
+                        && other_dir.starts_with(directory)
+                        && source.starts_with(other_dir)
+                })
+        });
+        scoped
+            .locked_packages
+            .retain(|package| Path::new(&package.source).parent() == Some(directory));
+        let mut report = diagnose_project(&scoped);
+        if snapshot.projects.len() > 1 {
+            for diagnostic in &mut report.diagnostics {
+                diagnostic.id = format!("{}:{}", project.manifest_path, diagnostic.id);
+                diagnostic
+                    .affected_entities
+                    .push(format!("project:{}", project.manifest_path));
+            }
+        }
+        diagnostics.extend(report.diagnostics);
+    }
+    diagnostics.sort_by(|left, right| left.id.cmp(&right.id));
+    DiagnosticReport {
+        schema_version: SCHEMA_VERSION.to_owned(),
+        kind: "diagnosticReport".to_owned(),
+        source_fingerprint: snapshot.repository.source_fingerprint.clone(),
+        diagnostics,
+    }
+}
+
+fn diagnose_project(snapshot: &DiscoverySnapshot) -> DiagnosticReport {
     let declared: BTreeMap<_, _> = snapshot
         .projects
         .iter()
@@ -127,6 +175,7 @@ fn normalize_module_name(module: &str) -> String {
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPlan {
+    let supported = unsupported_reason(snapshot).is_none();
     let manifest_path = snapshot.projects.first().map_or_else(
         || "pyproject.toml".to_owned(),
         |project| project.manifest_path.clone(),
@@ -144,6 +193,9 @@ pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPl
         .collect();
     missing.sort();
     missing.dedup();
+    if !supported {
+        missing.clear();
+    }
 
     let mut actions = Vec::new();
     let mut file_diff_preview = Vec::new();
@@ -159,8 +211,22 @@ pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPl
         ));
     }
 
-    if !missing.is_empty() {
-        if let Some(lockfile) = snapshot.lockfiles.first() {
+    if supported {
+        actions.push(RepairAction::CreateEnvironment {
+            id: "create-environment:uv".to_owned(),
+            tool: "uv".to_owned(),
+        });
+    }
+    let uv_lock = snapshot
+        .lockfiles
+        .iter()
+        .find(|file| file.path == "uv.lock" && file.format == "uv.lock");
+    let drift = report
+        .diagnostics
+        .iter()
+        .any(|d| d.diagnostic_type == DiagnosticType::LockDrift);
+    if supported && (!missing.is_empty() || drift || uv_lock.is_none()) {
+        if let Some(lockfile) = uv_lock {
             actions.push(RepairAction::RefreshLockfile {
                 id: "refresh-lockfile:uv".to_owned(),
                 lockfile_path: lockfile.path.clone(),
@@ -179,7 +245,8 @@ pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPl
     if actions.is_empty() {
         actions.push(RepairAction::NoChange {
             id: "no-change".to_owned(),
-            reason: "no deterministic blocking repair is required".to_owned(),
+            reason: unsupported_reason(snapshot)
+                .unwrap_or_else(|| "no deterministic blocking repair is required".to_owned()),
         });
     }
 
@@ -199,9 +266,7 @@ pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPl
                 .collect()
         });
 
-    let checks = if missing.is_empty() && snapshot.lockfiles.is_empty() {
-        Vec::new()
-    } else {
+    let mut checks = if supported {
         vec![
             ToolInvocation {
                 tool: "uv".to_owned(),
@@ -211,16 +276,46 @@ pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPl
             },
             ToolInvocation {
                 tool: "uv".to_owned(),
-                arguments: vec![
-                    "sync".to_owned(),
-                    "--frozen".to_owned(),
-                    "--dry-run".to_owned(),
-                ],
+                arguments: vec!["sync".to_owned(), "--frozen".to_owned()],
                 required: true,
                 timeout_seconds: 300,
             },
         ]
+    } else {
+        Vec::new()
     };
+
+    if supported {
+        let modules: BTreeSet<_> = snapshot
+            .imports
+            .iter()
+            .filter(|import| import_to_distribution(&import.module).is_some())
+            .map(|import| import.module.as_str())
+            .collect();
+        let mut script =
+            "import sys; assert sys.prefix != sys.base_prefix, 'virtual environment required'"
+                .to_owned();
+        for module in modules {
+            let _ = write!(script, "; __import__({module:?})");
+        }
+        checks.push(ToolInvocation {
+            tool: "uv".to_owned(),
+            arguments: vec![
+                "run".to_owned(),
+                "--no-sync".to_owned(),
+                "python".to_owned(),
+                "-I".to_owned(),
+                "-c".to_owned(),
+                script,
+            ],
+            required: true,
+            timeout_seconds: 120,
+        });
+    }
+    let mut uncertainty = snapshot.warnings.clone();
+    if let Some(reason) = unsupported_reason(snapshot) {
+        uncertainty.push(reason);
+    }
 
     let mut id_hasher = blake3::Hasher::new();
     id_hasher.update(snapshot.repository.source_fingerprint.as_bytes());
@@ -238,8 +333,10 @@ pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPl
         kind: "repairPlan".to_owned(),
         plan_id,
         source_fingerprint: snapshot.repository.source_fingerprint.clone(),
-        objective: if missing.is_empty() {
-            "Preserve the verified repository state".to_owned()
+        objective: if !supported {
+            "Inspect a discovery-only target; automatic execution is unavailable".to_owned()
+        } else if missing.is_empty() {
+            "Establish a verified Python environment with uv".to_owned()
         } else {
             "Declare imported Python distributions and establish a valid uv lock".to_owned()
         },
@@ -249,10 +346,10 @@ pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPl
         assumptions: vec![
             "curated import-to-distribution mappings are correct for the cited modules".to_owned(),
         ],
-        unresolved_uncertainty: snapshot.warnings.clone(),
+        unresolved_uncertainty: uncertainty,
         estimated_risk: if missing.is_empty() { "none" } else { "low" }.to_owned(),
         reversible: true,
-        network_required: !missing.is_empty(),
+        network_required: supported,
         file_diff_preview,
         verification_contract: VerificationContract { checks },
         solver_explanation: vec![
@@ -271,4 +368,42 @@ pub fn plan(snapshot: &DiscoverySnapshot, report: &DiagnosticReport) -> RepairPl
             }]
         },
     }
+}
+
+/// Explain why automatic uv execution cannot safely target this snapshot.
+#[must_use]
+pub fn unsupported_reason(snapshot: &DiscoverySnapshot) -> Option<String> {
+    let supported = snapshot.projects.len() == 1
+        && snapshot.projects[0].manifest_path == "pyproject.toml"
+        && snapshot.projects[0].backend == "pep621"
+        && snapshot.workspaces.is_empty()
+        && snapshot
+            .manifests
+            .iter()
+            .all(|file| file.path == "pyproject.toml")
+        && snapshot
+            .lockfiles
+            .iter()
+            .all(|file| file.path == "uv.lock" && file.format == "uv.lock")
+        && snapshot.warnings.is_empty();
+    (!supported).then(|| "Automatic execution requires one valid root PEP 621 pyproject.toml with optional root uv.lock. Other backends, mixed manifests, nested projects, and workspaces are discovery-only; target an independent supported project directly.".to_owned())
+}
+
+/// Create a plan bound to the effective execution policy.
+#[must_use]
+pub fn plan_with_config(
+    snapshot: &DiscoverySnapshot,
+    report: &DiagnosticReport,
+    config: &converge_model::Config,
+) -> RepairPlan {
+    let mut plan = plan(snapshot, report);
+    for check in &mut plan.verification_contract.checks {
+        check.timeout_seconds = config.command_timeout_seconds;
+    }
+    let identity = format!(
+        "{}:{:?}:{}",
+        plan.plan_id, config.network, config.command_timeout_seconds
+    );
+    plan.plan_id = format!("plan-{}", &blake3::hash(identity.as_bytes()).to_hex()[..16]);
+    plan
 }

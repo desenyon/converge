@@ -20,6 +20,7 @@ impl Store {
     ///
     /// Returns a storage error when the database cannot be opened or migrated.
     pub fn open(path: &Path) -> Result<Self, ConvergeError> {
+        reject_database_symlinks(path)?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|error| ConvergeError::Store(error.to_string()))?;
@@ -109,45 +110,34 @@ impl Store {
             .connection
             .unchecked_transaction()
             .map_err(|error| ConvergeError::Store(error.to_string()))?;
+        write_graph(&transaction, source_fingerprint, nodes, edges)?;
         transaction
-            .execute("DELETE FROM graph_edges", [])
-            .and_then(|_| transaction.execute("DELETE FROM graph_nodes", []))
-            .map_err(|error| ConvergeError::Store(error.to_string()))?;
+            .commit()
+            .map_err(|error| ConvergeError::Store(error.to_string()))
+    }
 
-        for node in nodes {
-            let payload = serde_json::to_string(node)
-                .map_err(|error| ConvergeError::Store(error.to_string()))?;
-            transaction
-                .execute(
-                    "INSERT INTO graph_nodes(id, node_type, payload_json, source_fingerprint, observed_at)
-                     VALUES (?1, ?2, ?3, ?4, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
-                    rusqlite::params![
-                        node.id,
-                        format!("{:?}", node.node_type),
-                        payload,
-                        source_fingerprint
-                    ],
-                )
-                .map_err(|error| ConvergeError::Store(error.to_string()))?;
-        }
-        for edge in edges {
-            let payload = serde_json::to_string(edge)
-                .map_err(|error| ConvergeError::Store(error.to_string()))?;
-            transaction
-                .execute(
-                    "INSERT INTO graph_edges(id, source_id, target_id, edge_type, evidence_json, confidence, observed_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
-                    rusqlite::params![
-                        edge.id,
-                        edge.source_id,
-                        edge.target_id,
-                        format!("{:?}", edge.edge_type),
-                        payload,
-                        format!("{:?}", edge.confidence)
-                    ],
-                )
-                .map_err(|error| ConvergeError::Store(error.to_string()))?;
-        }
+    /// Persist the resulting graph and application audit event atomically.
+    ///
+    /// # Errors
+    /// Rolls back both database updates when either operation fails.
+    pub fn record_application(
+        &self,
+        graph: &converge_model::GraphSnapshot,
+        event_id: &str,
+        event_json: &str,
+    ) -> Result<(), ConvergeError> {
+        let transaction = self
+            .connection
+            .unchecked_transaction()
+            .map_err(|error| ConvergeError::Store(error.to_string()))?;
+        write_graph(
+            &transaction,
+            &graph.source_fingerprint,
+            &graph.nodes,
+            &graph.edges,
+        )?;
+        transaction.execute("INSERT INTO audit_events(event_id, event_json, recorded_at) VALUES (?1, ?2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))", rusqlite::params![event_id, event_json])
+            .map_err(|error| ConvergeError::Store(error.to_string()))?;
         transaction
             .commit()
             .map_err(|error| ConvergeError::Store(error.to_string()))
@@ -229,4 +219,66 @@ impl Store {
             records,
         })
     }
+}
+
+fn write_graph(
+    transaction: &Connection,
+    source_fingerprint: &str,
+    nodes: &[GraphNode],
+    edges: &[GraphEdge],
+) -> Result<(), ConvergeError> {
+    transaction
+        .execute("DELETE FROM graph_edges", [])
+        .and_then(|_| transaction.execute("DELETE FROM graph_nodes", []))
+        .map_err(|error| ConvergeError::Store(error.to_string()))?;
+
+    for node in nodes {
+        let payload =
+            serde_json::to_string(node).map_err(|error| ConvergeError::Store(error.to_string()))?;
+        transaction
+                .execute(
+                    "INSERT INTO graph_nodes(id, node_type, payload_json, source_fingerprint, observed_at)
+                     VALUES (?1, ?2, ?3, ?4, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+                    rusqlite::params![
+                        node.id,
+                        format!("{:?}", node.node_type),
+                        payload,
+                        source_fingerprint
+                    ],
+                )
+                .map_err(|error| ConvergeError::Store(error.to_string()))?;
+    }
+    for edge in edges {
+        let payload =
+            serde_json::to_string(edge).map_err(|error| ConvergeError::Store(error.to_string()))?;
+        transaction
+                .execute(
+                    "INSERT INTO graph_edges(id, source_id, target_id, edge_type, evidence_json, confidence, observed_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+                    rusqlite::params![
+                        edge.id,
+                        edge.source_id,
+                        edge.target_id,
+                        format!("{:?}", edge.edge_type),
+                        payload,
+                        format!("{:?}", edge.confidence)
+                    ],
+                )
+                .map_err(|error| ConvergeError::Store(error.to_string()))?;
+    }
+    Ok(())
+}
+
+fn reject_database_symlinks(path: &Path) -> Result<(), ConvergeError> {
+    for suffix in ["", "-wal", "-shm", "-journal"] {
+        let mut file = path.as_os_str().to_os_string();
+        file.push(suffix);
+        if std::fs::symlink_metadata(&file).is_ok_and(|metadata| metadata.file_type().is_symlink())
+        {
+            return Err(ConvergeError::Store(
+                "database symlinks are not supported".to_owned(),
+            ));
+        }
+    }
+    Ok(())
 }

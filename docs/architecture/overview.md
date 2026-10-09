@@ -1,15 +1,9 @@
 # Architecture
 
-Converge is one Rust 2024 native binary assembled from replaceable crates:
+Converge is a Rust 2024 Cargo workspace. `converge-cli` coordinates concrete adapters. `converge-model` contains I/O-free contracts; `converge-core` contains configuration, provenance, stable errors and service abstractions.
 
-- `converge-model` owns stable serialized contracts and contains no I/O.
-- `converge-core` owns policy, configuration precedence, and error taxonomy.
-- `converge-discovery` reads repository evidence with native TOML parsers and Tree-sitter.
-- `converge-graph` creates deterministic typed property graphs.
-- `converge-planner` diagnoses evidence and ranks typed repairs.
-- `converge-sandbox` applies candidate edits only to temporary snapshots.
-- `converge-executor` invokes allowlisted tools and performs atomic host transactions.
-- `converge-store` persists derived graph and append-only audit state in SQLite WAL mode.
-- `converge-report` emits terminal, JSON, and SARIF output.
+Discovery parses Python evidence, probes host tools and computes a deterministic fingerprint. The planner scopes diagnoses to project boundaries and generates supported uv repair actions. The graph crate builds stable typed nodes and edges. The sandbox copies and validates candidate content; the executor invokes uv, owns host transaction guards, and restores snapshots. The store owns rusqlite migrations, atomic graph/audit persistence and read-only audit queries. Report and telemetry crates format output and initialize local traces.
 
-The core correctness path is deterministic and does not call an AI model.
+This is a rule-based planner with uv as the package resolver. General solver adapters, security integrations, additional ecosystem executors, MCP transport and broad project verification discovery remain future work. The README's [crate table](../../README.md#architecture) and [scope matrix](../../README.md#supported-behavior) describe the implemented boundaries.
+
+Public JSON/configuration contracts remain 1.0.0. Internal snapshot metadata gains backward-compatible optional fields for prior receipts and post-apply fingerprints; new attempt directories use UUIDs. SQLite's existing graph and audit table shapes remain unchanged.

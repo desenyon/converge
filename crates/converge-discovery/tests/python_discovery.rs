@@ -45,7 +45,7 @@ fn discovers_undeclared_imports_as_evidence_without_diagnosing() {
         .map(|item| item.module.as_str())
         .collect();
     assert_eq!(modules, ["httpx", "rich"]);
-    assert!(snapshot.projects[0].dependencies.is_empty());
+    assert_eq!(snapshot.projects[0].dependencies.len(), 0);
 }
 
 #[test]

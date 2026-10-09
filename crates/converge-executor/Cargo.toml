@@ -17,6 +17,7 @@ fs2.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 converge-planner = { version = "=0.1.0", path = "../converge-planner" }

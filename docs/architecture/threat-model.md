@@ -1,20 +1,26 @@
 # Threat model
 
-Repository files, manifests, lockfiles, source code, dependency metadata, subprocess output, and network responses are untrusted.
+Converge analyzes repository evidence and executes installed uv. Supported plans may install dependencies and import curated third-party modules. Both dependency build hooks and imports can execute arbitrary code with the current user's privileges. Use trusted projects or run Converge within an external container/VM.
 
-Controls currently enforced:
+Implemented controls:
 
-1. Explicit canonical target directories.
-2. Read-only discovery and planning.
-3. Tree-sitter and structured format parsers rather than shell parsing.
-4. No shell interpolation for external tools.
-5. An allowlisted uv process adapter with timeouts and bounded captured output.
-6. Temporary-copy validation before host mutation.
-7. Source fingerprint recheck while holding a repository state lock.
-8. Repository-relative path validation.
-9. Atomic file replacement and recoverable snapshots.
-10. Failure-injection rollback tests at every transaction phase.
-11. Local-only logs and telemetry disabled by default.
-12. Basic secret redaction before tool output persistence.
+- Explicit target resolution and copied-source fingerprint validation.
+- Typed root manifest/lock edits; no free-form shell repair scripts.
+- Symlink rejection during copy, transaction-path validation, and database-file checks.
+- One cooperative writer lock through host mutation, checks, and audit persistence.
+- Unique snapshots, a pending recovery journal, and explicit rollback errors.
+- Source-change detection before apply and before undo of new committed snapshots.
+- uv `--offline` for network-deny policy, bounded per-command time, bounded concurrent output capture, and null stdin.
+- Forced absolute target `.venv`, removal of inherited virtual-environment/Python path overrides, and no automatic Python downloads.
+- Basic secret-key line redaction in captured validation output.
 
-The filesystem-copy sandbox is isolation from host mutation, not a hostile-code security boundary. Converge 0.1 does not execute project test code automatically.
+Limits:
+
+- Filesystem-copy validation separates candidate files; it is not OS isolation. Build hooks/imports can access files and network outside the copy.
+- uv's offline flag does not enforce a firewall on descendants.
+- Only the direct subprocess is killed/reaped on timeout; descendants are not guaranteed to terminate.
+- No disk/process quotas, comprehensive secret scanner, advisory scanner, signature verification, or SBOM backend is implemented.
+- Version discovery probes use two-second deadlines and 8 KiB per-stream caps. Validation retains at most a 64 KiB prefix per stream plus a truncation marker while draining both streams.
+- The lock coordinates Converge writers, not other tools or hostile filesystem races.
+- Original manifest snapshots are not redacted, and basic output redaction cannot detect every secret format.
+- Filesystem changes and the database have separate commit points; interrupted attempts require recovery, not an assumption that a persisted audit proves final commit.

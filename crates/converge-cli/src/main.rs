@@ -14,6 +14,12 @@ use converge_core::ConvergeError;
     about = "Local-first dependency intelligence"
 )]
 struct Cli {
+    /// Prohibit uv network access (also available through configuration).
+    #[arg(long, global = true)]
+    offline: bool,
+    /// Maximum time in seconds for each external command.
+    #[arg(long, global = true, value_parser = clap::value_parser!(u64).range(1..))]
+    timeout: Option<u64>,
     #[command(subcommand)]
     command: Command,
 }
@@ -87,9 +93,6 @@ struct SolveArgs {
     /// Permit a validated plan to be applied noninteractively.
     #[arg(long)]
     yes: bool,
-    /// Prohibit network access.
-    #[arg(long)]
-    offline: bool,
     /// Prohibit lockfile changes.
     #[arg(long)]
     frozen: bool,
@@ -107,9 +110,6 @@ struct ApplyArgs {
     /// Confirm noninteractive host mutation.
     #[arg(long)]
     yes: bool,
-    /// Prohibit network access.
-    #[arg(long)]
-    offline: bool,
     /// Emit schema-versioned JSON only.
     #[arg(long)]
     json: bool,
@@ -153,10 +153,15 @@ async fn main() -> ExitCode {
 
 #[allow(clippy::too_many_lines)]
 async fn run(cli: Cli) -> Result<u8, ConvergeError> {
+    let overrides = converge_core::ConfigOverrides {
+        network: cli.offline.then_some(converge_model::NetworkPolicy::Deny),
+        command_timeout_seconds: cli.timeout,
+        ..Default::default()
+    };
     match cli.command {
         Command::Discover(args) => {
             reject_sarif(&args)?;
-            let snapshot = converge_discovery::discover(args.path)?;
+            let snapshot = converge_discovery::discover(&args.path)?;
             if args.json {
                 println!("{}", converge_report::to_json(&snapshot)?);
             } else {
@@ -171,7 +176,7 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
         }
         Command::Graph(args) => {
             reject_sarif(&args)?;
-            let snapshot = converge_discovery::discover(args.path)?;
+            let snapshot = converge_discovery::discover(&args.path)?;
             let graph = converge_graph::build_graph(&snapshot);
             if args.json {
                 println!("{}", converge_report::to_json(&graph)?);
@@ -185,7 +190,7 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
             Ok(0)
         }
         Command::Check(args) | Command::Diagnose(args) => {
-            let snapshot = converge_discovery::discover(args.path)?;
+            let snapshot = converge_discovery::discover(&args.path)?;
             let report = converge_planner::diagnose(&snapshot);
             if args.json {
                 println!("{}", converge_report::to_json(&report)?);
@@ -205,9 +210,10 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
         }
         Command::Plan(args) => {
             reject_sarif(&args)?;
-            let snapshot = converge_discovery::discover(args.path)?;
+            let snapshot = converge_discovery::discover(&args.path)?;
             let diagnostics = converge_planner::diagnose(&snapshot);
-            let plan = converge_planner::plan(&snapshot, &diagnostics);
+            let config = effective_config(&args.path, &overrides)?;
+            let plan = converge_planner::plan_with_config(&snapshot, &diagnostics, &config.config);
             if args.json {
                 println!("{}", converge_report::to_json(&plan)?);
             } else {
@@ -220,7 +226,7 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
         }
         Command::Explain(args) => {
             reject_sarif(&args)?;
-            let snapshot = converge_discovery::discover(args.path)?;
+            let snapshot = converge_discovery::discover(&args.path)?;
             let report = converge_planner::diagnose(&snapshot);
             if args.json {
                 println!("{}", converge_report::to_json(&report)?);
@@ -241,8 +247,12 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
             reject_sarif(&args)?;
             let snapshot = converge_discovery::discover(&args.path)?;
             let diagnostics = converge_planner::diagnose(&snapshot);
-            let plan = converge_planner::plan(&snapshot, &diagnostics);
-            let report = converge_sandbox::validate(&args.path, &plan, false).await?;
+            let config = effective_config(&args.path, &overrides)?;
+            let plan = converge_planner::plan_with_config(&snapshot, &diagnostics, &config.config);
+            let validated =
+                converge_sandbox::validate_prepared_with_config(&args.path, &plan, &config.config)
+                    .await?;
+            let report = validated.report();
             if args.json {
                 println!("{}", converge_report::to_json(&report)?);
             } else {
@@ -255,14 +265,15 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
             Ok(if report.passed { 0 } else { 5 })
         }
         Command::Apply(args) => {
-            if !args.yes {
+            let config = execution_config(&args.path, &overrides, args.yes)?;
+            if !config.config.auto_apply {
                 return Err(ConvergeError::InvalidInvocation(
                     "apply requires --yes after reviewing the plan identifier".to_owned(),
                 ));
             }
             let snapshot = converge_discovery::discover(&args.path)?;
             let diagnostics = converge_planner::diagnose(&snapshot);
-            let plan = converge_planner::plan(&snapshot, &diagnostics);
+            let plan = converge_planner::plan_with_config(&snapshot, &diagnostics, &config.config);
             if plan.plan_id != args.plan_id {
                 return Err(ConvergeError::Validation(format!(
                     "plan identifier does not match current repository state; expected {}",
@@ -274,7 +285,7 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
                     "selected plan contains no host mutation".to_owned(),
                 ));
             }
-            let (verification, receipt) = apply_workflow(&args.path, &plan, args.offline).await?;
+            let (verification, receipt) = apply_workflow(&args.path, &plan, &config).await?;
             if args.json {
                 println!("{}", converge_report::to_json(&receipt)?);
             } else {
@@ -312,7 +323,7 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
             Ok(0)
         }
         Command::Solve(args) => {
-            let (report, code) = solve_workflow(&args).await?;
+            let (report, code) = solve_workflow(&args, &overrides).await?;
             if args.json {
                 println!("{}", converge_report::to_json(&report)?);
             } else {
@@ -334,18 +345,7 @@ async fn run(cli: Cli) -> Result<u8, ConvergeError> {
             command: ConfigCommand::Explain(args),
         }) => {
             reject_sarif(&args)?;
-            let environment: BTreeMap<_, _> = std::env::vars()
-                .filter(|(name, _)| name.starts_with("CONVERGE_"))
-                .collect();
-            let user = std::env::var_os("HOME")
-                .map(PathBuf::from)
-                .map(|home| home.join(".config/converge/config.toml"));
-            let explanation = converge_core::resolve_config(
-                &args.path,
-                user.as_deref(),
-                &environment,
-                &converge_core::ConfigOverrides::default(),
-            )?;
+            let explanation = effective_config(&args.path, &overrides)?;
             if args.json {
                 println!("{}", converge_report::to_json(&explanation)?);
             } else {
@@ -370,10 +370,13 @@ fn reject_sarif(args: &TargetArgs) -> Result<(), ConvergeError> {
 
 async fn solve_workflow(
     args: &SolveArgs,
+    overrides: &converge_core::ConfigOverrides,
 ) -> Result<(converge_model::SolveReport, u8), ConvergeError> {
     let discovery = converge_discovery::discover(&args.path)?;
     let diagnostics = converge_planner::diagnose(&discovery);
-    let selected_plan = converge_planner::plan(&discovery, &diagnostics);
+    let config = execution_config(&args.path, overrides, args.yes)?;
+    let selected_plan =
+        converge_planner::plan_with_config(&discovery, &diagnostics, &config.config);
 
     if args.frozen
         && selected_plan.actions.iter().any(|action| {
@@ -409,21 +412,38 @@ async fn solve_workflow(
         }],
     };
 
+    let reproduction = &mut report.reproduction[0].arguments;
+    if config.config.network == converge_model::NetworkPolicy::Deny {
+        reproduction.push("--offline".to_owned());
+    }
+    reproduction.extend([
+        "--timeout".to_owned(),
+        config.config.command_timeout_seconds.to_string(),
+    ]);
+    if args.frozen {
+        reproduction.push("--frozen".to_owned());
+    }
     if args.dry_run {
         return Ok((report, 0));
     }
-    if requires_mutation(&report.selected_plan) && !args.yes {
+    if requires_mutation(&report.selected_plan) && !args.yes && !config.config.auto_apply {
         return Ok((report, 1));
     }
 
     if requires_mutation(&report.selected_plan) {
         let (verification, receipt) =
-            apply_workflow(&args.path, &report.selected_plan, args.offline).await?;
+            apply_workflow(&args.path, &report.selected_plan, &config).await?;
         report.verification = Some(verification);
         report.applied_changes = Some(receipt);
     } else {
-        let verification =
-            converge_sandbox::validate(&args.path, &report.selected_plan, args.offline).await?;
+        let verification = converge_sandbox::validate_prepared_with_config(
+            &args.path,
+            &report.selected_plan,
+            &config.config,
+        )
+        .await?
+        .report()
+        .clone();
         let code = if verification.passed { 0 } else { 5 };
         report.verification = Some(verification);
         return Ok((report, code));
@@ -434,7 +454,7 @@ async fn solve_workflow(
 async fn apply_workflow(
     target: &std::path::Path,
     plan: &converge_model::RepairPlan,
-    offline: bool,
+    config: &converge_model::ConfigExplanation,
 ) -> Result<
     (
         converge_model::VerificationReport,
@@ -442,59 +462,61 @@ async fn apply_workflow(
     ),
     ConvergeError,
 > {
-    let validated = converge_sandbox::validate_prepared(target, plan, offline).await?;
+    let validated =
+        converge_sandbox::validate_prepared_with_config(target, plan, &config.config).await?;
     let mut verification = validated.report().clone();
     if !verification.passed {
-        return Err(ConvergeError::Validation(
-            "one or more required sandbox checks failed".to_owned(),
-        ));
+        let failed = verification.checks.iter().find(|check| !check.passed);
+        return Err(ConvergeError::Validation(format!(
+            "required sandbox check failed: {}",
+            failed.map_or("no check result", |check| check.stderr.as_str())
+        )));
     }
-    let receipt =
-        converge_executor::apply_validated(target, validated.root(), plan, &verification)?;
-
-    let environment_check =
-        match converge_executor::synchronize_environment(target, plan, offline).await {
-            Ok(check) => check,
-            Err(error) => return rollback_after_apply(target, &error),
-        };
-    verification.checks.push(environment_check);
-
-    let final_snapshot = match converge_discovery::discover(target) {
-        Ok(snapshot) => snapshot,
-        Err(error) => return rollback_after_apply(target, &error),
-    };
-    let graph = converge_graph::build_graph(&final_snapshot);
-    let state_path = target.join(".converge/state.db");
-    let state = match converge_store::Store::open(&state_path) {
-        Ok(state) => state,
-        Err(error) => return rollback_after_apply(target, &error),
-    };
-    if let Err(error) = state.replace_graph(&graph.source_fingerprint, &graph.nodes, &graph.edges) {
-        return rollback_after_apply(target, &error);
+    let mut transaction = converge_executor::ApplicationTransaction::begin(
+        target,
+        validated.root(),
+        plan,
+        &verification,
+    )?;
+    match transaction.synchronize(plan, &config.config).await {
+        Ok(checks) => verification.checks.extend(checks),
+        Err(error) => return Err(transaction.rollback(&error)),
     }
-    let audit = match serde_json::to_string(&(&receipt, &verification)) {
-        Ok(audit) => audit,
-        Err(error) => {
-            let error = ConvergeError::Invariant(error.to_string());
-            return rollback_after_apply(target, &error);
-        }
-    };
-    if let Err(error) = state.append_audit_event(&format!("apply:{}", plan.plan_id), &audit) {
-        return rollback_after_apply(target, &error);
-    }
+    let receipt = transaction.commit(|receipt| {
+        let final_snapshot = converge_discovery::discover(target)?;
+        let graph = converge_graph::build_graph(&final_snapshot);
+        let state = converge_store::Store::open(&target.join(".converge/state.db"))?;
+        let audit = serde_json::to_string(&serde_json::json!({"receipt": receipt, "verification": verification, "configuration": config, "plan": plan, "sourceFingerprintAfter": graph.source_fingerprint}))
+            .map_err(|error| ConvergeError::Invariant(error.to_string()))?;
+        state.record_application(&graph, &format!("apply:{}", receipt.snapshot_path), &audit)
+    })?;
     Ok((verification, receipt))
 }
 
-fn rollback_after_apply<T>(
+fn execution_config(
     target: &std::path::Path,
-    cause: &ConvergeError,
-) -> Result<T, ConvergeError> {
-    match converge_executor::undo_last(target) {
-        Ok(_) => Err(ConvergeError::MutationRolledBack(cause.to_string())),
-        Err(rollback) => Err(ConvergeError::RollbackFailed(format!(
-            "original error: {cause}; rollback error: {rollback}"
-        ))),
+    overrides: &converge_core::ConfigOverrides,
+    yes: bool,
+) -> Result<converge_model::ConfigExplanation, ConvergeError> {
+    let mut overrides = overrides.clone();
+    if yes {
+        overrides.auto_apply = Some(true);
     }
+    effective_config(target, &overrides)
+}
+
+fn effective_config(
+    target: &std::path::Path,
+    overrides: &converge_core::ConfigOverrides,
+) -> Result<converge_model::ConfigExplanation, ConvergeError> {
+    let environment: BTreeMap<_, _> = std::env::vars()
+        .filter(|(name, _)| name.starts_with("CONVERGE_"))
+        .collect();
+    let user = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .map(|home| home.join(".config/converge/config.toml"));
+    converge_core::resolve_config(target, user.as_deref(), &environment, overrides)
 }
 
 fn requires_mutation(plan: &converge_model::RepairPlan) -> bool {

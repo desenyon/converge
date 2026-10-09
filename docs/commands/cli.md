@@ -1,15 +1,24 @@
-# Commands
+# CLI reference
 
-Primary commands:
+Run `converge --help` and `converge COMMAND --help` for the exact parser contract. The [README command table](../../README.md#cli-and-output) lists all implemented commands and stable exit codes.
 
-```text
-converge solve [PATH] [--dry-run] [--yes] [--offline] [--frozen] [--json]
-converge check [PATH] [--json|--sarif]
-converge explain [PATH] [--json]
-converge verify [PATH] [--json]
-converge undo [PATH] [--json]
+Common flows:
+
+```bash
+converge discover . --json
+converge check . --sarif
+converge plan . --offline --timeout 60 --json
+converge solve . --dry-run --json
+converge verify . --offline --timeout 60 --json
+converge solve . --yes --offline
+converge apply . PLAN_ID --yes --offline --timeout 60
+converge audit . --json
+converge undo . --json
+converge config explain . --json
 ```
 
-Advanced implemented commands are `discover`, `graph`, `diagnose`, `plan`, `apply`, `tools`, `doctor`, and `config explain`.
+`--offline` and `--timeout` are global. `--frozen` belongs to solve and rejects any lock generation/refresh action. `--yes` belongs to solve/apply; it overrides `autoApply` for execution consent. Configuration applies to planning and execution, so plan/apply must use the same network/timeout policy to obtain the same ID.
 
-`solve` does not mutate unless `--yes` is present. `--dry-run` stops after deterministic planning. `--offline` is passed to every uv invocation. `--frozen` rejects plans that require lockfile changes.
+`verify` validates the proposed repair in a temporary copy, including actual installation and curated import checks; it does not synchronize the host environment. An empty contract or unsupported backend is a validation failure. Dry runs perform no verification and are not proof of a working environment.
+
+`--json` emits one versioned document on stdout. `--sarif` is only supported for check/diagnose. The audit command reads existing state without creating a database. Tools/doctor currently report uv capability only. No env, lock, export or MCP command is implemented.
