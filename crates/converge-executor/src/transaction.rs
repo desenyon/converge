@@ -379,12 +379,12 @@ pub fn undo_last(target: &Path) -> Result<UndoReceipt, ConvergeError> {
     let target = target.canonicalize().map_err(store_error)?;
     let _lock = RepositoryLock::acquire(&target)?;
     let pending = read_pointer(&target, "pending")?;
-    let attempt = pending
-        .clone()
-        .or(read_pointer(&target, "last_applied")?)
-        .ok_or_else(|| {
-            ConvergeError::InvalidInvocation("no applied transaction to undo".to_owned())
-        })?;
+    let attempt = if pending.is_some() {
+        pending.clone()
+    } else {
+        read_pointer(&target, "last_applied")?
+    }
+    .ok_or_else(|| ConvergeError::InvalidInvocation("no applied transaction to undo".to_owned()))?;
     let snapshot = checked_path(&target, &format!(".converge/snapshots/{attempt}"))?;
     let metadata = read_metadata(&snapshot)?;
     if pending.is_none()

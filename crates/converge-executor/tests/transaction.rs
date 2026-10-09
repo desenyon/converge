@@ -367,6 +367,7 @@ fn rollback_failure_retains_recovery_journal_and_can_be_retried() {
         .is_err()
     );
     std::fs::write(backup, &original).unwrap();
+    std::fs::write(target.path().join(".converge/last_applied"), "../invalid").unwrap();
     undo_last(target.path()).unwrap();
     assert_eq!(
         std::fs::read(target.path().join("pyproject.toml")).unwrap(),
