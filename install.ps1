@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 $Version = if ($env:CONVERGE_VERSION) { $env:CONVERGE_VERSION } else { "0.1.0" }
 $InstallDir = if ($env:CONVERGE_INSTALL_DIR) { $env:CONVERGE_INSTALL_DIR } else { "$HOME\bin" }
 $Archive = "converge-x86_64-pc-windows-msvc.zip"
-$Base = "https://github.com/concatenate-ai/converge/releases/download/v$Version"
+$Base = "https://github.com/desenyon/converge/releases/download/v$Version"
 $Temporary = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
 
 New-Item -ItemType Directory -Path $Temporary | Out-Null

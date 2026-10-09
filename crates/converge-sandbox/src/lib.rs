@@ -5,7 +5,8 @@ use std::str::FromStr;
 
 use converge_core::ConvergeError;
 use converge_model::{
-    RepairAction, RepairPlan, SCHEMA_VERSION, ToolInvocation, VerificationReport,
+    Config, NetworkPolicy, RepairAction, RepairPlan, SCHEMA_VERSION, ToolInvocation,
+    VerificationReport,
 };
 use tempfile::TempDir;
 use toml_edit::{Array, DocumentMut, value};
@@ -48,6 +49,15 @@ impl PreparedSandbox {
             tempfile::tempdir().map_err(|error| ConvergeError::Validation(error.to_string()))?;
         let root = directory.path().join("repository");
         copy_repository(target, &root)?;
+        if converge_discovery::discover(&root)?
+            .repository
+            .source_fingerprint
+            != plan.source_fingerprint
+        {
+            return Err(ConvergeError::Validation(
+                "copied repository fingerprint differs from the selected plan".to_owned(),
+            ));
+        }
         apply_file_actions(&root, plan)?;
         Ok(Self { directory, root })
     }
@@ -88,36 +98,79 @@ pub async fn validate_prepared(
     plan: &RepairPlan,
     offline: bool,
 ) -> Result<ValidatedSandbox, ConvergeError> {
-    let sandbox = PreparedSandbox::create(target, plan)?;
-    let mut checks = Vec::new();
+    let config = Config {
+        network: if offline {
+            NetworkPolicy::Deny
+        } else {
+            NetworkPolicy::Allow
+        },
+        ..Config::default()
+    };
+    validate_prepared_with_config(target, plan, &config).await
+}
 
+/// Validate with the effective network and timeout policy, retaining the candidate files.
+///
+/// # Errors
+/// Rejects an empty required contract and returns sandbox or subprocess failures.
+pub async fn validate_prepared_with_config(
+    target: &Path,
+    plan: &RepairPlan,
+    config: &Config,
+) -> Result<ValidatedSandbox, ConvergeError> {
+    if !plan
+        .verification_contract
+        .checks
+        .iter()
+        .any(|check| check.required)
+    {
+        return Err(ConvergeError::Validation(
+            "no supported required verification contract; this target is discovery-only".to_owned(),
+        ));
+    }
+    let sandbox = PreparedSandbox::create(target, plan)?;
+    let mut invocations = vec![ToolInvocation {
+        tool: "uv".to_owned(),
+        arguments: vec!["--version".to_owned()],
+        required: true,
+        timeout_seconds: config.command_timeout_seconds,
+    }];
     for action in &plan.actions {
-        let invocation = match action {
-            RepairAction::GenerateLockfile { tool, .. }
-            | RepairAction::RefreshLockfile { tool, .. } => Some(ToolInvocation {
+        if let RepairAction::GenerateLockfile { tool, .. }
+        | RepairAction::RefreshLockfile { tool, .. } = action
+        {
+            invocations.push(ToolInvocation {
                 tool: tool.clone(),
                 arguments: vec!["lock".to_owned()],
                 required: true,
-                timeout_seconds: 300,
-            }),
-            _ => None,
-        };
-        if let Some(invocation) = invocation {
-            checks.push(converge_executor::run_tool(&invocation, sandbox.root(), offline).await?);
+                timeout_seconds: config.command_timeout_seconds,
+            });
         }
     }
-
-    for invocation in &plan.verification_contract.checks {
-        checks.push(converge_executor::run_tool(invocation, sandbox.root(), offline).await?);
+    invocations.extend(plan.verification_contract.checks.clone());
+    let mut checks = Vec::new();
+    let mut passed = true;
+    for mut invocation in invocations {
+        invocation.timeout_seconds = config.command_timeout_seconds;
+        let check = converge_executor::run_tool(
+            &invocation,
+            sandbox.root(),
+            config.network == NetworkPolicy::Deny,
+        )
+        .await?;
+        let failed = invocation.required && !check.passed;
+        checks.push(check);
+        if failed {
+            passed = false;
+            break;
+        }
     }
-
-    let passed = checks.iter().all(|check| check.passed);
     let report = VerificationReport {
         schema_version: SCHEMA_VERSION.to_owned(),
         kind: "verificationReport".to_owned(),
         plan_id: plan.plan_id.clone(),
         source_fingerprint: plan.source_fingerprint.clone(),
-        network_allowed: !offline,
+        network_allowed: config.network == NetworkPolicy::Allow,
         passed,
         checks,
     };
@@ -178,6 +231,11 @@ fn apply_file_actions(root: &Path, plan: &RepairPlan) -> Result<(), ConvergeErro
                 group,
                 ..
             } if group == "default" => {
+                if manifest_path != "pyproject.toml" {
+                    return Err(ConvergeError::Validation(
+                        "only the root pyproject.toml is supported for mutation".to_owned(),
+                    ));
+                }
                 add_project_dependency(&root.join(manifest_path), distribution)?;
             }
             RepairAction::AddDependency { group, .. } => {

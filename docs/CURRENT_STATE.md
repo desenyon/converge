@@ -1,11 +1,12 @@
 # Current state
 
-- Active phase: first-release hardening after Phase 6
-- Active invariant: no host mutation before the exact plan passes isolated uv validation
-- Completed work: Rust workspace, versioned contracts, configuration provenance, SQLite migrations, Python PEP 621/uv discovery, Poetry/Conda/uv-workspace read-only discovery, Tree-sitter imports, typed graph with workspace nodes, diagnostics, deterministic plans, SARIF, sandbox validation, atomic apply, host environment synchronization, audit persistence, undo, one-command solve, and a one-command macOS/Linux bootstrap installer
-- Tests passing: workspace unit/integration/acceptance suite; Poetry, Conda, and uv workspace discovery fixtures; failure injection at every transaction phase; hermetic installer installation, PATH, verification, and idempotency acceptance
-- Known failures: none in the verified PEP 621 plus uv path; Poetry/Conda remain discovery-only
-- Architectural decisions: Rust 2024; rusqlite with bundled SQLite; uv process adapter; Tree-sitter Python; yaml-rust2 for Conda environment files; atomic-write-file; cargo-dist release metadata
-- Changed schemas: discovery snapshot now includes `workspaces` and project `backend`; output schema family remains 1.0.0, configuration schema 1.0.0, audit event schema 1.0.0
-- Immediate next task: add format-specific Poetry/Conda repair adapters only after authoritative backend validation succeeds; expand pip-tools/local/Git acceptance fixtures
-- Exact first command: cargo test --workspace --all-features
+- Active phase: first-release Python/uv hardening after Phase 6.
+- Active invariant: a nonempty required contract must pass in a copied target before the exact candidate reaches a host transaction; that transaction owns one writer lock through environment checks and persistence.
+- Implemented: effective typed configuration/provenance; scoped Python diagnostics; safe execution gating for one root PEP 621/uv project; missing-lock and environment actions; actual sandbox install and curated runtime imports; bounded process output/timeouts; unique attempt snapshots; journaled environment backup; lock-held apply/check/audit; explicit rollback failure and recovery; post-apply edit protection on new undo receipts; atomic graph/application-audit database updates.
+- Regression coverage: config types/precedence, empty verification, backend refusal, sibling projects, lock generation, real offline solve/undo/retry, environment overrides and relative paths, concurrent writers, all exposed transaction failure points, metadata/audit failure, broken backup recovery, bounded output, timeout and network policy.
+- Architecture: Rust 2024 crate boundaries preserved; uv remains external and authoritative; rusqlite with explicit migrations; Tree-sitter imports; no new major dependency family.
+- Contracts: public schemas remain 1.0.0; no SQLite table migration; internal metadata adds defaulted prior-receipt and post-apply fingerprint fields. New snapshots use attempt UUIDs; old plan-named snapshots remain readable.
+- Limitations: discovery-only alternate/mixed/nested backends; no project test/lint/type/security discovery, OS sandbox, process-tree limit, broad solver, or MCP transport. File/SQLite commit points are separate; undo does not append audit or refresh the derived graph; old snapshots lack new edit protection.
+- Immediate next work: broaden authoritative backend fixtures for local/Git/native dependency cases and implement audited recovery lifecycle before expanding execution backends.
+- First validation command: `cargo test --workspace --all-features --locked -j 2` (requires uv and installed compatible Python). See HANDOFF for publication/check evidence.
+- Local validation completed: 55 default workspace tests and the separately invoked real public-registry acceptance passed; formatting, strict Clippy, release build, rustdoc, installer acceptance and release-binary offline plan/apply/verify/undo smoke passed. Hosted platform/quality results are tracked on the improvement branch's CI run.

@@ -68,6 +68,12 @@ pub fn resolve_config(
     apply_environment(environment, &mut config, &mut sources)?;
     apply_cli(cli, &mut config, &mut sources);
 
+    if config.command_timeout_seconds == 0 {
+        return Err(ConvergeError::InvalidInvocation(
+            "commandTimeoutSeconds must be positive".to_owned(),
+        ));
+    }
+
     let settings = vec![
         ResolvedSetting {
             name: "network".to_owned(),
@@ -136,6 +142,19 @@ fn apply_table(
             "{source} configuration must be a TOML table"
         )));
     };
+    for (name, value) in table {
+        let valid = match name.as_str() {
+            "network" => value.is_str(),
+            "autoApply" | "telemetry" => value.is_bool(),
+            "commandTimeoutSeconds" => value.is_integer(),
+            _ => false,
+        };
+        if !valid {
+            return Err(ConvergeError::InvalidInvocation(format!(
+                "{source}: unknown setting or invalid type for {name}"
+            )));
+        }
+    }
     if let Some(value) = table.get("network").and_then(toml::Value::as_str) {
         config.network = parse_network(value)?;
         sources.insert("network", source);

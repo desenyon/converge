@@ -24,7 +24,7 @@ fn diagnoses_missing_dependencies_with_source_evidence() {
         .collect();
     assert_eq!(missing.len(), 2);
     assert_eq!(missing[0].severity, Severity::Error);
-    assert!(!missing[0].evidence.is_empty());
+    assert_ne!(missing[0].evidence.len(), 0);
     assert!(missing[0].blocks_environment_creation);
 }
 
@@ -54,5 +54,5 @@ fn declared_same_name_import_is_usage_evidence_not_a_missing_guess() {
     let snapshot = discover(temp.path()).expect("discover");
     let report = diagnose(&snapshot);
 
-    assert!(report.diagnostics.is_empty());
+    assert_eq!(report.diagnostics.len(), 0);
 }

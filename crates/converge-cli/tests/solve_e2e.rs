@@ -21,13 +21,18 @@ fn copy_fixture(destination: &Path) {
 }
 
 #[test]
+#[ignore = "requires public package registry access; run explicitly in CI"]
 fn solve_validates_applies_installs_and_undoes() {
     let target = tempfile::tempdir().expect("target");
     copy_fixture(target.path());
     let original = std::fs::read_to_string(target.path().join("pyproject.toml")).expect("original");
+    let cache = tempfile::tempdir().expect("isolated uv cache");
 
     let solve = Command::new(env!("CARGO_BIN_EXE_converge"))
         .args(["solve", "--yes", "--json"])
+        .env("UV_CACHE_DIR", cache.path())
+        .env("CONVERGE_NETWORK", "allow")
+        .env("CONVERGE_COMMAND_TIMEOUT_SECONDS", "60")
         .arg(target.path())
         .output()
         .expect("solve");

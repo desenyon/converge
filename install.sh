@@ -4,7 +4,7 @@ set -Eeuo pipefail
 rust_version="${CONVERGE_RUST_VERSION:-1.96.0}"
 uv_version="${CONVERGE_UV_VERSION:-0.11.28}"
 repository="${CONVERGE_REPOSITORY:-https://github.com/desenyon/converge.git}"
-ref="${CONVERGE_REF:-codex/converge-rust-rebuild}"
+ref="${CONVERGE_REF:-main}"
 install_dir="${CONVERGE_INSTALL_DIR:-$HOME/.local/bin}"
 temporary="$(mktemp -d)"
 trap 'rm -rf "$temporary"' EXIT INT TERM

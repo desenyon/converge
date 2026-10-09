@@ -25,7 +25,9 @@ jobs:
           components: rustfmt, clippy
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - run: cargo test --workspace --all-features
+      - run: cargo test --workspace --all-features --locked
+      - name: Public registry acceptance
+        run: cargo test -p converge-cli --test solve_e2e --locked -- --ignored
       - run: bash -n install.sh tests/installer.bash
         if: runner.os != 'Windows'
       - run: bash tests/installer.bash
